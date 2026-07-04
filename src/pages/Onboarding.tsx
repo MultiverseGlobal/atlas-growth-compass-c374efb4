@@ -73,7 +73,7 @@ const sources = [
 export default function Onboarding() {
   const { user, loading } = useAuth();
   const nav = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialStep = searchParams.get("step") ? parseInt(searchParams.get("step")!) : 0;
   const [step, setStep] = useState(initialStep);
   const [handle, setHandle] = useState("");
@@ -83,6 +83,12 @@ export default function Onboarding() {
 
   const { data: integrations = [], connectGitHub } = useIntegrations();
   const isGitHubConnected = integrations.some(i => i.provider === "github" && i.status === "active");
+
+  // Sync step into URL so OAuth redirect lands on correct step
+  const goToStep = (s: number) => {
+    setStep(s);
+    setSearchParams(s > 0 ? { step: String(s) } : {}, { replace: true });
+  };
 
   useEffect(() => {
     if (!loading && !user) nav("/auth");
@@ -115,13 +121,33 @@ export default function Onboarding() {
     setSelectedSources((cur) => cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id]);
   };
 
-  const next = () => {
-    if (step === 0 && !validHandle) {
-      toast.error("Handle must be 3–20 chars: a-z, 0-9, _");
-      return;
+  const saveProfileDraft = async () => {
+    if (!user || !validHandle) return false;
+    const { error } = await supabase.from("profiles").upsert({
+      id: user.id,
+      handle: cleanHandle,
+      display_name: displayName.trim() || cleanHandle,
+    }, { onConflict: "id" });
+    if (error) { toast.error(error.message); return false; }
+    return true;
+  };
+
+  const next = async () => {
+    if (step === 0) {
+      if (!validHandle) { toast.error("Handle must be 3–20 chars: a-z, 0-9, _"); return; }
+      setSaving(true);
+      const ok = await saveProfileDraft();
+      setSaving(false);
+      if (!ok) return;
     }
     if (!canContinue) return;
-    setStep((cur) => Math.min(cur + 1, steps.length - 1));
+    goToStep(Math.min(step + 1, steps.length - 1));
+  };
+
+  const handleConnectGitHub = async () => {
+    // Ensure handle is saved before redirect so it survives OAuth page reload
+    if (step === 1 && validHandle) await saveProfileDraft();
+    connectGitHub("/onboarding?step=1");
   };
 
   const finish = async () => {
@@ -250,7 +276,7 @@ export default function Onboarding() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => connectGitHub("/onboarding?step=1")}
+                            onClick={() => handleConnectGitHub()}
                             className="shrink-0 gap-1.5 h-8 text-xs font-mono"
                           >
                             <Plug className="h-3 w-3" /> Connect
