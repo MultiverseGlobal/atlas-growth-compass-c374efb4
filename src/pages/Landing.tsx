@@ -142,7 +142,10 @@ export default function Landing() {
 
       <footer className="container border-t border-border py-10 flex items-center justify-between text-sm text-muted-foreground">
         <Logo />
-        <div>© 2026 Atlas</div>
+        <div className="flex items-center gap-4">
+          <Link to="/privacy" className="hover:text-foreground hover:underline">Privacy & Terms</Link>
+          <span>© 2026 Atlas</span>
+        </div>
       </footer>
     </div>
   );

@@ -110,6 +110,9 @@ export default function Auth() {
           </button>
         </div>
       </main>
+      <footer className="container py-6 text-center text-xs text-muted-foreground border-t border-border/40">
+        By continuing, you agree to our <Link to="/privacy" className="underline hover:text-foreground">Privacy & Terms</Link>.
+      </footer>
     </div>
   );
 }

@@ -13,7 +13,7 @@ import {
   type GitHubRepo,
   type GitHubStats,
 } from "@/lib/github";
-import { ArrowLeft, Github, Plug, Trash } from "lucide-react";
+import { ArrowLeft, Github, Plug, Trash, Globe } from "lucide-react";
 import { toast } from "sonner";
 
 type MapData = {
@@ -282,6 +282,22 @@ export default function MapDetails() {
     navigate("/app");
   };
 
+  const togglePublish = async () => {
+    if (!map) return;
+    const nextPublished = !map.is_published;
+    const { error } = await supabase
+      .from("maps")
+      .update({ is_published: nextPublished })
+      .eq("id", map.id);
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      setMap(prev => prev ? { ...prev, is_published: nextPublished } : null);
+      toast.success(nextPublished ? "Map published to public page" : "Map made private");
+    }
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   if (loading) return <div className="p-8 text-center text-sm text-muted-foreground">Loading map…</div>;
@@ -296,10 +312,21 @@ export default function MapDetails() {
         <Link to="/app" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <Button variant="ghost" size="sm" onClick={handleDelete} disabled={deleting}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive">
-          <Trash className="h-4 w-4 mr-1" /> Delete
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={togglePublish}
+            className={`gap-1.5 ${map.is_published ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-muted/10"}`}
+          >
+            <Globe className="h-4.5 w-4.5" />
+            <span>{map.is_published ? "Published" : "Private"}</span>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleDelete} disabled={deleting}
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+            <Trash className="h-4 w-4 mr-1" /> Delete
+          </Button>
+        </div>
       </div>
 
       {/* Goal */}

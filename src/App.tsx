@@ -19,6 +19,7 @@ import Integrations from "./pages/app/Integrations";
 import PublicPagePreview from "./pages/app/PublicPagePreview";
 import Settings from "./pages/app/Settings";
 import PublicProfile from "./pages/PublicProfile";
+import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 
 
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="settings" element={<Settings />} />
             </Route>
             <Route path="/@:handle" element={<PublicProfile />} />
+            <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
