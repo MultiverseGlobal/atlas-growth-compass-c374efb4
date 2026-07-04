@@ -49,53 +49,38 @@ export default function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="container pt-24 pb-28">
-        <div className="max-w-3xl">
-          <Reveal>
-            <h1 className="font-display text-5xl md:text-7xl leading-[0.98] tracking-tight">
-              See what's next.
-            </h1>
-          </Reveal>
-          <Reveal delay={90}>
-            <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-              GitHub, Stripe, and Linear activity → one map, one constraint, one next move.
-            </p>
-          </Reveal>
-          <Reveal delay={180}>
-            <div className="mt-10 flex flex-wrap items-center gap-3">
-              <Link to="/start">
-                <Button size="lg" className="h-12 px-6 text-base">
-                  Start a map <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-              <span className="text-sm text-muted-foreground">One sentence. No signup.</span>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* Example */}
-      <section id="example" className="container border-t border-border py-24">
-        <div className="grid gap-16 lg:grid-cols-[0.9fr_1.1fr] items-start">
+      <section className="container pt-20 pb-20">
+        <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] items-center">
           <div>
             <Reveal>
-              <div className="eyebrow text-primary">How it reads</div>
+              <h1 className="font-display text-5xl md:text-7.5xl leading-[0.98] tracking-tight">
+                See what's next.
+              </h1>
             </Reveal>
-            <Reveal delay={80}>
-              <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">
-                A route, not a dashboard.
-              </h2>
+            <Reveal delay={90}>
+              <p className="mt-6 max-w-xl text-lg text-muted-foreground">
+                GitHub, Stripe, and Linear activity → one map, one constraint, one next move.
+              </p>
+            </Reveal>
+            <Reveal delay={180}>
+              <div className="mt-10 flex flex-wrap items-center gap-3">
+                <Link to="/start">
+                  <Button size="lg" className="h-12 px-6 text-base">
+                    Start a map <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <span className="text-sm text-muted-foreground">One sentence. No signup.</span>
+              </div>
             </Reveal>
           </div>
-
-          <Reveal delay={120} className="rounded-[16px] border border-border bg-card p-8">
+          <Reveal delay={240} className="rounded-[20px] border border-border bg-card p-7 shadow-sm">
             <PreviewTrail />
           </Reveal>
         </div>
       </section>
 
       {/* How it works */}
-      <section id="how" className="container border-t border-border py-24">
+      <section id="how" className="container border-t border-border py-16">
         <Reveal>
           <h2 className="font-display text-3xl md:text-4xl leading-tight">Three steps.</h2>
         </Reveal>
@@ -115,7 +100,7 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="container border-t border-border py-24">
+      <section id="pricing" className="container border-t border-border py-16">
         <Reveal>
           <h2 className="font-display text-3xl md:text-4xl leading-tight">Simple pricing.</h2>
         </Reveal>
