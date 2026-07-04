@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Atlas — paper-warm, cartographic. Redesigned per spec. */
+@layer base {
+  :root {
+    /* Paper canvas */
+    --background: 37 62% 95%;        /* #FBF6EE */
+    --foreground: 150 15% 14%;       /* #1E2A24 ink */
+
+    --card: 38 51% 91%;              /* #F3EBDC paper-2 */
+    --card-foreground: 150 15% 14%;
+
+    --popover: 37 62% 95%;
+    --popover-foreground: 150 15% 14%;
+
+    --surface: 38 51% 91%;
+    --surface-2: 41 39% 86%;
+
+    /* Gold — primary accent (CTAs, goal/anchor pins, "you are here") */
+    --primary: 37 72% 45%;           /* #C4841F */
+    --primary-foreground: 37 62% 95%;
+
+    /* Sage — evidence/signal waypoints */
+    --source: 148 17% 43%;           /* #5C8270 */
+    --source-foreground: 37 62% 95%;
+
+    /* Brick — constraint waypoints (reserved) */
+    --destructive: 7 49% 47%;        /* #B44B3C */
+    --destructive-foreground: 37 62% 95%;
+
+    --secondary: 41 39% 86%;
+    --secondary-foreground: 150 15% 14%;
+
+    --muted: 38 45% 89%;
+    --muted-foreground: 146 8% 39%;  /* ink-soft */
+
+    --accent: 41 39% 86%;
+    --accent-foreground: 150 15% 14%;
+
+    --success: 148 17% 43%;
+    --warning: 37 72% 45%;
+
+    --border: 41 39% 79%;            /* #DCD0B8 line */
+    --input: 41 39% 79%;
+    --ring: 37 72% 45%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 38 51% 91%;
+    --sidebar-foreground: 146 8% 39%;
+    --sidebar-primary: 37 72% 45%;
+    --sidebar-primary-foreground: 37 62% 95%;
+    --sidebar-accent: 41 39% 86%;
+    --sidebar-accent-foreground: 150 15% 14%;
+    --sidebar-border: 41 39% 79%;
+    --sidebar-ring: 37 72% 45%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  h1, h2, h3, h4, .display {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  code, pre, .mono {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.72rem;
+  }
+
+  ::selection { background: hsl(var(--primary) / 0.25); }
+}
+
+@layer components {
+  .hairline { box-shadow: inset 0 0 0 1px hsl(var(--border)); }
+
+  /* Trail — vertical dotted gold line connecting waypoints */
+  .trail-line {
+    background-image: linear-gradient(hsl(var(--primary)) 50%, transparent 0%);
+    background-size: 2px 8px;
+    background-repeat: repeat-y;
+    width: 2px;
+  }
+
+  /* Draw-in animation for the trail */
+  .trail-draw {
+    animation: trail-draw 1.3s ease-out both;
+    transform-origin: top;
+  }
+
+  .waypoint-rise {
+    opacity: 0;
+    animation: waypoint-rise 0.6s ease-out forwards;
+  }
+}
+
+@keyframes trail-draw {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+@keyframes waypoint-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Interactivity polish ---- */
+@layer components {
+  /* Reveal on scroll (in-view) */
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity 700ms cubic-bezier(.2,.7,.2,1), transform 700ms cubic-bezier(.2,.7,.2,1); will-change: opacity, transform; }
+  .reveal.is-visible { opacity: 1; transform: translateY(0); }
+
+  /* Consistent lift on hover for cards */
+  .lift { transition: transform 180ms ease, box-shadow 220ms ease, border-color 220ms ease; }
+  .lift:hover { transform: translateY(-2px); box-shadow: 0 12px 32px -18px hsl(var(--foreground) / 0.25); }
+
+  /* Chip: scale on hover, fill-in on selected */
+  .chip { transition: transform 160ms ease, background-color 200ms ease, border-color 200ms ease, color 200ms ease; }
+  .chip:hover { transform: translateY(-1px) scale(1.02); }
+  .chip[data-selected="true"] {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-color: hsl(var(--primary));
+    transform: translateY(-1px) scale(1.02);
+  }
+
+  /* Sticky header background shift on scroll */
+  .nav-solid { background-color: hsl(var(--background) / 0.85); backdrop-filter: saturate(1.1) blur(10px); border-bottom-color: hsl(var(--border)); box-shadow: 0 1px 0 hsl(var(--border) / 0.6); }
+
+  /* Page-level route fade */
+  .page-fade { animation: page-fade 220ms ease-out both; }
+
+  /* Sidebar sliding active-indicator */
+  .nav-indicator { transition: transform 260ms cubic-bezier(.2,.7,.2,1), height 260ms cubic-bezier(.2,.7,.2,1), opacity 200ms ease; }
+}
+
+@keyframes page-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Global press feedback for interactive elements */
+button:not(:disabled), a[role="button"], [data-press] {
+  transition: transform 120ms ease;
+}
+button:not(:disabled):active, a[role="button"]:active, [data-press]:active {
+  transform: scale(0.97);
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal { opacity: 1 !important; transform: none !important; }
+}
+
