@@ -9,6 +9,7 @@ import { Logo } from "@/components/atlas/Logo";
 import { ArrowRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
+import { friendlyError } from "@/lib/errors";
 
 export default function Auth() {
   const [mode, setMode] = useState<"signin" | "signup">("signup");
@@ -42,8 +43,8 @@ export default function Auth() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-    } catch (err: any) {
-      toast.error(err.message ?? "Authentication failed");
+    } catch (err: unknown) {
+      toast.error(friendlyError(err));
     } finally { setLoading(false); }
   };
 
@@ -57,8 +58,8 @@ export default function Auth() {
         },
       });
       if (error) throw error;
-    } catch (err: any) {
-      toast.error(err.message ?? "Google sign-in failed");
+    } catch (err: unknown) {
+      toast.error(friendlyError(err));
       setLoading(false);
     }
   };

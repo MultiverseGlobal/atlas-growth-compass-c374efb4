@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/errors";
 
 export type IntegrationRow = {
   id: string;
@@ -75,7 +76,7 @@ export function useIntegrations() {
       qc.invalidateQueries({ queryKey: ["integrations", user?.id] });
       toast.success("Integration disconnected");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(friendlyError(err)),
   });
 
   return { ...query, connectGitHub, disconnect };

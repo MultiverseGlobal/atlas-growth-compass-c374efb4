@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { loadStarterMap } from "@/lib/starterMap";
 import { useIntegrations } from "@/hooks/useIntegrations";
+import { friendlyError } from "@/lib/errors";
 
 const steps = ["Public page", "Data sources", "Done"];
 
@@ -128,7 +129,7 @@ export default function Onboarding() {
       handle: cleanHandle,
       display_name: displayName.trim() || cleanHandle,
     }, { onConflict: "id" });
-    if (error) { toast.error(error.message); return false; }
+    if (error) { toast.error(friendlyError(error)); return false; }
     return true;
   };
 
@@ -165,7 +166,8 @@ export default function Onboarding() {
     }, { onConflict: "id" });
 
     if (profileError) {
-      toast.error(profileError.message);
+      toast.error(friendlyError(profileError));
+      if (profileError.message?.includes("handle")) setStep(0);
       setSaving(false);
       return;
     }

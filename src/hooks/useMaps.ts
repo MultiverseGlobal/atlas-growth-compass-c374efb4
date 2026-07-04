@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/errors";
 
 export type MapRow = {
   id: string;
@@ -51,7 +52,7 @@ export function useMaps() {
       qc.invalidateQueries({ queryKey: ["maps", user?.id] });
       toast.success("Map created");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(friendlyError(err)),
   });
 
   const claimStarterMap = useMutation({
@@ -81,7 +82,7 @@ export function useMaps() {
       qc.invalidateQueries({ queryKey: ["maps", user?.id] });
       toast.success("Map saved to your account");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(friendlyError(err)),
   });
 
   return { ...query, createMap, claimStarterMap };

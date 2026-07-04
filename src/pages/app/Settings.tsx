@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Trash2, User, Globe, CreditCard } from "lucide-react";
+import { friendlyError } from "@/lib/errors";
 
 type Profile = {
   handle: string;
@@ -59,7 +60,7 @@ export default function Settings() {
       page_visibility: profile.page_visibility,
     }).eq("id", user.id);
     setSaving(false);
-    error ? toast.error(error.message) : toast.success("Profile saved");
+    error ? toast.error(friendlyError(error)) : toast.success("Profile saved");
   };
 
   const [upgrading, setUpgrading] = useState(false);
@@ -76,8 +77,8 @@ export default function Settings() {
       if (error) throw error;
       setProfile(p => ({ ...p, plan: "atlas" }));
       toast.success("Successfully upgraded to Atlas!");
-    } catch (err: any) {
-      toast.error(err.message ?? "Upgrade failed");
+    } catch (err: unknown) {
+      toast.error(friendlyError(err));
     } finally {
       setUpgrading(false);
     }
