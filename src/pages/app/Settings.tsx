@@ -62,6 +62,27 @@ export default function Settings() {
     error ? toast.error(error.message) : toast.success("Profile saved");
   };
 
+  const [upgrading, setUpgrading] = useState(false);
+  const handleUpgrade = async () => {
+    if (!user) return;
+    setUpgrading(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const { error } = await supabase
+        .from("profiles")
+        .update({ plan: "atlas" })
+        .eq("id", user.id);
+
+      if (error) throw error;
+      setProfile(p => ({ ...p, plan: "atlas" }));
+      toast.success("Successfully upgraded to Atlas!");
+    } catch (err: any) {
+      toast.error(err.message ?? "Upgrade failed");
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/");
@@ -180,7 +201,9 @@ export default function Settings() {
             )}
           </div>
           {profile.plan !== "atlas" && (
-            <Button size="sm" variant="outline">Upgrade</Button>
+            <Button size="sm" variant="outline" onClick={handleUpgrade} disabled={upgrading}>
+              {upgrading ? "Upgrading…" : "Upgrade"}
+            </Button>
           )}
         </div>
       </Section>

@@ -36,7 +36,7 @@ GRANT SELECT ON public.profiles TO anon;
 GRANT ALL ON public.profiles TO service_role;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "profiles readable by all for public pages" ON public.profiles
-  FOR SELECT USING (page_visibility = 'public' OR auth.uid() = id);
+  FOR SELECT USING (page_visibility != 'private');
 CREATE POLICY "users update own profile" ON public.profiles
   FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 CREATE POLICY "users insert own profile" ON public.profiles
@@ -178,7 +178,7 @@ CREATE POLICY "users manage own reports" ON public.reports
 CREATE POLICY "public reports visible to anyone" ON public.reports
   FOR SELECT USING (
     published = true AND EXISTS (
-      SELECT 1 FROM public.profiles p WHERE p.id = reports.user_id AND p.page_visibility = 'public'
+      SELECT 1 FROM public.profiles p WHERE p.id = reports.user_id AND p.page_visibility != 'private'
     )
   );
 
@@ -282,7 +282,7 @@ CREATE POLICY "users manage own maps" ON public.maps
 CREATE POLICY "published maps visible to anon" ON public.maps
   FOR SELECT USING (
     is_published = true AND EXISTS (
-      SELECT 1 FROM public.profiles p WHERE p.id = maps.user_id AND p.page_visibility = 'public'
+      SELECT 1 FROM public.profiles p WHERE p.id = maps.user_id AND p.page_visibility != 'private'
     )
   );
 
@@ -307,7 +307,7 @@ CREATE POLICY "published waypoints visible" ON public.waypoints
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.maps m WHERE m.id = waypoints.map_id AND m.is_published = true
-        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility = 'public')
+        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility != 'private')
     )
   );
 

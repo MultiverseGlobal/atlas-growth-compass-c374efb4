@@ -82,18 +82,34 @@ export default function Landing() {
       {/* How it works */}
       <section id="how" className="container border-t border-border py-16">
         <Reveal>
-          <h2 className="font-display text-3xl md:text-4xl leading-tight">Three steps.</h2>
+          <div className="eyebrow text-primary">How it works</div>
+          <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">A route, not a dashboard.</h2>
+          <p className="mt-3 text-sm text-muted-foreground max-w-xl">
+            Atlas connects to your real tools to diagnose what's actually slowing you down.
+          </p>
         </Reveal>
-        <div className="mt-14 grid gap-6 md:grid-cols-3">
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
           {[
-            { n: "01", t: "State the goal", d: "One sentence. No signup." },
-            { n: "02", t: "Connect a source", d: "GitHub, Stripe, or Linear." },
-            { n: "03", t: "Take the next move", d: "One move, every day." },
+            {
+              n: "01",
+              t: "State your active goal",
+              d: "Draw a map by writing one sentence explaining what you are trying to hit (e.g. 'Get first 10 customers' or 'Raise seed round')."
+            },
+            {
+              n: "02",
+              t: "Link your developer signals",
+              d: "Connect GitHub securely. Atlas reads read-only momentum signals like commit frequencies and velocity changes — never your raw code."
+            },
+            {
+              n: "03",
+              t: "Act on the active blocker",
+              d: "Our goal-aware engine isolates the single constraint blocking progress, provides verified evidence, and gives one concrete move."
+            },
           ].map((s, i) => (
-            <Reveal key={s.n} delay={i * 90} className="rounded-[14px] border border-border bg-card p-6 lift">
+            <Reveal key={s.n} delay={i * 90} className="rounded-[16px] border border-border bg-card p-6 lift">
               <div className="font-mono text-xs text-primary">{s.n}</div>
-              <h3 className="mt-3 font-display text-xl">{s.t}</h3>
-              <p className="mt-1.5 text-sm text-muted-foreground">{s.d}</p>
+              <h3 className="mt-3 font-display text-xl font-semibold">{s.t}</h3>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{s.d}</p>
             </Reveal>
           ))}
         </div>

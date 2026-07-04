@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Lock } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -8,6 +12,33 @@ interface UpgradeModalProps {
 }
 
 export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
+  const { user } = useAuth();
+  const [upgrading, setUpgrading] = useState(false);
+
+  const handleUpgrade = async () => {
+    if (!user) return;
+    setUpgrading(true);
+    try {
+      // Simulate Stripe checkout delay
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ plan: "atlas" })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      toast.success("Welcome to Atlas! Unlimited maps and advanced signals unlocked.");
+      onClose();
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message ?? "Upgrade failed");
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm">
@@ -34,10 +65,10 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
         </div>
 
         <div className="mt-4 space-y-2">
-          <Button className="w-full" onClick={onClose}>
-            Upgrade to Atlas
+          <Button className="w-full" onClick={handleUpgrade} disabled={upgrading}>
+            {upgrading ? "Processing payment…" : "Upgrade to Atlas"}
           </Button>
-          <Button variant="ghost" className="w-full" onClick={onClose}>
+          <Button variant="ghost" className="w-full" onClick={onClose} disabled={upgrading}>
             Maybe later
           </Button>
         </div>
