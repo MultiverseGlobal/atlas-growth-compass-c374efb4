@@ -92,11 +92,7 @@ export default function Home() {
 
         {/* Real maps */}
         {isLoading ? (
-          <div className="space-y-3">
-            {[0, 1].map(i => (
-              <div key={i} className="h-[108px] animate-pulse rounded-[16px] border border-border bg-card" />
-            ))}
-          </div>
+          <CompassLoader />
         ) : maps.length === 0 && !starterMap ? (
           <EmptyState onNew={handleNewMap} />
         ) : (
@@ -106,30 +102,35 @@ export default function Home() {
               <Link
                 key={map.id}
                 to={`/app/map/${map.id}`}
-                className="group block rounded-[16px] border border-border bg-card px-5 py-5 transition-all duration-200 hover:border-primary/30 hover:shadow-sm"
+                className="group block rounded-[16px] border border-border bg-card px-5 py-5 transition-all duration-200 hover:border-primary/30 hover:shadow-sm relative overflow-hidden"
               >
-                {/* Top row */}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${meta.dot}`} />
-                    <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${meta.badge}`}>
-                      {meta.label}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(map.updated_at), { addSuffix: true })}
-                    </span>
+                {/* Cartographic grid background on hover */}
+                <div className="absolute inset-0 bg-grid-dots opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                <div className="relative z-10">
+                  {/* Top row */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${meta.dot}`} />
+                      <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${meta.badge}`}>
+                        {meta.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(map.updated_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
-                </div>
 
-                {/* Goal */}
-                <p className="mt-3 font-medium leading-snug text-foreground">
-                  {map.goal_statement}
-                </p>
+                  {/* Goal */}
+                  <p className="mt-3 font-medium leading-snug text-foreground">
+                    {map.goal_statement}
+                  </p>
 
-                {/* Confidence bar */}
-                <div className="mt-4 h-[2px] w-full rounded-full bg-border/60">
-                  <div className={`h-full rounded-full bg-primary/50 transition-all duration-500 ${meta.bar}`} />
+                  {/* Confidence bar */}
+                  <div className="mt-4 h-[2px] w-full rounded-full bg-border/60">
+                    <div className={`h-full rounded-full bg-primary/50 transition-all duration-500 ${meta.bar}`} />
+                  </div>
                 </div>
               </Link>
             );
@@ -155,6 +156,27 @@ function EmptyState({ onNew }: { onNew: () => void }) {
       <Button onClick={onNew} className="mt-6">
         Draw your first map
       </Button>
+    </div>
+  );
+}
+
+export function CompassLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center py-14 space-y-3.5">
+      <div className="relative">
+        <div className="absolute inset-0 rounded-full border border-primary/20 scale-125" />
+        <svg className="h-10 w-10 text-primary compass-spin relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" fill="currentColor" fillOpacity="0.25" />
+          <line x1="12" y1="2" x2="12" y2="4" strokeLinecap="round" />
+          <line x1="12" y1="20" x2="12" y2="22" strokeLinecap="round" />
+          <line x1="2" y1="12" x2="4" y2="12" strokeLinecap="round" />
+          <line x1="20" y1="12" x2="22" y2="12" strokeLinecap="round" />
+        </svg>
+      </div>
+      <div className="text-[10px] font-mono tracking-widest text-muted-foreground/80 uppercase animate-pulse">
+        Orienting maps…
+      </div>
     </div>
   );
 }

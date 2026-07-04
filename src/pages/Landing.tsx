@@ -49,8 +49,11 @@ export default function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="container pt-20 pb-20">
-        <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] items-center">
+      <section className="container pt-20 pb-20 relative overflow-hidden rounded-[24px] bg-grid-dots border border-border/40 mt-4">
+        <div className="absolute right-6 top-6 font-mono text-[9px] text-muted-foreground/30 select-none tracking-widest hidden sm:block">
+          SYS: 37°46'29.8"N 122°25'09.9"W // MAP_CONF: STARTER
+        </div>
+        <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] items-center relative z-10">
           <div>
             <Reveal>
               <h1 className="font-display text-5xl md:text-7.5xl leading-[0.98] tracking-tight">

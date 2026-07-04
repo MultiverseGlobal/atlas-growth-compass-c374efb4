@@ -13,7 +13,7 @@ import {
   type GitHubRepo,
   type GitHubStats,
 } from "@/lib/github";
-import { ArrowLeft, Github, Plug, Trash, Globe } from "lucide-react";
+import { ArrowLeft, Github, Plug, Trash, Globe, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 type MapData = {
@@ -360,23 +360,25 @@ export default function MapDetails() {
       </div>
 
       {/* Manual Notes */}
-      <div className="mt-12 rounded-[16px] border border-border bg-card p-6">
-        <div className="text-xs font-mono uppercase tracking-widest text-primary">Add context</div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Notes are included in the diagnosis. The more specific, the better.
-        </p>
-        <textarea
-          ref={noteRef}
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          rows={4}
-          placeholder="e.g. We paused GitHub commits this week to focus on outbound — this is intentional"
-          className="mt-4 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-        <div className="mt-3 flex justify-end">
-          <Button size="sm" onClick={saveNote} disabled={savingNote || !note.trim()}>
-            {savingNote ? "Saving…" : "Save and re-diagnose"}
-          </Button>
+      <div className="mt-12 rounded-[16px] border border-border bg-card/75 p-6 bg-parchment-lines relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="text-xs font-mono uppercase tracking-widest text-primary">Add context</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Notes are included in the diagnosis. The more specific, the better.
+          </p>
+          <textarea
+            ref={noteRef}
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            rows={4}
+            placeholder="e.g. We paused GitHub commits this week to focus on outbound — this is intentional"
+            className="mt-4 w-full resize-none rounded-md border border-input bg-background/90 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <div className="mt-3 flex justify-end">
+            <Button size="sm" onClick={saveNote} disabled={savingNote || !note.trim()}>
+              {savingNote ? "Saving…" : "Save and re-diagnose"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -407,8 +409,11 @@ export default function MapDetails() {
             {selectedRepo && (
               <Button variant="outline" size="sm"
                 onClick={() => map && fullSync(selectedRepo, map.goal_statement, note)}
-                disabled={isBusy}>
-                {isBusy ? "Syncing…" : "Force sync"}
+                disabled={isBusy}
+                className="gap-1.5"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isBusy ? "sync-spring-spin" : ""}`} />
+                <span>{isBusy ? "Syncing…" : "Force sync"}</span>
               </Button>
             )}
           </div>

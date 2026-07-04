@@ -52,12 +52,12 @@ export function useIntegrations() {
     enabled: !!user,
   });
 
-  const connectGitHub = () => {
+  const connectGitHub = (redirectPath?: string) => {
     supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
         scopes: "read:user repo",
-        redirectTo: `${window.location.origin}/app/integrations`,
+        redirectTo: `${window.location.origin}${redirectPath ?? "/app/integrations"}`,
         queryParams: { prompt: "consent" },
       },
     });

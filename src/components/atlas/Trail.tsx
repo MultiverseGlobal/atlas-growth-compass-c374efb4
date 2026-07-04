@@ -60,11 +60,18 @@ function Pin({ kind, confidence }: { kind: string; confidence?: string }) {
 export function Trail({ waypoints, onFeedback }: TrailProps) {
   return (
     <div className="relative pl-8">
-      {/* Dotted vertical line */}
-      <div
-        aria-hidden
-        className="trail-line trail-draw absolute left-[10px] top-2 bottom-2"
-      />
+      {/* Flowing SVGs for the cartographic pathway */}
+      <svg className="absolute left-[9px] top-3 bottom-3 w-[4px] h-[calc(100%-24px)] pointer-events-none" aria-hidden="true">
+        <line
+          x1="2"
+          y1="0"
+          x2="2"
+          y2="100%"
+          stroke="hsl(var(--primary) / 0.55)"
+          strokeWidth="2.5"
+          className="flow-line"
+        />
+      </svg>
 
       <ol className="space-y-10">
         {waypoints.map((w, i) => {
@@ -79,8 +86,11 @@ export function Trail({ waypoints, onFeedback }: TrailProps) {
               className="relative waypoint-rise"
               style={{ animationDelay: `${0.5 + i * 0.4}s` }}
             >
-              {/* Pin */}
+              {/* Pin with Sonar ring for Active/Constraint blocking factors */}
               <div className="absolute -left-8 top-0.5">
+                {kind === "constraint" && (
+                  <div className="absolute left-[-2px] top-[-2px] h-[26px] w-[26px] pointer-events-none rounded-full border border-destructive/60 sonar-ring" />
+                )}
                 <Pin kind={kind} confidence={confidence} />
               </div>
 

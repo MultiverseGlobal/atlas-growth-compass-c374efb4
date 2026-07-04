@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,11 @@ import {
   ArrowRight,
   Check,
   ShieldCheck,
+  Globe,
+  Plug,
 } from "lucide-react";
 import { loadStarterMap } from "@/lib/starterMap";
+import { useIntegrations } from "@/hooks/useIntegrations";
 
 const steps = ["Public page", "Data sources", "Done"];
 
@@ -70,11 +73,16 @@ const sources = [
 export default function Onboarding() {
   const { user, loading } = useAuth();
   const nav = useNavigate();
-  const [step, setStep] = useState(0);
+  const [searchParams] = useSearchParams();
+  const initialStep = searchParams.get("step") ? parseInt(searchParams.get("step")!) : 0;
+  const [step, setStep] = useState(initialStep);
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [selectedSources, setSelectedSources] = useState<string[]>(["github"]);
   const [saving, setSaving] = useState(false);
+
+  const { data: integrations = [], connectGitHub } = useIntegrations();
+  const isGitHubConnected = integrations.some(i => i.provider === "github" && i.status === "active");
 
   useEffect(() => {
     if (!loading && !user) nav("/auth");
@@ -101,7 +109,7 @@ export default function Onboarding() {
 
   const canContinue =
     step === 0 ? validHandle :
-    step === 1 ? selectedSources.length > 0 : true;
+    step === 1 ? (selectedSources.length > 0 || isGitHubConnected) : true;
 
   const toggleSource = (id: string) => {
     setSelectedSources((cur) => cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id]);
@@ -214,7 +222,44 @@ export default function Onboarding() {
               <h2 className="mt-2 font-display text-2xl font-semibold">What will you connect?</h2>
               <div className="mt-7 grid gap-2">
                 {sources.map((source) => {
+                  const isGitHub = source.id === "github";
                   const selected = selectedSources.includes(source.id);
+                  
+                  if (isGitHub) {
+                    return (
+                      <div
+                        key={source.id}
+                        className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-all ${
+                          isGitHubConnected ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-surface"
+                        }`}
+                      >
+                        <span className={`shrink-0 ${isGitHubConnected ? "text-emerald-500" : "text-foreground/70"}`}>
+                          {source.icon}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{source.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {isGitHubConnected ? "Active and monitored" : source.detail}
+                          </div>
+                        </div>
+                        {isGitHubConnected ? (
+                          <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-500 font-medium">
+                            <ShieldCheck className="h-4 w-4" /> Connected
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => connectGitHub("/onboarding?step=1")}
+                            className="shrink-0 gap-1.5 h-8 text-xs font-mono"
+                          >
+                            <Plug className="h-3 w-3" /> Connect
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  }
+
                   return (
                     <button
                       key={source.id}
@@ -228,7 +273,12 @@ export default function Onboarding() {
                         {source.icon}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{source.name}</div>
+                        <div className="font-medium text-sm flex items-center gap-1.5">
+                          {source.name}
+                          <span className="rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground uppercase">
+                            Pilot mock
+                          </span>
+                        </div>
                         <div className="text-xs text-muted-foreground">{source.detail}</div>
                       </div>
                       {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
