@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, Plus, Map, Sparkles } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight, Plus, Target, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMaps } from "@/hooks/useMaps";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,10 +9,25 @@ import { UpgradeModal } from "@/components/atlas/UpgradeModal";
 import { loadStarterMap } from "@/lib/starterMap";
 import { formatDistanceToNow } from "date-fns";
 
-const confidenceColors = {
-  starter: "text-muted-foreground border-border",
-  emerging: "text-source border-source/40",
-  established: "text-success border-success/40",
+const confidenceMeta = {
+  starter: {
+    label: "Starter",
+    dot: "bg-muted-foreground/40",
+    badge: "text-muted-foreground border-border/50",
+    bar: "w-1/6",
+  },
+  emerging: {
+    label: "Emerging",
+    dot: "bg-amber-400",
+    badge: "text-amber-500 border-amber-500/30",
+    bar: "w-2/5",
+  },
+  established: {
+    label: "Established",
+    dot: "bg-emerald-400",
+    badge: "text-emerald-500 border-emerald-500/30",
+    bar: "w-full",
+  },
 } as const;
 
 export default function Home() {
@@ -20,6 +35,7 @@ export default function Home() {
   const { data: maps = [], isLoading, claimStarterMap } = useMaps();
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const navigate = useNavigate();
 
   const starterMap = loadStarterMap();
   const hasClaimedStarter = maps.length > 0;
@@ -27,11 +43,8 @@ export default function Home() {
   const handleNewMap = async () => {
     if (!user) return;
     const allowed = await canCreateMap(user.id);
-    if (!allowed) {
-      setShowUpgrade(true);
-      return;
-    }
-    window.location.href = "/start";
+    if (!allowed) { setShowUpgrade(true); return; }
+    navigate("/start");
   };
 
   const handleClaim = async () => {
@@ -46,75 +59,81 @@ export default function Home() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary">
-          <Map className="h-3.5 w-3.5" /> Maps
+          <Target className="h-3.5 w-3.5" /> Your maps
         </div>
         <Button onClick={handleNewMap} size="sm" className="gap-1.5">
           <Plus className="h-3.5 w-3.5" /> New map
         </Button>
       </div>
-      <h1 className="mt-4 font-display text-4xl font-semibold leading-tight md:text-5xl">
-        Your maps.
+      <h1 className="mt-3 font-display text-4xl font-semibold leading-tight md:text-5xl">
+        Where are you<br className="hidden sm:block" /> trying to get?
       </h1>
+      <p className="mt-3 text-[15px] text-muted-foreground">
+        Each map is a goal. Atlas diagnoses what's blocking it.
+      </p>
 
       <div className="mt-10 space-y-3">
-        {/* Unclaimed starter map from localStorage */}
+        {/* Unclaimed starter from localStorage */}
         {!hasClaimedStarter && starterMap && (
-          <div className="group flex items-center justify-between gap-4 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-5">
+          <div className="flex items-center justify-between gap-4 rounded-[16px] border border-dashed border-primary/40 bg-primary/5 px-5 py-5">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="rounded-md border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Starter
-                </span>
-              </div>
-              <p className="mt-2 truncate font-medium leading-snug">
+              <span className="font-mono text-[10px] uppercase tracking-widest text-primary">
+                Unsaved map
+              </span>
+              <p className="mt-1.5 font-medium leading-snug truncate">
                 {starterMap.goalStatement}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleClaim}
-              disabled={claiming}
-              className="shrink-0"
-            >
+            <Button size="sm" variant="outline" onClick={handleClaim} disabled={claiming} className="shrink-0">
               {claiming ? "Saving…" : "Save to account"}
             </Button>
           </div>
         )}
 
-        {/* Real maps from DB */}
+        {/* Real maps */}
         {isLoading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+          <div className="space-y-3">
+            {[0, 1].map(i => (
+              <div key={i} className="h-[108px] animate-pulse rounded-[16px] border border-border bg-card" />
+            ))}
+          </div>
         ) : maps.length === 0 && !starterMap ? (
-          <EmptyState />
+          <EmptyState onNew={handleNewMap} />
         ) : (
-          maps.map((map) => (
-            <div
-              key={map.id}
-              className="group flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary/30"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-md border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${confidenceColors[map.confidence]}`}
-                  >
-                    {map.confidence}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(map.updated_at), { addSuffix: true })}
-                  </span>
+          maps.map((map) => {
+            const meta = confidenceMeta[map.confidence] ?? confidenceMeta.starter;
+            return (
+              <Link
+                key={map.id}
+                to={`/app/map/${map.id}`}
+                className="group block rounded-[16px] border border-border bg-card px-5 py-5 transition-all duration-200 hover:border-primary/30 hover:shadow-sm"
+              >
+                {/* Top row */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${meta.dot}`} />
+                    <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${meta.badge}`}>
+                      {meta.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(map.updated_at), { addSuffix: true })}
+                    </span>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                 </div>
-                <p className="mt-2 truncate font-medium leading-snug">
+
+                {/* Goal */}
+                <p className="mt-3 font-medium leading-snug text-foreground">
                   {map.goal_statement}
                 </p>
-              </div>
-              <Link to={`/app/map/${map.id}`}>
-                <Button size="sm" variant="ghost" className="shrink-0 gap-1">
-                  Open <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
+
+                {/* Confidence bar */}
+                <div className="mt-4 h-[2px] w-full rounded-full bg-border/60">
+                  <div className={`h-full rounded-full bg-primary/50 transition-all duration-500 ${meta.bar}`} />
+                </div>
               </Link>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -123,19 +142,19 @@ export default function Home() {
   );
 }
 
-function EmptyState() {
+function EmptyState({ onNew }: { onNew: () => void }) {
   return (
-    <div className="rounded-xl border border-dashed border-border p-12 text-center">
-      <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+    <div className="rounded-[20px] border border-dashed border-border bg-card/40 px-8 py-16 text-center">
+      <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card">
         <Sparkles className="h-5 w-5 text-primary" />
       </div>
-      <h3 className="font-display text-lg font-semibold">No maps yet</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        One sentence draws the first map.
+      <h3 className="font-display text-xl font-semibold">No maps yet</h3>
+      <p className="mt-2 text-sm text-muted-foreground max-w-xs mx-auto">
+        State a goal in one sentence. Atlas maps the constraint blocking it.
       </p>
-      <Link to="/start" className="mt-5 inline-block">
-        <Button>Draw a map</Button>
-      </Link>
+      <Button onClick={onNew} className="mt-6">
+        Draw your first map
+      </Button>
     </div>
   );
 }
