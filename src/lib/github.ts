@@ -90,62 +90,90 @@ export async function fetchRepoCommitStats(token: string, owner: string, repo: s
   };
 }
 
-// Evaluate deterministic constraint rules based on GitHub statistics
-export function runGitHubRules(stats: GitHubStats, goal: string) {
-  const { commitsThisWeek, commitsLastWeek, daysSinceLastCommit, lastCommitMessage } = stats;
+// ─── Diagnostic Flags (deterministic pre-filter, feeds the LLM) ───────────────
 
-  let constraintTitle = "";
-  let constraintTone: "destructive" | "warning" | "success" = "success";
-  let evidenceBody = "";
-  let nextMove = "";
-  let confidence: "starter" | "emerging" | "established" = "established";
+export type DiagnosticFlag = {
+  flag: string;
+  reason: string;
+  severity: "low" | "medium" | "high";
+};
+
+/** Converts raw GitHub stats into structured flags for the LLM layer.
+ *  Pure math, no copy-writing. The LLM decides what these flags mean for the goal. */
+export function buildDiagnosticFlags(stats: GitHubStats): DiagnosticFlag[] {
+  const { commitsThisWeek, commitsLastWeek, daysSinceLastCommit, lastCommitMessage } = stats;
+  const flags: DiagnosticFlag[] = [];
 
   if (daysSinceLastCommit > 7) {
-    constraintTitle = "No development activity in over a week.";
-    constraintTone = "destructive";
-    evidenceBody = `Last commit was ${daysSinceLastCommit} days ago: "${lastCommitMessage || "No message"}"`;
-    nextMove = "Push code or merge a branch to restore pipeline activity.";
-    confidence = "emerging";
-  } else if (commitsThisWeek === 0) {
-    constraintTitle = "Zero commits shipped this week.";
-    constraintTone = "warning";
-    evidenceBody = `Velocity dropped from ${commitsLastWeek} commits last week to 0 this week.`;
-    nextMove = "Ship a small fix or document code to kickstart momentum.";
-  } else if (commitsLastWeek > 0 && commitsThisWeek < commitsLastWeek * 0.5) {
-    constraintTitle = "Development velocity is dropping.";
-    constraintTone = "warning";
-    evidenceBody = `Shipped ${commitsThisWeek} commits this week vs ${commitsLastWeek} last week.`;
-    nextMove = "Focus the team on resolving outstanding blockers.";
-  } else {
-    constraintTitle = "Development velocity is healthy.";
-    constraintTone = "success";
-    evidenceBody = `Active commits: ${commitsThisWeek} shipped this week, last activity ${daysSinceLastCommit} days ago.`;
-    nextMove = "Keep executing on the current map path.";
+    flags.push({
+      flag: "No GitHub activity in over a week",
+      reason: `Last commit was ${daysSinceLastCommit} days ago: "${lastCommitMessage || "no message"}"`,
+      severity: "high",
+    });
   }
+
+  if (commitsThisWeek === 0 && daysSinceLastCommit <= 7) {
+    flags.push({
+      flag: "Zero commits this week",
+      reason: `${commitsLastWeek} commits last week, 0 this week.`,
+      severity: "medium",
+    });
+  }
+
+  if (commitsLastWeek > 0 && commitsThisWeek < commitsLastWeek * 0.5 && commitsThisWeek > 0) {
+    const drop = Math.round(((commitsLastWeek - commitsThisWeek) / commitsLastWeek) * 100);
+    flags.push({
+      flag: "Commit velocity dropping",
+      reason: `${commitsThisWeek} commits this week vs ${commitsLastWeek} last week — ${drop}% drop.`,
+      severity: "medium",
+    });
+  }
+
+  if (commitsThisWeek >= commitsLastWeek && commitsThisWeek > 0) {
+    flags.push({
+      flag: "Development velocity is stable or increasing",
+      reason: `${commitsThisWeek} commits this week vs ${commitsLastWeek} last week.`,
+      severity: "low",
+    });
+  }
+
+  return flags;
+}
+
+/** Fallback: builds waypoints locally without LLM, used when no API key is configured. */
+export function runGitHubRulesFallback(stats: GitHubStats, goal: string) {
+  const flags = buildDiagnosticFlags(stats);
+  const topFlag = flags.find(f => f.severity === "high") ?? flags.find(f => f.severity === "medium") ?? flags[0];
+
+  const isHealthy = !topFlag || topFlag.severity === "low";
+  const confidence = stats.daysSinceLastCommit > 7 ? "emerging" as const : "established" as const;
 
   return {
     waypoints: [
-      {
-        kind: "goal" as const,
-        title: goal,
-        confidence: "established" as const,
-      },
+      { kind: "goal" as const, title: goal, confidence: "established" as const },
       {
         kind: "constraint" as const,
-        title: constraintTitle,
+        title: isHealthy ? "No blocking constraints detected from GitHub signals." : topFlag.flag,
         confidence,
-        tone: constraintTone,
       },
       {
         kind: "evidence" as const,
-        title: evidenceBody,
+        title: topFlag?.reason ?? `${stats.commitsThisWeek} commits this week, last activity ${stats.daysSinceLastCommit} days ago.`,
         confidence,
       },
       {
         kind: "move" as const,
-        title: nextMove,
+        title: isHealthy
+          ? "Keep executing on the current map path."
+          : "Connect an LLM API key in Supabase Edge Function secrets to get goal-aware advice.",
         confidence: "established" as const,
       },
     ],
   };
 }
+
+/** @deprecated Use buildDiagnosticFlags + Edge Function instead. Kept for backward compat. */
+export function runGitHubRules(stats: GitHubStats, goal: string) {
+  return runGitHubRulesFallback(stats, goal);
+}
+
