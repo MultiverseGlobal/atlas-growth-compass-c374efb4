@@ -19,6 +19,29 @@ export function useIntegrations() {
     queryKey: ["integrations", user?.id],
     queryFn: async () => {
       if (!user) return [];
+
+      // Check if user has GitHub identity linked
+      const githubIdentity = user.identities?.find((i) => i.provider === "github");
+      if (githubIdentity) {
+        const { data: existing } = await supabase
+          .from("integrations")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("provider", "github")
+          .maybeSingle();
+
+        if (!existing) {
+          const label = user.user_metadata?.user_name || user.user_metadata?.full_name || "Connected GitHub";
+          await supabase.from("integrations").insert({
+            user_id: user.id,
+            provider: "github",
+            status: "active",
+            external_account_label: label,
+            external_account_id: githubIdentity.id,
+          });
+        }
+      }
+
       const { data, error } = await supabase
         .from("integrations")
         .select("id, provider, status, external_account_label, last_sync_at")

@@ -12,6 +12,7 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import AppShell from "./components/atlas/AppShell";
 import Home from "./pages/app/Home";
+import MapDetails from "./pages/app/MapDetails";
 import Timeline from "./pages/app/Timeline";
 import Reports from "./pages/app/Reports";
 import Integrations from "./pages/app/Integrations";
@@ -39,6 +40,7 @@ const App = () => (
 
             <Route path="/app" element={<AppShell />}>
               <Route index element={<Home />} />
+              <Route path="map/:id" element={<MapDetails />} />
               <Route path="timeline" element={<Timeline />} />
               <Route path="reports" element={<Reports />} />
               <Route path="integrations" element={<Integrations />} />
