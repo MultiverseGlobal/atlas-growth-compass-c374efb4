@@ -41,12 +41,16 @@ export default function MapDetails() {
   const [deleting, setDeleting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [diagnosing, setDiagnosing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [syncFailed, setSyncFailed] = useState(false);
 
   // GitHub state
   const [gitHubToken, setGitHubToken] = useState<string | null>(null);
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<string>("");
   const [gitStats, setGitStats] = useState<GitHubStats | null>(null);
+  const [hasGitHubIntegration, setHasGitHubIntegration] = useState(false);
+  const [gitHubSessionExpired, setGitHubSessionExpired] = useState(false);
 
   // Waypoints
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
@@ -192,27 +196,36 @@ export default function MapDetails() {
   };
 
   const checkGitHub = async () => {
-    const token = await getGitHubToken();
-    setGitHubToken(token);
+    if (!user) return;
     try {
-      const { data, error } = await supabase.functions.invoke("sync-github", {
-        body: { action: "list_repos", github_token: token || undefined },
-      });
-      if (!error && data?.repos) {
-        setRepos(data.repos);
-      } else if (token) {
-        const r = await fetchUserRepos(token);
-        setRepos(r);
+      const { data: intData } = await supabase
+        .from("integrations")
+        .select("status")
+        .eq("user_id", user.id)
+        .eq("provider", "github")
+        .maybeSingle();
+
+      const isConnected = !!intData && intData.status === "active";
+      setHasGitHubIntegration(isConnected);
+
+      const token = await getGitHubToken();
+      setGitHubToken(token);
+
+      if (isConnected) {
+        const { data, error } = await supabase.functions.invoke("sync-github", {
+          body: { action: "list_repos", github_token: token || undefined },
+        });
+        if (!error && data?.repos) {
+          setRepos(data.repos);
+          setGitHubSessionExpired(false);
+        } else {
+          setGitHubSessionExpired(true);
+        }
+      } else {
+        setGitHubSessionExpired(false);
       }
     } catch {
-      if (token) {
-        try {
-          const r = await fetchUserRepos(token);
-          setRepos(r);
-        } catch {
-          setGitHubToken(null);
-        }
-      }
+      setGitHubSessionExpired(true);
     }
   };
 
@@ -322,8 +335,13 @@ export default function MapDetails() {
       await supabase.from("maps").update({ confidence: newConf }).eq("id", id);
       setMap(prev => prev ? { ...prev, confidence: newConf } : null);
 
+      setLastSyncedAt(new Date());
+      setSyncFailed(false);
+
     } catch (err: any) {
       toast.error(err.message ?? "Sync failed");
+      setSyncFailed(true);
+      setLastSyncedAt(new Date());
     } finally {
       setSyncing(false);
     }
@@ -360,6 +378,17 @@ export default function MapDetails() {
     } finally {
       setSavingNote(false);
     }
+  };
+
+  const handleReconnectGitHub = () => {
+    supabase.auth.linkIdentity({
+      provider: "github",
+      options: {
+        scopes: "read:user repo",
+        redirectTo: window.location.href,
+        queryParams: { prompt: "consent" },
+      },
+    });
   };
 
   // ─── Feedback ─────────────────────────────────────────────────────────────
@@ -470,6 +499,21 @@ export default function MapDetails() {
 
         {/* Trail */}
         <div className="mt-14">
+          {syncFailed && lastSyncedAt && (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+              <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                Last updated {lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} — refresh failed, showing cached diagnosis.
+              </span>
+              <button
+                onClick={() => map && fullSync(selectedRepo, map.goal_statement, note)}
+                disabled={isBusy}
+                className="ml-auto shrink-0 font-medium underline hover:no-underline disabled:opacity-50"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           <Trail
             waypoints={waypoints}
             onFeedback={handleFeedback}
@@ -503,7 +547,7 @@ export default function MapDetails() {
         <div className="mt-6 rounded-[16px] border border-border bg-card p-6">
           <div className="text-xs font-mono uppercase tracking-widest text-primary">GitHub source</div>
 
-          {!gitHubToken ? (
+          {!hasGitHubIntegration ? (
             <div className="mt-4">
               <p className="text-sm text-muted-foreground mb-3">Connect GitHub to pull commit signals into this map.</p>
               <Link to="/app/integrations">
@@ -511,6 +555,13 @@ export default function MapDetails() {
                   <Plug className="mr-2 h-4 w-4" /> Connect GitHub
                 </Button>
               </Link>
+            </div>
+          ) : gitHubSessionExpired ? (
+            <div className="mt-4">
+              <p className="text-sm text-muted-foreground mb-3">Your GitHub connection session has expired. Reconnect GitHub to link a repository.</p>
+              <Button variant="outline" className="h-10 text-primary border-primary/30 hover:bg-primary/5" onClick={handleReconnectGitHub}>
+                <Plug className="mr-2 h-4 w-4" /> Reconnect GitHub
+              </Button>
             </div>
           ) : (
             <div className="mt-4 flex flex-wrap items-center gap-3">

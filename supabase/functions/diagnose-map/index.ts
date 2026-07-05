@@ -54,7 +54,12 @@ Return ONLY valid JSON matching this exact shape:
 }`;
 }
 
-function buildUserPrompt(goalStatement: string, flags: DiagnosticFlag[], manualNotes?: string): string {
+function buildUserPrompt(
+  goalStatement: string,
+  flags: DiagnosticFlag[],
+  manualNotes?: string,
+  recentFeedbackNotes?: string[]
+): string {
   const flagLines = flags.length > 0
     ? flags.map(f => `- [${f.severity.toUpperCase()}] ${f.flag}: ${f.reason}`).join("\n")
     : "- No GitHub signals available yet.";
@@ -63,12 +68,16 @@ function buildUserPrompt(goalStatement: string, flags: DiagnosticFlag[], manualN
     ? `\nFounder notes:\n${manualNotes.trim()}`
     : "";
 
+  const feedbackSection = recentFeedbackNotes && recentFeedbackNotes.length > 0
+    ? `\nUser feedback logs from past recommendations (take this learning history into account):\n${recentFeedbackNotes.map(n => `- ${n}`).join("\n")}`
+    : "";
+
   return `Founder's stated goal: "${goalStatement}"
 
 Deterministic signals from connected tools:
-${flagLines}${notesSection}
+${flagLines}${notesSection}${feedbackSection}
 
-Based on the founder's goal and these specific signals, identify the single constraint most likely blocking progress right now. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
+Based on the founder's goal, these specific signals, and past feedback history, identify the single constraint most likely blocking progress right now. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
 }
 
 // ─── LLM Providers ───────────────────────────────────────────────────────────
@@ -177,9 +186,15 @@ async function callNvidiaNim(system: string, user: string, apiKey: string): Prom
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-async function route(goalStatement: string, flags: DiagnosticFlag[], manualNotes?: string, provider?: string): Promise<DiagnoseResponse> {
+async function route(
+  goalStatement: string,
+  flags: DiagnosticFlag[],
+  manualNotes?: string,
+  provider?: string,
+  recentFeedbackNotes?: string[]
+): Promise<DiagnoseResponse> {
   const system = buildSystemPrompt();
-  const user = buildUserPrompt(goalStatement, flags, manualNotes);
+  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes);
 
   const selectedProvider = provider ?? "openai";
   const chain: Array<() => Promise<DiagnoseResponse>> = [];
@@ -255,12 +270,19 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Initialize Supabase client using auth header
+    // Initialize Supabase clients
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // If called with the service role key (e.g. from daily-sync-cron), use an admin client
+    // that bypasses RLS. Otherwise use the user-scoped client.
+    const isServiceCall = authHeader === `Bearer ${supabaseServiceKey}`;
+    const userClient = isServiceCall
+      ? createClient(supabaseUrl, supabaseServiceKey)
+      : createClient(supabaseUrl, supabaseAnonKey, {
+          global: { headers: { Authorization: authHeader } },
+        });
 
     // 1. Fetch map goal_statement
     const { data: map, error: mapError } = await userClient
@@ -349,13 +371,37 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 4. Resolve manual notes: check request body first, otherwise fall back to latest in DB
+    // 4. Fetch recent feedback logs for this map
+    const { data: feedbackLogs } = await userClient
+      .from("activity_logs")
+      .select("action, meta")
+      .eq("target_type", "map")
+      .eq("target_id", body.map_id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    const recentFeedbackNotes: string[] = [];
+    if (feedbackLogs && feedbackLogs.length > 0) {
+      feedbackLogs.forEach((log: any) => {
+        const title = log.meta?.waypoint_text || "unspecified waypoint";
+        const kind = log.meta?.waypoint_kind || "unspecified";
+        if (log.action === "feedback_constraint_wrong") {
+          recentFeedbackNotes.push(`The user marked the constraint "${title}" (${kind}) as WRONG/inaccurate.`);
+        } else if (log.action === "feedback_move_done") {
+          recentFeedbackNotes.push(`The user completed the recommended action: "${title}".`);
+        } else if (log.action === "feedback_move_skipped") {
+          recentFeedbackNotes.push(`The user chose to skip the recommended action: "${title}".`);
+        }
+      });
+    }
+
+    // 5. Resolve manual notes: check request body first, otherwise fall back to latest in DB
     const manualNoteSignal = signals?.find((s) => s.title === "__manual_note");
     const dbManualNote = manualNoteSignal?.payload?.note || "";
     const manualNotes = body.manual_notes ?? dbManualNote;
 
-    // 5. Call the LLM chain
-    const result = await route(map.goal_statement, flags, manualNotes, body.provider);
+    // 6. Call the LLM chain
+    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
