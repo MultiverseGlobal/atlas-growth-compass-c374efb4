@@ -16,6 +16,14 @@ import {
 } from "@/lib/github";
 import { ArrowLeft, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
+import { CompassLoader } from "./Home";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type MapData = {
   id: string;
@@ -61,6 +69,17 @@ export default function MapDetails() {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [expandedWaypoint, setExpandedWaypoint] = useState<number | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
+
+  useEffect(() => {
+    if (focusMode) {
+      setShowInstructions(true);
+      const timer = setTimeout(() => {
+        setShowInstructions(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [focusMode]);
 
   // Detect prefers-reduced-motion
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -436,7 +455,13 @@ export default function MapDetails() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  if (loading) return <div className="p-8 text-center text-sm text-muted-foreground">Loading map…</div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <CompassLoader />
+      </div>
+    );
+  }
   if (!map) return null;
 
   const isBusy = syncing || diagnosing;
@@ -557,23 +582,34 @@ export default function MapDetails() {
               </Link>
             </div>
           ) : gitHubSessionExpired ? (
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground mb-3">Your GitHub connection session has expired. Reconnect GitHub to link a repository.</p>
-              <Button variant="outline" className="h-10 text-primary border-primary/30 hover:bg-primary/5" onClick={handleReconnectGitHub}>
-                <Plug className="mr-2 h-4 w-4" /> Reconnect GitHub
+            <div className="mt-4 border border-border/80 bg-card/50 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-foreground">Connection Expired</div>
+                <p className="text-xs text-muted-foreground">Your GitHub connection session has expired. Reconnect GitHub to link a repository.</p>
+              </div>
+              <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/5 shrink-0" onClick={handleReconnectGitHub}>
+                <Plug className="mr-1.5 h-3.5 w-3.5" /> Reconnect GitHub
               </Button>
             </div>
           ) : (
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <select
+              <Select
                 value={selectedRepo}
-                onChange={e => handleLinkRepo(e.target.value)}
+                onValueChange={(val) => handleLinkRepo(val)}
                 disabled={isBusy}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">— Select a repository —</option>
-                {repos.map(r => <option key={r.id} value={r.full_name}>{r.full_name}</option>)}
-              </select>
+                <SelectTrigger className="w-[280px] bg-background">
+                  <SelectValue placeholder="Select a repository" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_empty" disabled>— Select a repository —</SelectItem>
+                  {repos.map((r) => (
+                    <SelectItem key={r.id} value={r.full_name}>
+                      {r.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {selectedRepo && (
                 <Button variant="outline" size="sm"
                   onClick={() => map && fullSync(selectedRepo, map.goal_statement, note)}
@@ -697,7 +733,7 @@ export default function MapDetails() {
             </TransformWrapper>
           </div>
           {/* Bottom instruction bar */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-card/90 backdrop-blur-md border border-border px-5 py-2 rounded-full text-xs text-muted-foreground font-mono shadow-sm pointer-events-none select-none z-20">
+          <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 bg-card/90 backdrop-blur-md border border-border px-5 py-2 rounded-full text-xs text-muted-foreground font-mono shadow-sm pointer-events-none select-none z-20 transition-all duration-700 ${showInstructions ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
             Drag to Pan · Scroll or Pinch to Zoom · Click Waypoint to Expand Details · Press Esc to Exit
           </div>
         </div>

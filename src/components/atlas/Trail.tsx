@@ -116,7 +116,7 @@ export function Trail({ waypoints, onFeedback, interactive }: TrailProps) {
                   </p>
                 )}
                 {typeof w.lastUpdatedDays === "number" && w.lastUpdatedDays >= 7 && (
-                  <p className="mt-3 font-mono text-xs text-muted-foreground">
+                  <p className="mt-2.5 font-mono text-[10px] text-muted-foreground/50 tracking-tight">
                     Last updated {w.lastUpdatedDays} days ago
                   </p>
                 )}
@@ -129,31 +129,30 @@ export function Trail({ waypoints, onFeedback, interactive }: TrailProps) {
                       e.stopPropagation();
                       onFeedback(kind, "constraint_wrong", w.title);
                     }}
-                    className="mt-3 font-mono text-xs text-muted-foreground/60 underline underline-offset-2 hover:text-muted-foreground transition-colors"
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 font-mono text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
                   >
                     This isn't right
                   </button>
                 )}
                 {onFeedback && kind === "move" && (
-                  <div className="mt-3 flex items-center gap-3">
+                  <div className="mt-4 flex items-center gap-3">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onFeedback(kind, "move_done", w.title);
                       }}
-                      className="font-mono text-xs text-muted-foreground/60 underline underline-offset-2 hover:text-muted-foreground transition-colors"
+                      className="inline-flex items-center rounded-full bg-primary px-3 py-1 font-mono text-[11px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                     >
-                      Done
+                      Mark Done
                     </button>
-                    <span className="text-border">·</span>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onFeedback(kind, "move_skipped", w.title);
                       }}
-                      className="font-mono text-xs text-muted-foreground/60 underline underline-offset-2 hover:text-muted-foreground transition-colors"
+                      className="font-mono text-xs text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors"
                     >
                       Skip
                     </button>
