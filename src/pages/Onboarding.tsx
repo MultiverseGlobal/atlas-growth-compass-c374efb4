@@ -245,7 +245,7 @@ export default function Onboarding() {
       if (!ok) return;
     }
     if (!canContinue) return;
-    goToStep(Math.min(step + 1, steps.length - 1));
+    goToStep(Math.min(step + 1, TOTAL_FORM_STEPS - 1));
   };
 
   const handleConnectGitHub = async () => {
