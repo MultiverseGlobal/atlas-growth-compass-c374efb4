@@ -15,7 +15,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!s?.provider_token) return;
       const provider = s.user?.app_metadata?.provider;
       if (provider === "github") {
-        await supabase.rpc("upsert_github_token", {
+        await (supabase as any).rpc("upsert_github_token", {
           p_token: s.provider_token,
           p_scopes: "read:user repo",
           p_expires_at: s.expires_at ? new Date(s.expires_at * 1000).toISOString() : null,
@@ -31,6 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     supabase.auth.getSession().then(({ data }) => {
+      // If returning from an OAuth flow, let onAuthStateChange handle the state update
+      // to prevent resolving loading=false with null before the token is parsed.
+      const hasHash = window.location.hash.includes("access_token=") || window.location.hash.includes("error=");
+      const hasCode = window.location.search.includes("code=");
+      if (hasHash || hasCode) return;
+
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);

@@ -31,11 +31,11 @@ export function useIntegrations() {
         const providerToken = sessionData.session?.provider_token;
         if (providerToken) {
           // Fire-and-forget — don't block the UI on this
-          supabase.rpc("upsert_github_token", {
+          (supabase as any).rpc("upsert_github_token", {
             p_token: providerToken,
             p_scopes: "read:user repo",
             p_expires_at: null,
-          }).then(({ error }) => {
+          }).then(({ error }: { error: any }) => {
             if (error) console.warn("[integrations] upsert_github_token failed:", error.message);
           });
         }

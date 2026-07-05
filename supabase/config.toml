@@ -1,1 +1,6 @@
 project_id = "nfhlpihrqrbiaefmopnq"
+
+[auth]
+enable_signup = true
+enable_confirmations = false
+additional_redirect_urls = ["http://localhost:5173/onboarding", "http://localhost:5173/app/integrations"]
