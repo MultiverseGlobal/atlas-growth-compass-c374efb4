@@ -180,14 +180,15 @@ export default function MapDetails() {
       // Load latest manual note
       const { data: signalData } = await supabase
         .from("signals")
-        .select("payload")
+        .select("*")
         .eq("map_id", id)
         .eq("title", "__manual_note")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (signalData?.payload && typeof signalData.payload === "object" && "note" in (signalData.payload as object)) {
-        setNote((signalData.payload as { note: string }).note ?? "");
+      const sig = signalData as any;
+      if (sig?.payload && typeof sig.payload === "object" && "note" in sig.payload) {
+        setNote(sig.payload.note ?? "");
       }
 
       // Load saved waypoints
@@ -343,7 +344,7 @@ export default function MapDetails() {
           user_id: user.id,
           kind: w.kind,
           title: w.title,
-          confidence: w.confidence === "building" ? "emerging" : w.confidence,
+          confidence: w.confidence,
           position: idx,
         }))
       );
@@ -671,14 +672,14 @@ export default function MapDetails() {
           </svg>
 
           {/* Interactive Drag/Pan Canvas using react-zoom-pan-pinch */}
-          <div className="w-full h-full flex-1 relative overflow-hidden">
+           <div className="w-full h-full flex-1 relative overflow-hidden">
             <TransformWrapper
               initialScale={1}
               minScale={0.5}
               maxScale={2.5}
               limitToBounds={false}
               centerOnInit={true}
-              onTransformed={(ref) => {
+              onTransform={(ref) => {
                 setZoom(ref.state.scale);
                 setPanOffset({ x: ref.state.positionX, y: ref.state.positionY });
               }}
@@ -717,8 +718,8 @@ export default function MapDetails() {
                   </div>
 
                   <TransformComponent
-                    wrapperClassName="!w-full !h-full"
-                    contentClassName="!w-full !h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
+                    wrapperClass="!w-full !h-full"
+                    contentClass="!w-full !h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
                   >
                     <div className="relative w-full max-w-xl p-8 bg-card/65 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl pointer-events-auto select-text mx-4 my-8">
                       <Trail
