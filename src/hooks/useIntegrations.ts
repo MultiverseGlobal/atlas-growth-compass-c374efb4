@@ -70,15 +70,33 @@ export function useIntegrations() {
     enabled: !!user,
   });
 
-  const connectGitHub = (redirectPath?: string) => {
-    supabase.auth.linkIdentity({
-      provider: "github",
-      options: {
-        scopes: "read:user repo",
-        redirectTo: `${window.location.origin}${redirectPath ?? "/app/integrations"}`,
-        queryParams: { prompt: "consent" },
-      },
-    });
+  const connectGitHub = async (redirectPath?: string) => {
+    try {
+      const redirectTo = `${window.location.origin}${redirectPath ?? "/app/integrations"}`;
+      const { error } = await supabase.auth.linkIdentity({
+        provider: "github",
+        options: {
+          scopes: "read:user repo",
+          redirectTo,
+          queryParams: { prompt: "consent" },
+        },
+      });
+      if (error) {
+        // linkIdentity requires manual linking enabled in Supabase project settings.
+        // Fall back to signInWithOAuth if the method isn't supported.
+        if (error.message?.includes("not supported") || error.message?.includes("not enabled")) {
+          const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+            provider: "github",
+            options: { scopes: "read:user repo", redirectTo },
+          });
+          if (oauthErr) throw oauthErr;
+        } else {
+          throw error;
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(friendlyError(err));
+    }
   };
 
   const disconnect = useMutation({
