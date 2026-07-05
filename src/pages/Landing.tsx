@@ -43,7 +43,7 @@ export default function Landing() {
             <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Link to="/auth"><Button variant="ghost" size="sm">Sign in</Button></Link>
+            <Link to="/auth?mode=signin"><Button variant="ghost" size="sm">Sign in</Button></Link>
             <Link to="/start"><Button size="sm">Start a map</Button></Link>
           </div>
         </div>
@@ -51,9 +51,6 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="container pt-20 pb-20 relative overflow-hidden rounded-[24px] bg-grid-dots border border-border/40 mt-4">
-        <div className="absolute right-6 top-6 font-mono text-[9px] text-muted-foreground/30 select-none tracking-widest hidden sm:block">
-          SYS: 37°46'29.8"N 122°25'09.9"W // MAP_CONF: STARTER
-        </div>
         <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] items-center relative z-10">
           <div>
             <Reveal>
@@ -99,11 +96,11 @@ export default function Landing() {
               <div className="font-mono text-xs text-primary">01</div>
               <h3 className="mt-3 font-display text-xl font-semibold">State your active goal</h3>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                Draw a map by writing one sentence explaining what you are trying to hit (e.g. 'Get first 10 customers').
+                Write one sentence explaining what you are trying to achieve (e.g. 'Get first 10 customers').
               </p>
             </div>
             <div className="mt-6 rounded-lg border border-border bg-muted/20 p-4 relative overflow-hidden">
-              <div className="text-[9px] font-mono text-muted-foreground/55 uppercase tracking-wider mb-2">Draw Map</div>
+              <div className="text-[9px] font-mono text-muted-foreground/55 uppercase tracking-wider mb-2">State Goal</div>
               <div className="h-8 rounded border border-primary/20 bg-background flex items-center px-3 text-xs text-foreground font-medium select-none">
                 I want to get my first 10 customers
                 <span className="inline-block w-1.5 h-3.5 ml-1 bg-primary/70 animate-pulse" />
@@ -141,7 +138,7 @@ export default function Landing() {
               <div className="font-mono text-xs text-primary">03</div>
               <h3 className="mt-3 font-display text-xl font-semibold">Get your move</h3>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                Receive a clear, actionable next step coordinates. Focus entirely on executing the current target, bypassing the planning fog.
+                Receive a clear, actionable next step. Focus entirely on executing the current target.
               </p>
             </div>
             <div className="mt-6 rounded-lg border border-border bg-muted/20 p-4">
@@ -275,7 +272,7 @@ export default function Landing() {
         <div className="relative z-10 max-w-xl mx-auto">
           <Reveal>
             <h2 className="font-display text-4xl md:text-5xl font-semibold leading-tight tracking-tight">
-              Draw your active coordinates.
+              Start your map.
             </h2>
           </Reveal>
           <Reveal delay={90}>

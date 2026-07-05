@@ -55,7 +55,7 @@ export default function Privacy() {
     <div className="min-h-screen bg-background grain">
       <header className="container flex h-16 items-center justify-between border-b border-border/60">
         <Link to="/"><Logo /></Link>
-        <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <Link to="/auth?mode=signin" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
           Sign in →
         </Link>
       </header>

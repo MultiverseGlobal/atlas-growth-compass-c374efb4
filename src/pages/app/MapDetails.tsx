@@ -109,29 +109,7 @@ export default function MapDetails() {
     return () => window.removeEventListener("mousemove", handleMouseMoveGlobal);
   }, [focusMode, reducedMotion]);
 
-  const getCoordinates = (idx: number, total: number) => {
-    const spacingX = 300;
-    const startX = -((total - 1) * spacingX) / 2;
-    return {
-      x: startX + idx * spacingX,
-      y: Math.sin(idx * 1.6) * 75,
-    };
-  };
 
-  const getBezierPath = (points: Array<{ x: number; y: number }>) => {
-    if (points.length === 0) return "";
-    let d = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i];
-      const p1 = points[i + 1];
-      const cpX1 = p0.x + 130;
-      const cpY1 = p0.y;
-      const cpX2 = p1.x - 130;
-      const cpY2 = p1.y;
-      d += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${p1.x} ${p1.y}`;
-    }
-    return d;
-  };
 
   const KIND_LABELS: Record<string, string> = {
     goal: "Goal",
@@ -216,11 +194,25 @@ export default function MapDetails() {
   const checkGitHub = async () => {
     const token = await getGitHubToken();
     setGitHubToken(token);
-    if (token) {
-      try {
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-github", {
+        body: { action: "list_repos", github_token: token || undefined },
+      });
+      if (!error && data?.repos) {
+        setRepos(data.repos);
+      } else if (token) {
         const r = await fetchUserRepos(token);
         setRepos(r);
-      } catch { setGitHubToken(null); }
+      }
+    } catch {
+      if (token) {
+        try {
+          const r = await fetchUserRepos(token);
+          setRepos(r);
+        } catch {
+          setGitHubToken(null);
+        }
+      }
     }
   };
 
@@ -641,130 +633,12 @@ export default function MapDetails() {
                     wrapperClassName="!w-full !h-full"
                     contentClassName="!w-full !h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
                   >
-                    <div className="relative w-[2000px] h-[1000px] flex items-center justify-center pointer-events-none">
-                      {/* SVG Connector Trail Line */}
-                      <svg className="absolute w-[2000px] h-[1000px] overflow-visible pointer-events-none">
-                        <path
-                          d={getBezierPath(waypoints.map((_, i) => getCoordinates(i, waypoints.length)))}
-                          fill="none"
-                          stroke="hsl(var(--primary) / 0.55)"
-                          strokeWidth="3.5"
-                          className="flow-line"
-                        />
-                      </svg>
-
-                      {/* Render Waypoints as Map Nodes */}
-                      {waypoints.map((w, idx) => {
-                        const kind = w.kind ?? "goal";
-                        const pos = getCoordinates(idx, waypoints.length);
-                        const isExpanded = expandedWaypoint === idx;
-
-                        return (
-                          <div
-                            key={idx}
-                            className="absolute pointer-events-auto transition-all duration-300"
-                            style={{
-                              left: `calc(50% + ${pos.x}px)`,
-                              top: `calc(50% + ${pos.y}px)`,
-                              transform: "translate(-50%, -50%)",
-                              zIndex: isExpanded ? 30 : 10,
-                            }}
-                          >
-                            {/* Sonar Ring for Active blocker */}
-                            {kind === "constraint" && (
-                              <div className="absolute left-[3px] top-[3px] h-[34px] w-[34px] pointer-events-none rounded-full border-2 border-destructive/50 sonar-ring" />
-                            )}
-
-                            {/* Waypoint circle pin */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedWaypoint(isExpanded ? null : idx);
-                              }}
-                              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 bg-card transition-all shadow-md hover:scale-110 active:scale-95 ${
-                                isExpanded ? "ring-4 ring-primary/20 scale-105" : ""
-                              }`}
-                              style={{
-                                borderColor:
-                                  kind === "goal"
-                                    ? "hsl(var(--primary))"
-                                    : kind === "constraint"
-                                    ? "hsl(var(--destructive))"
-                                    : kind === "evidence"
-                                    ? "hsl(var(--source))"
-                                    : "hsl(var(--foreground))",
-                              }}
-                            >
-                              <PinIcon kind={kind} confidence={w.confidence} />
-                            </button>
-
-                            {/* Label card positioned under the node */}
-                            <div
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedWaypoint(isExpanded ? null : idx);
-                              }}
-                              className={`absolute top-12 left-1/2 -translate-x-1/2 w-64 bg-card/95 backdrop-blur border border-border rounded-xl p-3.5 shadow-lg transition-all duration-300 hover:border-primary/30 cursor-pointer ${
-                                isExpanded ? "ring-2 ring-primary/10 border-primary/30" : "scale-[0.98]"
-                              }`}
-                            >
-                              <div className="flex justify-between items-center">
-                                <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest">
-                                  {KIND_LABELS[kind] ?? kind}
-                                </span>
-                                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border border-border bg-muted/40 uppercase">
-                                  {w.confidence}
-                                </span>
-                              </div>
-                              <h4 className="mt-1.5 font-display text-sm font-semibold text-foreground leading-snug">
-                                {w.title}
-                              </h4>
-                              {isExpanded && (
-                                <div className="mt-3 pt-3 border-t border-border/60 text-xs text-muted-foreground leading-relaxed transition-all page-fade">
-                                  {w.description || "Establish more integrations or context inputs to update and verify this waypoint status."}
-
-                                  {kind === "constraint" && (
-                                    <div className="mt-3 flex justify-end">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleFeedback(kind, "constraint_wrong", w.title);
-                                        }}
-                                        className="font-mono text-[10px] text-muted-foreground/60 underline hover:text-muted-foreground"
-                                      >
-                                        This isn't right
-                                      </button>
-                                    </div>
-                                  )}
-                                  {kind === "move" && (
-                                    <div className="mt-3 flex justify-end gap-3.5 border-t border-border/40 pt-2.5">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleFeedback(kind, "move_done", w.title);
-                                        }}
-                                        className="font-mono text-[10px] text-primary/80 hover:text-primary font-bold underline"
-                                      >
-                                        Mark Done
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleFeedback(kind, "move_skipped", w.title);
-                                        }}
-                                        className="font-mono text-[10px] text-muted-foreground/60 hover:text-muted-foreground underline"
-                                      >
-                                        Skip
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="relative w-full max-w-xl p-8 bg-card/65 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl pointer-events-auto select-text mx-4 my-8">
+                      <Trail
+                        waypoints={waypoints}
+                        onFeedback={handleFeedback}
+                        interactive={true}
+                      />
                     </div>
                   </TransformComponent>
                 </>
@@ -773,41 +647,10 @@ export default function MapDetails() {
           </div>
           {/* Bottom instruction bar */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-card/90 backdrop-blur-md border border-border px-5 py-2 rounded-full text-xs text-muted-foreground font-mono shadow-sm pointer-events-none select-none z-20">
-            Drag to Pan · Scroll or Pinch to Zoom · Click Node to Expand Details · Press Esc to Exit
+            Drag to Pan · Scroll or Pinch to Zoom · Click Waypoint to Expand Details · Press Esc to Exit
           </div>
         </div>
       )}
     </>
-  );
-}
-
-function PinIcon({ kind, confidence }: { kind: string; confidence?: string }) {
-  const stroke =
-    kind === "goal"
-      ? "hsl(var(--primary))"
-      : kind === "constraint"
-      ? "hsl(var(--destructive))"
-      : kind === "evidence"
-      ? "hsl(var(--source))"
-      : "hsl(var(--foreground))";
-
-  const innerFill =
-    confidence === "established"
-      ? stroke
-      : confidence === "emerging" || confidence === "building"
-      ? `url(#half-focus-${kind})`
-      : "transparent";
-
-  return (
-    <svg width="18" height="18" viewBox="0 0 22 22" aria-hidden="true" className="shrink-0 overflow-visible">
-      <defs>
-        <linearGradient id={`half-focus-${kind}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="50%" stopColor={stroke} />
-          <stop offset="50%" stopColor="transparent" />
-        </linearGradient>
-      </defs>
-      <circle cx="11" cy="11" r="8" fill="none" stroke={stroke} strokeWidth="2" />
-      {innerFill !== "transparent" && <circle cx="11" cy="11" r="4.5" fill={innerFill} />}
-    </svg>
   );
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Waypoint } from "@/lib/starterMap";
 
 interface TrailProps {
@@ -13,6 +14,7 @@ interface TrailProps {
   }>;
   /** Optional feedback handler — if provided, feedback buttons appear on constraint + move pins */
   onFeedback?: (waypointKind: string, action: string, waypointTitle: string) => void;
+  interactive?: boolean;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -57,7 +59,9 @@ function Pin({ kind, confidence }: { kind: string; confidence?: string }) {
   );
 }
 
-export function Trail({ waypoints, onFeedback }: TrailProps) {
+export function Trail({ waypoints, onFeedback, interactive }: TrailProps) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
   return (
     <div className="relative pl-8">
       {/* Flowing SVGs for the cartographic pathway */}
@@ -79,12 +83,19 @@ export function Trail({ waypoints, onFeedback }: TrailProps) {
           const kind = (w.kind ?? w.type ?? "goal") as string;
           const label = w.label ?? KIND_LABELS[kind] ?? kind;
           const confidence = w.confidence as string | undefined;
+          const isExpanded = !interactive || expandedIndex === i;
+          const descriptionText = w.description || (interactive ? "Establish more integrations or context inputs to update and verify this waypoint status." : undefined);
 
           return (
             <li
               key={i}
-              className="relative waypoint-rise"
+              className={`relative waypoint-rise ${interactive ? "cursor-pointer group select-none" : ""}`}
               style={{ animationDelay: `${0.5 + i * 0.4}s` }}
+              onClick={() => {
+                if (interactive) {
+                  setExpandedIndex(isExpanded ? null : i);
+                }
+              }}
             >
               {/* Pin with Sonar ring for Active/Constraint blocking factors */}
               <div className="absolute -left-8 top-0.5">
@@ -95,13 +106,13 @@ export function Trail({ waypoints, onFeedback }: TrailProps) {
               </div>
 
               <div className="max-w-2xl">
-                <div className="eyebrow text-muted-foreground">{label}</div>
-                <h3 className="mt-2 font-display text-2xl md:text-[26px] leading-snug text-foreground">
+                <div className="eyebrow text-muted-foreground group-hover:text-primary transition-colors">{label}</div>
+                <h3 className="mt-2 font-display text-2xl md:text-[26px] leading-snug text-foreground group-hover:text-primary/95 transition-colors">
                   {w.title}
                 </h3>
-                {w.description && (
-                  <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-                    {w.description}
+                {descriptionText && isExpanded && (
+                  <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground page-fade">
+                    {descriptionText}
                   </p>
                 )}
                 {typeof w.lastUpdatedDays === "number" && w.lastUpdatedDays >= 7 && (
@@ -114,7 +125,10 @@ export function Trail({ waypoints, onFeedback }: TrailProps) {
                 {onFeedback && kind === "constraint" && (
                   <button
                     type="button"
-                    onClick={() => onFeedback(kind, "constraint_wrong", w.title)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFeedback(kind, "constraint_wrong", w.title);
+                    }}
                     className="mt-3 font-mono text-xs text-muted-foreground/60 underline underline-offset-2 hover:text-muted-foreground transition-colors"
                   >
                     This isn't right
@@ -124,7 +138,10 @@ export function Trail({ waypoints, onFeedback }: TrailProps) {
                   <div className="mt-3 flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => onFeedback(kind, "move_done", w.title)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFeedback(kind, "move_done", w.title);
+                      }}
                       className="font-mono text-xs text-muted-foreground/60 underline underline-offset-2 hover:text-muted-foreground transition-colors"
                     >
                       Done
@@ -132,7 +149,10 @@ export function Trail({ waypoints, onFeedback }: TrailProps) {
                     <span className="text-border">·</span>
                     <button
                       type="button"
-                      onClick={() => onFeedback(kind, "move_skipped", w.title)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFeedback(kind, "move_skipped", w.title);
+                      }}
                       className="font-mono text-xs text-muted-foreground/60 underline underline-offset-2 hover:text-muted-foreground transition-colors"
                     >
                       Skip

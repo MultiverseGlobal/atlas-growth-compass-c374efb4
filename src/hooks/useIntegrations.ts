@@ -71,7 +71,7 @@ export function useIntegrations() {
   });
 
   const connectGitHub = (redirectPath?: string) => {
-    supabase.auth.signInWithOAuth({
+    supabase.auth.linkIdentity({
       provider: "github",
       options: {
         scopes: "read:user repo",

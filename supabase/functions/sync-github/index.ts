@@ -9,8 +9,9 @@ const corsHeaders = {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SyncRequest {
-  map_id: string;
-  repo_full_name: string; // e.g. "owner/repo"
+  action?: "list_repos" | "sync";
+  map_id?: string;
+  repo_full_name?: string; // e.g. "owner/repo"
   github_token?: string;  // optional token from client session (persisted if provided)
 }
 
@@ -103,25 +104,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const body: SyncRequest = await req.json();
-    if (!body.map_id || !body.repo_full_name) {
-      return new Response(JSON.stringify({ error: "map_id and repo_full_name are required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Verify the map belongs to this user
-    const { data: mapData, error: mapError } = await userClient
-      .from("maps")
-      .select("id, goal_statement")
-      .eq("id", body.map_id)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (mapError || !mapData) {
-      return new Response(JSON.stringify({ error: "Map not found or unauthorized" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     // Resolve GitHub token — if the client passed one, persist it and use it;
     // otherwise read from the integrations table.
@@ -158,6 +140,42 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: "No GitHub token found. Connect GitHub in integrations." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Branch to list repos if requested or if repo_full_name is missing
+    if (body.action === "list_repos" || !body.repo_full_name) {
+      try {
+        const repos = await fetchGitHub("/user/repos?sort=updated&per_page=50", ghToken);
+        return new Response(
+          JSON.stringify({ ok: true, repos }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (e: any) {
+        return new Response(
+          JSON.stringify({ error: `Failed to fetch GitHub repos: ${e.message}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    if (!body.map_id) {
+      return new Response(JSON.stringify({ error: "map_id is required for sync" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify the map belongs to this user
+    const { data: mapData, error: mapError } = await userClient
+      .from("maps")
+      .select("id, goal_statement")
+      .eq("id", body.map_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (mapError || !mapData) {
+      return new Response(JSON.stringify({ error: "Map not found or unauthorized" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const [owner, repo] = body.repo_full_name.split("/");
