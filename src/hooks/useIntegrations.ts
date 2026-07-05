@@ -71,8 +71,11 @@ export function useIntegrations() {
   });
 
   const connectGitHub = async (redirectPath?: string) => {
+    const redirectTo = `${window.location.origin}${redirectPath ?? "/app/integrations"}`;
     try {
-      const redirectTo = `${window.location.origin}${redirectPath ?? "/app/integrations"}`;
+      // Try linkIdentity first — this properly links GitHub to an existing account
+      // but requires "Enable Manual Linking" to be ON in Supabase Dashboard →
+      // Authentication → Sign In / Providers.
       const { error } = await supabase.auth.linkIdentity({
         provider: "github",
         options: {
@@ -81,18 +84,16 @@ export function useIntegrations() {
           queryParams: { prompt: "consent" },
         },
       });
+      // If linkIdentity fails for ANY reason (404 when manual linking is disabled,
+      // identity already linked, etc.) fall back to a full OAuth re-auth flow.
+      // The useIntegrations queryFn will detect the GitHub identity on next load
+      // and persist the token automatically.
       if (error) {
-        // linkIdentity requires manual linking enabled in Supabase project settings.
-        // Fall back to signInWithOAuth if the method isn't supported.
-        if (error.message?.includes("not supported") || error.message?.includes("not enabled")) {
-          const { error: oauthErr } = await supabase.auth.signInWithOAuth({
-            provider: "github",
-            options: { scopes: "read:user repo", redirectTo },
-          });
-          if (oauthErr) throw oauthErr;
-        } else {
-          throw error;
-        }
+        const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+          provider: "github",
+          options: { scopes: "read:user repo", redirectTo },
+        });
+        if (oauthErr) throw oauthErr;
       }
     } catch (err: unknown) {
       toast.error(friendlyError(err));
