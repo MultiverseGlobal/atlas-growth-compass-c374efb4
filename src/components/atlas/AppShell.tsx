@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell } from "lucide-react";
 import { Logo, LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const nav = [
   { to: "/app", end: true, icon: Compass, label: "Maps" },
   { to: "/app/timeline", icon: Activity, label: "Timeline" },
+  { to: "/app/notifications", icon: Bell, label: "Notifications" },
   { to: "/app/reports", icon: FileText, label: "Reports" },
   { to: "/app/integrations", icon: Plug, label: "Data sources" },
   { to: "/app/page", icon: Globe, label: "Public page" },
@@ -22,6 +23,7 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [profile, setProfile] = useState<{ handle: string | null; display_name: string | null } | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Sidebar collapsed state. User's explicit toggle (stored) wins; otherwise auto by viewport.
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -62,6 +64,44 @@ export default function AppShell() {
     });
   }, [user, navigate]);
 
+  // Real-time unread notifications subscription
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchCount = () => {
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("read_at", null)
+        .then(({ count }) => {
+          setUnreadCount(count ?? 0);
+        });
+    };
+
+    fetchCount();
+
+    const channel = supabase
+      .channel("unread-notifications-appshell")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   if (loading || !user) return <div className="min-h-screen bg-background" />;
 
   return (
@@ -74,7 +114,7 @@ export default function AppShell() {
         <div className={`h-16 flex items-center border-b border-border/60 ${collapsed ? "justify-center px-2" : "px-5"}`}>
           {collapsed ? <LogoMark size={22} /> : <Logo />}
         </div>
-        <SidebarNav collapsed={collapsed} />
+        <SidebarNav collapsed={collapsed} unreadCount={unreadCount} />
         <div className="p-3 border-t border-border/60 space-y-1">
           <button
             onClick={toggle}
@@ -133,7 +173,12 @@ export default function AppShell() {
               }`
             }
           >
-            <n.icon className="h-4 w-4" />
+            <div className="relative">
+              <n.icon className="h-4 w-4" />
+              {n.to === "/app/notifications" && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-destructive" />
+              )}
+            </div>
             <span className="max-w-full truncate">{n.label}</span>
           </NavLink>
         ))}
@@ -142,7 +187,7 @@ export default function AppShell() {
   );
 }
 
-function SidebarNav({ collapsed }: { collapsed: boolean }) {
+function SidebarNav({ collapsed, unreadCount }: { collapsed: boolean; unreadCount: number }) {
   const location = useLocation();
   const listRef = useRef<HTMLDivElement | null>(null);
   const [indicator, setIndicator] = useState<{ top: number; height: number; visible: boolean }>({
@@ -194,8 +239,22 @@ function SidebarNav({ collapsed }: { collapsed: boolean }) {
               }`
             }
           >
-            <n.icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>{n.label}</span>}
+            <div className="relative">
+              <n.icon className="h-4 w-4 shrink-0" />
+              {n.to === "/app/notifications" && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-destructive animate-pulse" />
+              )}
+            </div>
+            {!collapsed && (
+              <span className="flex-1 flex items-center justify-between">
+                <span>{n.label}</span>
+                {n.to === "/app/notifications" && unreadCount > 0 && (
+                  <span className="ml-2 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                    {unreadCount}
+                  </span>
+                )}
+              </span>
+            )}
           </NavLink>
         );
 

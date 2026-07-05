@@ -18,6 +18,7 @@ import Reports from "./pages/app/Reports";
 import Integrations from "./pages/app/Integrations";
 import PublicPagePreview from "./pages/app/PublicPagePreview";
 import Settings from "./pages/app/Settings";
+import Notifications from "./pages/app/Notifications";
 import PublicProfile from "./pages/PublicProfile";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="integrations" element={<Integrations />} />
               <Route path="page" element={<PublicPagePreview />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="notifications" element={<Notifications />} />
             </Route>
             <Route path="/@:handle" element={<PublicProfile />} />
             <Route path="/privacy" element={<Privacy />} />

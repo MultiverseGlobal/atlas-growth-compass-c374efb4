@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,8 +15,7 @@ interface DiagnosticFlag {
 }
 
 interface DiagnoseRequest {
-  goal_statement: string;
-  flags: DiagnosticFlag[];
+  map_id: string;
   manual_notes?: string;
   provider?: "openai" | "anthropic" | "google" | "perplexity" | "nvidia-nim";
 }
@@ -54,16 +54,16 @@ Return ONLY valid JSON matching this exact shape:
 }`;
 }
 
-function buildUserPrompt(req: DiagnoseRequest): string {
-  const flagLines = req.flags.length > 0
-    ? req.flags.map(f => `- [${f.severity.toUpperCase()}] ${f.flag}: ${f.reason}`).join("\n")
+function buildUserPrompt(goalStatement: string, flags: DiagnosticFlag[], manualNotes?: string): string {
+  const flagLines = flags.length > 0
+    ? flags.map(f => `- [${f.severity.toUpperCase()}] ${f.flag}: ${f.reason}`).join("\n")
     : "- No GitHub signals available yet.";
 
-  const notesSection = req.manual_notes?.trim()
-    ? `\nFounder notes:\n${req.manual_notes.trim()}`
+  const notesSection = manualNotes?.trim()
+    ? `\nFounder notes:\n${manualNotes.trim()}`
     : "";
 
-  return `Founder's stated goal: "${req.goal_statement}"
+  return `Founder's stated goal: "${goalStatement}"
 
 Deterministic signals from connected tools:
 ${flagLines}${notesSection}
@@ -155,7 +155,6 @@ async function callPerplexity(system: string, user: string, apiKey: string): Pro
 }
 
 async function callNvidiaNim(system: string, user: string, apiKey: string): Promise<DiagnoseResponse> {
-  // NVIDIA NIM uses an OpenAI-compatible API
   const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -178,45 +177,43 @@ async function callNvidiaNim(system: string, user: string, apiKey: string): Prom
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-async function route(req: DiagnoseRequest): Promise<DiagnoseResponse> {
+async function route(goalStatement: string, flags: DiagnosticFlag[], manualNotes?: string, provider?: string): Promise<DiagnoseResponse> {
   const system = buildSystemPrompt();
-  const user = buildUserPrompt(req);
+  const user = buildUserPrompt(goalStatement, flags, manualNotes);
 
-  const provider = req.provider ?? "openai";
-
-  // Try requested provider first, then fall back down the chain
+  const selectedProvider = provider ?? "openai";
   const chain: Array<() => Promise<DiagnoseResponse>> = [];
 
-  if (provider === "openai" && Deno.env.get("OPENAI_API_KEY")) {
+  if (selectedProvider === "openai" && Deno.env.get("OPENAI_API_KEY")) {
     chain.push(() => callOpenAI(system, user, Deno.env.get("OPENAI_API_KEY")!));
   }
-  if (provider === "anthropic" && Deno.env.get("ANTHROPIC_API_KEY")) {
+  if (selectedProvider === "anthropic" && Deno.env.get("ANTHROPIC_API_KEY")) {
     chain.push(() => callAnthropic(system, user, Deno.env.get("ANTHROPIC_API_KEY")!));
   }
-  if (provider === "google" && Deno.env.get("GOOGLE_AI_API_KEY")) {
+  if (selectedProvider === "google" && Deno.env.get("GOOGLE_AI_API_KEY")) {
     chain.push(() => callGoogle(system, user, Deno.env.get("GOOGLE_AI_API_KEY")!));
   }
-  if (provider === "perplexity" && Deno.env.get("PERPLEXITY_API_KEY")) {
+  if (selectedProvider === "perplexity" && Deno.env.get("PERPLEXITY_API_KEY")) {
     chain.push(() => callPerplexity(system, user, Deno.env.get("PERPLEXITY_API_KEY")!));
   }
-  if (provider === "nvidia-nim" && Deno.env.get("NVIDIA_NIM_API_KEY")) {
+  if (selectedProvider === "nvidia-nim" && Deno.env.get("NVIDIA_NIM_API_KEY")) {
     chain.push(() => callNvidiaNim(system, user, Deno.env.get("NVIDIA_NIM_API_KEY")!));
   }
 
-  // Add fallbacks from other available providers
-  if (provider !== "openai" && Deno.env.get("OPENAI_API_KEY")) {
+  // Fallbacks
+  if (selectedProvider !== "openai" && Deno.env.get("OPENAI_API_KEY")) {
     chain.push(() => callOpenAI(system, user, Deno.env.get("OPENAI_API_KEY")!));
   }
-  if (provider !== "anthropic" && Deno.env.get("ANTHROPIC_API_KEY")) {
+  if (selectedProvider !== "anthropic" && Deno.env.get("ANTHROPIC_API_KEY")) {
     chain.push(() => callAnthropic(system, user, Deno.env.get("ANTHROPIC_API_KEY")!));
   }
-  if (provider !== "google" && Deno.env.get("GOOGLE_AI_API_KEY")) {
+  if (selectedProvider !== "google" && Deno.env.get("GOOGLE_AI_API_KEY")) {
     chain.push(() => callGoogle(system, user, Deno.env.get("GOOGLE_AI_API_KEY")!));
   }
-  if (provider !== "perplexity" && Deno.env.get("PERPLEXITY_API_KEY")) {
+  if (selectedProvider !== "perplexity" && Deno.env.get("PERPLEXITY_API_KEY")) {
     chain.push(() => callPerplexity(system, user, Deno.env.get("PERPLEXITY_API_KEY")!));
   }
-  if (provider !== "nvidia-nim" && Deno.env.get("NVIDIA_NIM_API_KEY")) {
+  if (selectedProvider !== "nvidia-nim" && Deno.env.get("NVIDIA_NIM_API_KEY")) {
     chain.push(() => callNvidiaNim(system, user, Deno.env.get("NVIDIA_NIM_API_KEY")!));
   }
 
@@ -243,16 +240,122 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body: DiagnoseRequest = await req.json();
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization header" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    if (!body.goal_statement) {
-      return new Response(JSON.stringify({ error: "goal_statement is required" }), {
+    const body: DiagnoseRequest = await req.json();
+    if (!body.map_id) {
+      return new Response(JSON.stringify({ error: "map_id is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const result = await route(body);
+    // Initialize Supabase client using auth header
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    // 1. Fetch map goal_statement
+    const { data: map, error: mapError } = await userClient
+      .from("maps")
+      .select("goal_statement")
+      .eq("id", body.map_id)
+      .maybeSingle();
+
+    if (mapError || !map) {
+      return new Response(JSON.stringify({ error: "Map not found or unauthorized" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 2. Fetch signals (last 14 days for activity; manual notes can be older)
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const { data: signals, error: signalsError } = await userClient
+      .from("signals")
+      .select("title, occurred_at, payload")
+      .eq("map_id", body.map_id)
+      .order("occurred_at", { ascending: false });
+
+    if (signalsError) {
+      return new Response(JSON.stringify({ error: `Failed to fetch signals: ${signalsError.message}` }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 3. Compute GitHub flags based on the last 14 days of signals
+    const commitSignals = signals?.filter(
+      (s) =>
+        new Date(s.occurred_at) >= twoWeeksAgo &&
+        (s.payload?.type === "commit" || s.title.startsWith("Commit:"))
+    ) ?? [];
+
+    const now = new Date();
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const commitsThisWeek = commitSignals.filter(
+      (c) => new Date(c.occurred_at) >= oneWeekAgo
+    ).length;
+    const commitsLastWeek = commitSignals.length - commitsThisWeek;
+
+    const latestCommit = commitSignals[0] ?? null;
+    const latestCommitDate = latestCommit ? new Date(latestCommit.occurred_at) : null;
+    const daysSinceLastCommit = latestCommitDate
+      ? Math.floor((now.getTime() - latestCommitDate.getTime()) / (1000 * 60 * 60 * 24))
+      : 14;
+    const lastCommitMessage = latestCommit
+      ? (latestCommit.payload?.message || latestCommit.title.replace("Commit: ", ""))
+      : "";
+
+    const flags: DiagnosticFlag[] = [];
+    if (daysSinceLastCommit > 7) {
+      flags.push({
+        flag: "No GitHub activity in over a week",
+        reason: `Last commit was ${daysSinceLastCommit} days ago: "${lastCommitMessage}"`,
+        severity: "high",
+      });
+    }
+    if (commitsThisWeek === 0 && daysSinceLastCommit <= 7) {
+      flags.push({
+        flag: "Zero commits this week",
+        reason: `${commitsLastWeek} commits last week, 0 this week.`,
+        severity: "medium",
+      });
+    }
+    if (commitsLastWeek > 0 && commitsThisWeek < commitsLastWeek * 0.5 && commitsThisWeek > 0) {
+      const drop = Math.round(((commitsLastWeek - commitsThisWeek) / commitsLastWeek) * 100);
+      flags.push({
+        flag: "Commit velocity dropping",
+        reason: `${commitsThisWeek} commits this week vs ${commitsLastWeek} last week — ${drop}% drop.`,
+        severity: "medium",
+      });
+    }
+    if (commitsThisWeek >= commitsLastWeek && commitsThisWeek > 0) {
+      flags.push({
+        flag: "Development velocity is stable or increasing",
+        reason: `${commitsThisWeek} commits this week vs ${commitsLastWeek} last week.`,
+        severity: "low",
+      });
+    }
+
+    // 4. Resolve manual notes: check request body first, otherwise fall back to latest in DB
+    const manualNoteSignal = signals?.find((s) => s.title === "__manual_note");
+    const dbManualNote = manualNoteSignal?.payload?.note || "";
+    const manualNotes = body.manual_notes ?? dbManualNote;
+
+    // 5. Call the LLM chain
+    const result = await route(map.goal_statement, flags, manualNotes, body.provider);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

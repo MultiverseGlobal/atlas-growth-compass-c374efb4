@@ -181,6 +181,22 @@ button:not(:disabled):active, a[role="button"]:active, [data-press]:active {
   background-image: linear-gradient(to bottom, transparent 23px, hsl(var(--border) / 0.4) 23px);
 }
 
+/* Paper grain texture — used on auth/onboarding/app shell backgrounds */
+.grain {
+  position: relative;
+}
+.grain::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+}
+
 .flow-line {
   stroke-dasharray: 5, 5;
   animation: flow-line-scroll 24s linear infinite;
@@ -219,5 +235,57 @@ button:not(:disabled):active, a[role="button"]:active, [data-press]:active {
   50% { transform: rotate(180deg) scale(1.15); }
   100% { transform: rotate(360deg) scale(1); }
 }
+
+/* Focus Mode Global layout fades */
+aside, header, nav.fixed {
+  transition: opacity 200ms ease-out, transform 200ms ease-out, width 200ms ease-out !important;
+}
+
+.focus-mode-active aside {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateX(-20px);
+}
+
+.focus-mode-active header {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(-20px);
+}
+
+.focus-mode-active nav.fixed {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(20px);
+}
+
+/* Contour drift animations */
+@keyframes contour-drift-slow {
+  0% { transform: translate(0px, 0px) rotate(0deg) scale(1); }
+  50% { transform: translate(15px, -10px) rotate(180deg) scale(1.05); }
+  100% { transform: translate(0px, 0px) rotate(360deg) scale(1); }
+}
+
+@keyframes contour-drift-medium {
+  0% { transform: translate(0px, 0px) rotate(0deg) scale(1); }
+  50% { transform: translate(-10px, 15px) rotate(-180deg) scale(0.95); }
+  100% { transform: translate(0px, 0px) rotate(-360deg) scale(1); }
+}
+
+.animate-contour-drift-slow {
+  animation: contour-drift-slow 60s ease-in-out infinite;
+}
+
+.animate-contour-drift-medium {
+  animation: contour-drift-medium 45s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-contour-drift-slow,
+  .animate-contour-drift-medium {
+    animation: none !important;
+  }
+}
+
 
 

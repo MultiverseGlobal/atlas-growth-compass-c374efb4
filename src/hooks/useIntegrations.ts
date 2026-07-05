@@ -24,6 +24,23 @@ export function useIntegrations() {
       // Check if user has GitHub identity linked
       const githubIdentity = user.identities?.find((i) => i.provider === "github");
       if (githubIdentity) {
+        // Persist the provider_token now — it's only available in the live session.
+        // We use a security-definer RPC so the token is stored server-side without
+        // exposing it to other authenticated reads.
+        const { data: sessionData } = await supabase.auth.getSession();
+        const providerToken = sessionData.session?.provider_token;
+        if (providerToken) {
+          // Fire-and-forget — don't block the UI on this
+          supabase.rpc("upsert_github_token", {
+            p_token: providerToken,
+            p_scopes: "read:user repo",
+            p_expires_at: null,
+          }).then(({ error }) => {
+            if (error) console.warn("[integrations] upsert_github_token failed:", error.message);
+          });
+        }
+
+        // Ensure the integrations row exists (without the token column, just the label)
         const { data: existing } = await supabase
           .from("integrations")
           .select("id")

@@ -11,16 +11,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const syncToken = async (s: Session | null) => {
+      if (!s?.provider_token) return;
+      const provider = s.user?.app_metadata?.provider;
+      if (provider === "github") {
+        await supabase.rpc("upsert_github_token", {
+          p_token: s.provider_token,
+          p_scopes: "read:user repo",
+          p_expires_at: s.expires_at ? new Date(s.expires_at * 1000).toISOString() : null,
+        });
+      }
+    };
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setUser(s?.user ?? null);
       setLoading(false);
+      if (s) syncToken(s);
     });
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
+      if (data.session) syncToken(data.session);
     });
+
     return () => sub.subscription.unsubscribe();
   }, []);
 
