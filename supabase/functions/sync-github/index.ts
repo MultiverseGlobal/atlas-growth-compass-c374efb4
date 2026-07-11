@@ -91,19 +91,48 @@ Deno.serve(async (req: Request) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const isServiceCall = authHeader === `Bearer ${supabaseServiceKey}`;
+    const userClient = isServiceCall
+      ? createClient(supabaseUrl, supabaseServiceKey)
+      : createClient(supabaseUrl, supabaseAnonKey, {
+          global: { headers: { Authorization: authHeader } },
+        });
     const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const body: SyncRequest = await req.json();
+
+    let userId: string;
+    let user: any = null;
+    let resolvedMapData: any = null;
+
+    if (isServiceCall) {
+      if (!body.map_id) {
+        return new Response(JSON.stringify({ error: "map_id is required for service-role sync" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data, error: mapError } = await serviceClient
+        .from("maps")
+        .select("id, user_id, goal_statement")
+        .eq("id", body.map_id)
+        .maybeSingle();
+      if (mapError || !data) {
+        return new Response(JSON.stringify({ error: "Map not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      userId = data.user_id;
+      resolvedMapData = data;
+    } else {
+      const { data: { user: authUser }, error: userError } = await userClient.auth.getUser();
+      if (userError || !authUser) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      user = authUser;
+      userId = user.id;
+    }
 
     // Resolve GitHub token — if the client passed one, persist it and use it;
     // otherwise read from the integrations table.
@@ -111,14 +140,14 @@ Deno.serve(async (req: Request) => {
     if (ghToken) {
       // Persist the freshly-obtained session token so future server-only runs have it.
       const label =
-        user.user_metadata?.user_name ||
-        user.user_metadata?.full_name ||
+        user?.user_metadata?.user_name ||
+        user?.user_metadata?.full_name ||
         "Connected GitHub";
       const { error: upsertError } = await serviceClient
         .from("integrations")
         .upsert(
           {
-            user_id: user.id,
+            user_id: userId,
             provider: "github",
             status: "active",
             external_account_label: label,
@@ -132,7 +161,7 @@ Deno.serve(async (req: Request) => {
         console.warn("[sync-github] Failed to persist token:", upsertError.message);
       }
     } else {
-      ghToken = (await getProviderToken(serviceClient, user.id)) ?? undefined;
+      ghToken = (await getProviderToken(serviceClient, userId)) ?? undefined;
     }
 
     if (!ghToken) {
@@ -164,18 +193,22 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Verify the map belongs to this user
-    const { data: mapData, error: mapError } = await userClient
-      .from("maps")
-      .select("id, goal_statement")
-      .eq("id", body.map_id)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // Verify the map belongs to this user if not already resolved
+    let mapData = resolvedMapData;
+    if (!mapData) {
+      const { data, error: mapError } = await userClient
+        .from("maps")
+        .select("id, goal_statement")
+        .eq("id", body.map_id)
+        .eq("user_id", userId)
+        .maybeSingle();
 
-    if (mapError || !mapData) {
-      return new Response(JSON.stringify({ error: "Map not found or unauthorized" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (mapError || !data) {
+        return new Response(JSON.stringify({ error: "Map not found or unauthorized" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      mapData = data;
     }
 
     const [owner, repo] = body.repo_full_name.split("/");
@@ -183,7 +216,7 @@ Deno.serve(async (req: Request) => {
     // Record sync start
     const { data: syncRun } = await serviceClient
       .from("sync_runs")
-      .insert({ user_id: user.id, integration_id: null, kind: "github_map_sync" })
+      .insert({ user_id: userId, integration_id: null, kind: "github_map_sync" })
       .select("id")
       .maybeSingle();
 
@@ -231,7 +264,7 @@ Deno.serve(async (req: Request) => {
         .upsert(
           {
             map_id: body.map_id,
-            user_id: user.id,
+            user_id: userId,
             title: `Commit: ${firstLine}`,
             score: 10,
             occurred_at: occurredAt,
@@ -256,7 +289,7 @@ Deno.serve(async (req: Request) => {
         .upsert(
           {
             map_id: body.map_id,
-            user_id: user.id,
+            user_id: userId,
             title: `PR merged: ${pr.title}`,
             score: 25,
             occurred_at: pr.merged_at ?? pr.created_at,

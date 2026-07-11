@@ -403,7 +403,25 @@ Deno.serve(async (req: Request) => {
     // 6. Call the LLM chain
     const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes);
 
-    return new Response(JSON.stringify(result), {
+    // Build structured evidence_sources from deterministic flags and manual notes
+    const evidenceSources = flags.map(f => ({
+      source: "GitHub",
+      detail: `${f.flag}: ${f.reason}`
+    }));
+
+    if (manualNotes && manualNotes.trim()) {
+      evidenceSources.push({
+        source: "Manual Notes",
+        detail: manualNotes.trim()
+      });
+    }
+
+    const responseBody = {
+      ...result,
+      evidence_sources: evidenceSources
+    };
+
+    return new Response(JSON.stringify(responseBody), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: unknown) {

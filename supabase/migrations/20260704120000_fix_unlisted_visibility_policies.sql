@@ -33,3 +33,24 @@ CREATE POLICY "public reports visible to anyone" ON public.reports
       SELECT 1 FROM public.profiles p WHERE p.id = reports.user_id AND p.page_visibility != 'private'
     )
   );
+
+-- 5. Evidence items policy
+DROP POLICY IF EXISTS "published evidence visible" ON public.evidence_items;
+CREATE POLICY "published evidence visible" ON public.evidence_items
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.maps m WHERE m.id = evidence_items.map_id AND m.is_published = true
+        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility != 'private')
+    )
+  );
+
+-- 6. Timeline events policy
+DROP POLICY IF EXISTS "published timeline events visible" ON public.timeline_events;
+CREATE POLICY "published timeline events visible" ON public.timeline_events
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.maps m WHERE m.id = timeline_events.map_id AND m.is_published = true
+        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility != 'private')
+    )
+  );
+

@@ -11,6 +11,7 @@ interface TrailProps {
     description?: string;
     label?: string;
     lastUpdatedDays?: number;
+    metadata?: any;
   }>;
   /** Optional feedback handler — if provided, feedback buttons appear on constraint + move pins */
   onFeedback?: (waypointKind: string, action: string, waypointTitle: string) => void;
@@ -114,6 +115,31 @@ export function Trail({ waypoints, onFeedback, interactive }: TrailProps) {
                   <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground page-fade">
                     {descriptionText}
                   </p>
+                )}
+                {/* Sourced recommendation details (Evidence Engine) */}
+                {kind === "move" && (
+                  <div className="mt-4 space-y-3">
+                    {w.metadata?.evidence && Array.isArray(w.metadata.evidence) && w.metadata.evidence.length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/75">Evidence used</div>
+                        <ul className="space-y-1">
+                          {w.metadata.evidence.map((ev: any, idx: number) => (
+                            <li key={idx} className="font-mono text-xs text-muted-foreground leading-relaxed flex items-start gap-1">
+                              <span className="text-muted-foreground/60 select-none">—</span>
+                              <span>
+                                <strong className="text-foreground/80 font-semibold">{ev.source}:</strong> {ev.detail}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {confidence && (
+                      <div className="font-mono text-xs text-muted-foreground/70">
+                        Confidence: <span className="text-foreground font-semibold capitalize">{confidence}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {typeof w.lastUpdatedDays === "number" && w.lastUpdatedDays >= 7 && (
                   <p className="mt-2.5 font-mono text-[10px] text-muted-foreground/50 tracking-tight">

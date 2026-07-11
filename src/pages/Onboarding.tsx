@@ -86,6 +86,47 @@ const sources = [
   },
 ];
 
+function getRecommendedSources(goalText: string): string[] {
+  const normalized = (goalText || "").toLowerCase();
+  const recommended: string[] = [];
+
+  if (
+    normalized.includes("customer") ||
+    normalized.includes("user") ||
+    normalized.includes("signup") ||
+    normalized.includes("growth")
+  ) {
+    recommended.push("stripe");
+  }
+
+  if (
+    normalized.includes("ship") ||
+    normalized.includes("build") ||
+    normalized.includes("launch") ||
+    normalized.includes("feature")
+  ) {
+    recommended.push("github");
+  }
+
+  if (
+    normalized.includes("churn") ||
+    normalized.includes("retention") ||
+    normalized.includes("keep")
+  ) {
+    recommended.push("stripe");
+  }
+
+  if (
+    normalized.includes("revenue") ||
+    normalized.includes("mrr") ||
+    normalized.includes("pricing")
+  ) {
+    recommended.push("stripe");
+  }
+
+  return recommended;
+}
+
 const areas = [
   { id: "engineering", label: "Engineering & Dev", description: "Monitor commit velocity, code review times, and deployment blockers.", icon: <Code2 className="h-4.5 w-4.5" /> },
   { id: "product", label: "Product & UX", description: "Align milestone deliveries, cycle times, and shipping deadlines.", icon: <Layout className="h-4.5 w-4.5" /> },
@@ -577,70 +618,86 @@ export default function Onboarding() {
               <p className="text-xs text-muted-foreground mt-1">Connecting sources unlocks high-signal analysis of operational constraints.</p>
               
               <div className="mt-6 grid gap-2">
-                {sources.map((source) => {
-                  const isGitHub = source.id === "github";
-                  const selected = selectedSources.includes(source.id);
-                  
-                  if (isGitHub) {
+                {(() => {
+                  const recommended = getRecommendedSources(goal);
+                  return sources.map((source) => {
+                    const isGitHub = source.id === "github";
+                    const selected = selectedSources.includes(source.id);
+                    const isRecommended = recommended.includes(source.id);
+                    
+                    if (isGitHub) {
+                      return (
+                        <div
+                          key={source.id}
+                          className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-all ${
+                            isGitHubConnected ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-surface"
+                          }`}
+                        >
+                          <span className={`shrink-0 ${isGitHubConnected ? "text-emerald-500" : "text-foreground/70"}`}>
+                            {source.icon}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm flex items-center gap-1.5">
+                              {source.name}
+                              {isRecommended && (
+                                <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-tight font-medium">
+                                  Recommended
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {isGitHubConnected ? "Active and monitored" : source.detail}
+                            </div>
+                          </div>
+                          {isGitHubConnected ? (
+                            <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-500 font-medium">
+                              <ShieldCheck className="h-4 w-4" /> Connected
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleConnectGitHub()}
+                              className="shrink-0 gap-1.5 h-8 text-xs font-mono"
+                            >
+                              <Plug className="h-3 w-3" /> Connect
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div
+                      <button
                         key={source.id}
-                        className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-all ${
-                          isGitHubConnected ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-surface"
+                        type="button"
+                        onClick={() => toggleSource(source.id)}
+                        className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-colors ${
+                          selected ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-surface-2"
                         }`}
                       >
-                        <span className={`shrink-0 ${isGitHubConnected ? "text-emerald-500" : "text-foreground/70"}`}>
+                        <span className={`shrink-0 ${selected ? "text-primary" : "text-foreground/70"}`}>
                           {source.icon}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm">{source.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {isGitHubConnected ? "Active and monitored" : source.detail}
+                          <div className="font-semibold text-sm flex items-center gap-1.5">
+                            {source.name}
+                            {isRecommended && (
+                              <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-tight font-medium">
+                                Recommended
+                              </span>
+                            )}
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground uppercase">
+                              Pilot mock
+                            </span>
                           </div>
+                          <div className="text-xs text-muted-foreground">{source.detail}</div>
                         </div>
-                        {isGitHubConnected ? (
-                          <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-500 font-medium">
-                            <ShieldCheck className="h-4 w-4" /> Connected
-                          </span>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleConnectGitHub()}
-                            className="shrink-0 gap-1.5 h-8 text-xs font-mono"
-                          >
-                            <Plug className="h-3 w-3" /> Connect
-                          </Button>
-                        )}
-                      </div>
+                        {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                      </button>
                     );
-                  }
-
-                  return (
-                    <button
-                      key={source.id}
-                      type="button"
-                      onClick={() => toggleSource(source.id)}
-                      className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-colors ${
-                        selected ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-surface-2"
-                      }`}
-                    >
-                      <span className={`shrink-0 ${selected ? "text-primary" : "text-foreground/70"}`}>
-                        {source.icon}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm flex items-center gap-1.5">
-                          {source.name}
-                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground uppercase">
-                            Pilot mock
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">{source.detail}</div>
-                      </div>
-                      {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                    </button>
-                  );
-                })}
+                  });
+                })()}
               </div>
             </div>
           )}

@@ -2,6 +2,17 @@ import { Github, Plug, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useAuth } from "@/hooks/useAuth";
+import { useMaps } from "@/hooks/useMaps";
+
+function getRecommendedSources(goalText: string): string[] {
+  const t = (goalText || "").toLowerCase();
+  const rec = new Set<string>();
+  if (t.includes("customer") || t.includes("user") || t.includes("signup") || t.includes("growth")) rec.add("stripe");
+  if (t.includes("ship") || t.includes("build") || t.includes("launch") || t.includes("feature")) rec.add("github");
+  if (t.includes("churn") || t.includes("retention") || t.includes("keep")) rec.add("stripe");
+  if (t.includes("revenue") || t.includes("mrr") || t.includes("pricing")) rec.add("stripe");
+  return Array.from(rec);
+}
 
 type Connector = {
   id: string;
@@ -71,6 +82,12 @@ const connectors: Connector[] = [
 export default function Integrations() {
   const { user } = useAuth();
   const { data: integrations = [], isLoading, connectGitHub, disconnect } = useIntegrations();
+  const { data: maps = [] } = useMaps();
+
+  // Use the most-recently-updated map's goal to compute recommendations.
+  // If the user has no maps yet, no tags are shown (safe default).
+  const primaryGoal = maps[0]?.goal_statement ?? "";
+  const recommended = getRecommendedSources(primaryGoal);
 
   const getIntegration = (id: string) =>
     integrations.find((i) => i.provider === id && i.status === "active");
@@ -94,6 +111,7 @@ export default function Integrations() {
               connected={!!connected}
               connectedLabel={connected?.external_account_label ?? undefined}
               loading={isLoading}
+              isRecommended={recommended.includes(connector.id)}
               onConnect={connector.id === "github" ? connectGitHub : undefined}
               onDisconnect={
                 connected
@@ -113,6 +131,7 @@ function ConnectorCard({
   connected,
   connectedLabel,
   loading,
+  isRecommended,
   onConnect,
   onDisconnect,
 }: {
@@ -120,6 +139,7 @@ function ConnectorCard({
   connected: boolean;
   connectedLabel?: string;
   loading: boolean;
+  isRecommended?: boolean;
   onConnect?: () => void;
   onDisconnect?: () => void;
 }) {
@@ -129,15 +149,22 @@ function ConnectorCard({
         <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted text-foreground">
           {connector.icon}
         </div>
-        {connected ? (
-          <span className="flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-2.5 py-1 text-xs font-mono text-success">
-            <CheckCircle2 className="h-3 w-3" /> Connected
-          </span>
-        ) : !connector.available ? (
-          <span className="flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-mono text-muted-foreground">
-            <Clock className="h-3 w-3" /> Coming soon
-          </span>
-        ) : null}
+        <div className="flex items-center gap-1.5">
+          {isRecommended && !connected && (
+            <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-tight text-primary font-medium">
+              Recommended
+            </span>
+          )}
+          {connected ? (
+            <span className="flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-2.5 py-1 text-xs font-mono text-success">
+              <CheckCircle2 className="h-3 w-3" /> Connected
+            </span>
+          ) : !connector.available ? (
+            <span className="flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-mono text-muted-foreground">
+              <Clock className="h-3 w-3" /> Coming soon
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex-1">

@@ -37,6 +37,7 @@ type Waypoint = {
   kind: "goal" | "constraint" | "evidence" | "move";
   title: string;
   confidence: "starter" | "emerging" | "established";
+  metadata?: any;
 };
 
 export default function MapDetails() {
@@ -194,7 +195,7 @@ export default function MapDetails() {
       // Load saved waypoints
       const { data: wpData } = await supabase
         .from("waypoints")
-        .select("id, kind, title, confidence")
+        .select("id, kind, title, confidence, metadata")
         .eq("map_id", id)
         .order("position", { ascending: true });
 
@@ -304,7 +305,7 @@ export default function MapDetails() {
         });
         if (fnError) throw fnError;
 
-        const llm = fnData as { constraint: string; evidence: string; move: string; confidence: string };
+        const llm = fnData as { constraint: string; evidence: string; move: string; confidence: string; evidence_sources?: Array<{ source: string; detail: string }> };
         const conf = (["emerging", "building", "established"].includes(llm.confidence)
           ? llm.confidence : "emerging") as "emerging" | "established";
 
@@ -313,7 +314,7 @@ export default function MapDetails() {
             { kind: "goal", title: mapGoal, confidence: "established" },
             { kind: "constraint", title: llm.constraint, confidence: conf },
             { kind: "evidence", title: llm.evidence, confidence: conf },
-            { kind: "move", title: llm.move, confidence: "established" },
+            { kind: "move", title: llm.move, confidence: "established", metadata: llm.evidence_sources ? { evidence: llm.evidence_sources } : undefined },
           ],
         };
       } catch {
@@ -346,6 +347,7 @@ export default function MapDetails() {
           title: w.title,
           confidence: w.confidence,
           position: idx,
+          metadata: w.metadata || null,
         }))
       );
 

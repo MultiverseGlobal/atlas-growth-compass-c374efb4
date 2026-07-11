@@ -148,6 +148,11 @@ export function runGitHubRulesFallback(stats: GitHubStats, goal: string) {
   const isHealthy = !topFlag || topFlag.severity === "low";
   const confidence = stats.daysSinceLastCommit > 7 ? "emerging" as const : "established" as const;
 
+  const evidenceSources = flags.map(f => ({
+    source: "GitHub",
+    detail: `${f.flag}: ${f.reason}`
+  }));
+
   return {
     waypoints: [
       { kind: "goal" as const, title: goal, confidence: "established" as const },
@@ -167,6 +172,7 @@ export function runGitHubRulesFallback(stats: GitHubStats, goal: string) {
           ? "Keep executing on the current map path."
           : "Connect an LLM API key in Supabase Edge Function secrets to get goal-aware advice.",
         confidence: "established" as const,
+        metadata: { evidence: evidenceSources },
       },
     ],
   };

@@ -26,7 +26,7 @@ CREATE POLICY "users manage own maps" ON public.maps
 CREATE POLICY "published maps visible to anon" ON public.maps
   FOR SELECT USING (
     is_published = true AND EXISTS (
-      SELECT 1 FROM public.profiles p WHERE p.id = maps.user_id AND p.page_visibility = 'public'
+      SELECT 1 FROM public.profiles p WHERE p.id = maps.user_id AND p.page_visibility != 'private'
     )
   );
 CREATE TRIGGER trg_maps_updated BEFORE UPDATE ON public.maps
@@ -41,6 +41,7 @@ CREATE TABLE public.waypoints (
   title      TEXT NOT NULL,
   confidence public.map_confidence NOT NULL DEFAULT 'starter',
   position   INT NOT NULL DEFAULT 0,
+  metadata   JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_waypoints_map ON public.waypoints(map_id, position);
@@ -54,7 +55,7 @@ CREATE POLICY "published waypoints visible" ON public.waypoints
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.maps m WHERE m.id = waypoints.map_id AND m.is_published = true
-        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility = 'public')
+        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility != 'private')
     )
   );
 
@@ -115,7 +116,7 @@ CREATE POLICY "published evidence visible" ON public.evidence_items
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.maps m WHERE m.id = evidence_items.map_id AND m.is_published = true
-        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility = 'public')
+        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility != 'private')
     )
   );
 
@@ -139,7 +140,7 @@ CREATE POLICY "published timeline events visible" ON public.timeline_events
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.maps m WHERE m.id = timeline_events.map_id AND m.is_published = true
-        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility = 'public')
+        AND EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = m.user_id AND p.page_visibility != 'private')
     )
   );
 

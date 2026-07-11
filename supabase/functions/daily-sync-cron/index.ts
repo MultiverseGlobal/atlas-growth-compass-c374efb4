@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
           { kind: "goal", title: mapGoal, confidence: "established" },
           { kind: "constraint", title: llm.constraint, confidence: conf },
           { kind: "evidence", title: llm.evidence, confidence: conf },
-          { kind: "move", title: llm.move, confidence: "established" },
+          { kind: "move", title: llm.move, confidence: "established", metadata: llm.evidence_sources ? { evidence: llm.evidence_sources } : null },
         ];
 
         // Step 4: Persist waypoints in DB
@@ -88,6 +88,7 @@ Deno.serve(async (req: Request) => {
             title: w.title,
             confidence: w.confidence === "building" ? "emerging" : w.confidence,
             position: idx,
+            metadata: (w as any).metadata || null,
           }))
         );
 

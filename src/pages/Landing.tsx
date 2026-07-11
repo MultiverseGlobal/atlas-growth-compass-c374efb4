@@ -165,7 +165,7 @@ export default function Landing() {
           <div className="eyebrow text-primary">Feature highlights</div>
           <h2 className="mt-3 font-display text-3xl md:text-4xl leading-tight">Built for focused shipping.</h2>
           <p className="mt-3 text-sm text-muted-foreground max-w-xl">
-            Atlas strips away the vanity graphs, distilling noise into actionable map coordinates.
+            Atlas strips away the vanity graphs, distilling noise into clear, next-step priorities.
           </p>
         </Reveal>
         <div className="mt-12 grid gap-6 md:grid-cols-3">
