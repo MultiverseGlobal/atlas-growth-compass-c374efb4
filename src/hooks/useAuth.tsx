@@ -28,6 +28,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(s?.user ?? null);
       setLoading(false);
       if (s) syncToken(s);
+
+      // When returning from a linkIdentity or OAuth flow, Supabase may redirect
+      // to the site URL (not /auth/callback) — especially for existing-session link flows.
+      // Check sessionStorage for a pending destination and navigate there immediately.
+      if ((_e === "SIGNED_IN" || _e === "USER_UPDATED") && s) {
+        try {
+          const pendingNext = sessionStorage.getItem("atlas.auth.next");
+          if (pendingNext && !window.location.pathname.includes("/auth/callback")) {
+            sessionStorage.removeItem("atlas.auth.next");
+            // Use replace so the OAuth redirect page isn't in browser history
+            window.location.replace(pendingNext);
+            return;
+          }
+        } catch (e) {
+          console.warn("[useAuth] sessionStorage read failed", e);
+        }
+      }
     });
 
     supabase.auth.getSession().then(({ data }) => {
