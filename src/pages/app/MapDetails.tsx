@@ -14,7 +14,7 @@ import {
   type GitHubRepo,
   type GitHubStats,
 } from "@/lib/github";
-import { ArrowLeft, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass } from "lucide-react";
 import { toast } from "sonner";
 import { CompassLoader } from "./Home";
 import {
@@ -39,6 +39,44 @@ type Waypoint = {
   confidence: "starter" | "emerging" | "established";
   metadata?: any;
 };
+
+const TOUR_STEPS = [
+  {
+    title: "1. The Goal",
+    description: "This is your active goal. Everything on this map serves to align your focus toward achieving this statement.",
+    target: "#tour-wp-goal",
+  },
+  {
+    title: "2. The Constraint",
+    description: "This is the core bottleneck slowing you down. Atlas analyzes your tools to identify what is actually blocking your progress.",
+    target: "#tour-wp-constraint",
+  },
+  {
+    title: "3. The Evidence",
+    description: "Why is this the constraint? Atlas lists the evidence gathered from your connected development channels here.",
+    target: "#tour-wp-evidence",
+  },
+  {
+    title: "4. The Next Move",
+    description: "Your single immediate priority. Ignore the noise and focus entirely on executing this move next.",
+    target: "#tour-wp-move",
+  },
+  {
+    title: "5. Add Context",
+    description: "Connected tools don't know everything. Add manual context notes about your plans or blockers, and Atlas will re-diagnose your map.",
+    target: "#tour-context",
+  },
+  {
+    title: "6. Connect GitHub",
+    description: "Link a GitHub repository to feed active development velocity and commit signals directly into Atlas's constraint engine.",
+    target: "#tour-github",
+  },
+  {
+    title: "7. Immersive Focus",
+    description: "Click 'Focus Mode' for a distraction-free, cartographic canvas. Perfect for zooming, panning, and reviewing your strategy.",
+    target: "#tour-focus",
+  }
+];
 
 export default function MapDetails() {
   const { id } = useParams<{ id: string }>();
@@ -71,6 +109,35 @@ export default function MapDetails() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [expandedWaypoint, setExpandedWaypoint] = useState<number | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+
+  // Tour state
+  const [tourStep, setTourStep] = useState<number | null>(null);
+
+  // Start tour automatically on first visit
+  useEffect(() => {
+    if (loading || !map) return;
+    const hasSeenTour = localStorage.getItem("atlas.tour.seen");
+    if (!hasSeenTour) {
+      const timer = setTimeout(() => {
+        setTourStep(0);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, map]);
+
+  // Apply tour highlights and scroll to active elements
+  useEffect(() => {
+    if (tourStep === null) return;
+    const step = TOUR_STEPS[tourStep];
+    const el = document.querySelector(step.target);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("tour-highlight");
+      return () => {
+        el.classList.remove("tour-highlight");
+      };
+    }
+  }, [tourStep]);
 
   useEffect(() => {
     if (focusMode) {
@@ -507,6 +574,16 @@ export default function MapDetails() {
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setTourStep(0)}
+              className="text-muted-foreground hover:bg-muted/10 gap-1.5"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Tour</span>
+            </Button>
+            <Button
+              id="tour-focus"
+              variant="ghost"
+              size="sm"
               onClick={() => setFocusMode(true)}
               className="text-primary hover:bg-primary/10 gap-1.5"
             >
@@ -575,7 +652,7 @@ export default function MapDetails() {
         </div>
 
         {/* Manual Notes */}
-        <div className="mt-12 rounded-[16px] border border-border bg-card/75 p-6 bg-parchment-lines relative overflow-hidden">
+        <div id="tour-context" className="mt-12 rounded-[16px] border border-border bg-card/75 p-6 bg-parchment-lines relative overflow-hidden">
           <div className="relative z-10">
             <div className="text-xs font-mono uppercase tracking-widest text-primary">Add context</div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -598,7 +675,7 @@ export default function MapDetails() {
         </div>
 
         {/* GitHub Connector */}
-        <div className="mt-6 rounded-[16px] border border-border bg-card p-6">
+        <div id="tour-github" className="mt-6 rounded-[16px] border border-border bg-card p-6">
           <div className="text-xs font-mono uppercase tracking-widest text-primary">GitHub source</div>
 
           {!hasGitHubIntegration ? (
@@ -764,6 +841,68 @@ export default function MapDetails() {
           {/* Bottom instruction bar */}
           <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 bg-card/90 backdrop-blur-md border border-border px-5 py-2 rounded-full text-xs text-muted-foreground font-mono shadow-sm pointer-events-none select-none z-20 transition-all duration-700 ${showInstructions ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
             Drag to Pan · Scroll or Pinch to Zoom · Click Waypoint to Expand Details · Press Esc to Exit
+          </div>
+        </div>
+      )}
+
+      {tourStep !== null && (
+        <div className="fixed bottom-6 right-6 left-6 md:left-auto md:w-96 z-50 bg-card border-2 border-primary rounded-xl shadow-2xl p-5 page-fade select-none">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-primary font-bold">
+              <Compass className="h-4 w-4 animate-spin" style={{ animationDuration: '6s' }} /> Map Guide ({tourStep + 1}/{TOUR_STEPS.length})
+            </div>
+            <button 
+              onClick={() => {
+                setTourStep(null);
+                localStorage.setItem("atlas.tour.seen", "true");
+              }} 
+              className="text-xs text-muted-foreground hover:text-foreground underline font-mono"
+            >
+              Skip tour
+            </button>
+          </div>
+          <h4 className="font-display text-lg font-semibold text-foreground mb-1">
+            {TOUR_STEPS[tourStep].title}
+          </h4>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {TOUR_STEPS[tourStep].description}
+          </p>
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex gap-1">
+              {TOUR_STEPS.map((_, idx) => (
+                <div 
+                  key={idx} 
+                  className={`h-1.5 w-1.5 rounded-full transition-all duration-200 ${idx === tourStep ? "bg-primary w-3" : "bg-muted-foreground/30"}`} 
+                />
+              ))}
+            </div>
+            <div className="flex gap-2">
+              {tourStep > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setTourStep(prev => prev! - 1)}
+                  className="h-8 text-xs font-mono"
+                >
+                  Back
+                </Button>
+              )}
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  if (tourStep < TOUR_STEPS.length - 1) {
+                    setTourStep(prev => prev! + 1);
+                  } else {
+                    setTourStep(null);
+                    localStorage.setItem("atlas.tour.seen", "true");
+                    toast.success("Tour completed! You are ready to navigate your maps.");
+                  }
+                }}
+                className="h-8 text-xs font-mono"
+              >
+                {tourStep === TOUR_STEPS.length - 1 ? "Got it" : "Next"}
+              </Button>
+            </div>
           </div>
         </div>
       )}

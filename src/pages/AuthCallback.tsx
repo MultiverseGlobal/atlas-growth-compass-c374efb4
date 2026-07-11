@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
+import { toast } from "sonner";
 
 /**
  * AuthCallback – handles the redirect after email confirmation or OAuth.
@@ -23,6 +24,24 @@ export default function AuthCallback() {
     handled.current = true;
 
     const run = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const errorParam = params.get("error");
+      const errorCode = params.get("error_code");
+      const errorDesc = params.get("error_description");
+
+      if (errorParam) {
+        console.error("[AuthCallback] OAuth callback error:", errorParam, errorCode, errorDesc);
+        let msg = errorDesc || "Authentication failed";
+        if (errorCode === "identity_already_exists") {
+          msg = "This GitHub account is already linked to another Atlas account.";
+        }
+        toast.error(msg, { duration: 6000 });
+        
+        const next = params.get("next") || "/app/integrations";
+        nav(next, { replace: true });
+        return;
+      }
+
       // exchangeCodeForSession handles both PKCE (?code=) and implicit (#access_token=) flows.
       const { data, error } = await supabase.auth.exchangeCodeForSession(
         window.location.href
@@ -72,7 +91,6 @@ export default function AuthCallback() {
       }
 
       // Check for an explicit ?next= redirect target (set by connectGitHub)
-      const params = new URLSearchParams(window.location.search);
       const next = params.get("next");
       if (next) {
         nav(next, { replace: true });

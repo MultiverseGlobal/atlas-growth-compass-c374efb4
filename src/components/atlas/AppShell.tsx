@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CompassLoader } from "@/pages/app/Home";
 
 const nav = [
   { to: "/app", end: true, icon: Compass, label: "Maps" },
@@ -102,7 +103,13 @@ export default function AppShell() {
     };
   }, [user]);
 
-  if (loading || !user) return <div className="min-h-screen bg-background" />;
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center grain">
+        <CompassLoader />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background grain md:flex">

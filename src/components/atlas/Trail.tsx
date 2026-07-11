@@ -90,6 +90,7 @@ export function Trail({ waypoints, onFeedback, interactive }: TrailProps) {
           return (
             <li
               key={i}
+              id={`tour-wp-${kind}`}
               className={`relative waypoint-rise ${interactive ? "cursor-pointer group select-none" : ""}`}
               style={{ animationDelay: `${0.5 + i * 0.4}s` }}
               onClick={() => {
