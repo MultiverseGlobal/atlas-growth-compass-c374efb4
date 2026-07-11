@@ -16,6 +16,7 @@ interface TrailProps {
   /** Optional feedback handler — if provided, feedback buttons appear on constraint + move pins */
   onFeedback?: (waypointKind: string, action: string, waypointTitle: string) => void;
   interactive?: boolean;
+  layout?: "vertical" | "horizontal";
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -60,8 +61,128 @@ function Pin({ kind, confidence }: { kind: string; confidence?: string }) {
   );
 }
 
-export function Trail({ waypoints, onFeedback, interactive }: TrailProps) {
+export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" }: TrailProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
+  if (layout === "horizontal") {
+    return (
+      <div className="relative w-full py-4 px-2">
+        {/* Horizontal gold line */}
+        <div className="absolute left-10 right-10 top-[26px] h-[2px] pointer-events-none overflow-hidden" aria-hidden="true">
+          <svg className="w-full h-full" viewBox="0 0 100 2" preserveAspectRatio="none">
+            <line
+              x1="0"
+              y1="1"
+              x2="100"
+              y2="1"
+              stroke="hsl(var(--primary) / 0.55)"
+              strokeWidth="2"
+              className="flow-line"
+            />
+          </svg>
+        </div>
+
+        <ol className="relative z-10 flex flex-row justify-between items-start gap-6">
+          {waypoints.map((w, i) => {
+            const kind = (w.kind ?? w.type ?? "goal") as string;
+            const label = w.label ?? KIND_LABELS[kind] ?? kind;
+            const confidence = w.confidence as string | undefined;
+            const isExpanded = !interactive || expandedIndex === i;
+            const descriptionText = w.description || (interactive ? "Establish more integrations or context inputs to update and verify this waypoint status." : undefined);
+
+            return (
+              <li
+                key={i}
+                className={`flex-1 min-w-[160px] flex flex-col items-center text-center relative group ${interactive ? "cursor-pointer select-none" : ""}`}
+                onClick={() => {
+                  if (interactive) {
+                    setExpandedIndex(isExpanded ? null : i);
+                  }
+                }}
+              >
+                {/* Pin with Sonar ring */}
+                <div className="relative mb-4 flex justify-center items-center h-8">
+                  {kind === "constraint" && (
+                    <div className="absolute h-[26px] w-[26px] pointer-events-none rounded-full border border-destructive/60 sonar-ring" />
+                  )}
+                  <Pin kind={kind} confidence={confidence} />
+                </div>
+
+                <div className="flex flex-col items-center w-full px-2">
+                  <div className="eyebrow text-muted-foreground group-hover:text-primary transition-colors text-[10px]">{label}</div>
+                  <h3 className="mt-2 font-display text-base leading-snug text-foreground group-hover:text-primary/95 transition-colors line-clamp-3">
+                    {w.title}
+                  </h3>
+                  
+                  {descriptionText && isExpanded && (
+                    <p className="mt-3 text-xs leading-relaxed text-muted-foreground page-fade max-w-[180px]">
+                      {descriptionText}
+                    </p>
+                  )}
+
+                  {/* Move recommendations */}
+                  {kind === "move" && (
+                    <div className="mt-3 space-y-2 w-full">
+                      {w.metadata?.evidence && Array.isArray(w.metadata.evidence) && w.metadata.evidence.length > 0 && (
+                        <div className="text-left bg-muted/20 p-2.5 rounded-lg border border-border/40 max-w-[180px] mx-auto">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/75 mb-1">Evidence</div>
+                          <ul className="space-y-1">
+                            {w.metadata.evidence.map((ev: any, idx: number) => (
+                              <li key={idx} className="font-mono text-[10px] text-muted-foreground leading-snug truncate">
+                                — <strong>{ev.source}:</strong> {ev.detail}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Feedback actions */}
+                  {onFeedback && kind === "constraint" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFeedback(kind, "constraint_wrong", w.title);
+                      }}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-2.5 py-0.5 font-mono text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      This isn't right
+                    </button>
+                  )}
+                  {onFeedback && kind === "move" && (
+                    <div className="mt-3 flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onFeedback(kind, "move_done", w.title);
+                        }}
+                        className="inline-flex items-center rounded-full bg-primary px-2.5 py-0.5 font-mono text-[10px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                      >
+                        Done
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onFeedback(kind, "move_skipped", w.title);
+                        }}
+                        className="font-mono text-[10px] text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors"
+                      >
+                        Skip
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    );
+  }
 
   return (
     <div className="relative pl-8">

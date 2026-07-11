@@ -77,6 +77,11 @@ export function useIntegrations() {
     const destination = redirectPath ?? "/app/integrations";
     const callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(destination)}`;
     try {
+      sessionStorage.setItem("atlas.auth.next", destination);
+    } catch (e) {
+      console.warn("[integrations] failed to set sessionStorage", e);
+    }
+    try {
       // Try linkIdentity first (requires "Enable Manual Linking" in Supabase dashboard).
       const { error } = await supabase.auth.linkIdentity({
         provider: "github",

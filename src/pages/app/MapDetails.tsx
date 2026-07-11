@@ -112,6 +112,7 @@ export default function MapDetails() {
 
   // Tour state
   const [tourStep, setTourStep] = useState<number | null>(null);
+  const [spotlightRect, setSpotlightRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Start tour automatically on first visit
   useEffect(() => {
@@ -125,19 +126,40 @@ export default function MapDetails() {
     }
   }, [loading, map]);
 
-  // Apply tour highlights and scroll to active elements
+  // Apply tour highlights and scroll to active elements after layout completes
   useEffect(() => {
-    if (tourStep === null) return;
+    if (loading || tourStep === null) {
+      setSpotlightRect(null);
+      return;
+    }
     const step = TOUR_STEPS[tourStep];
     const el = document.querySelector(step.target);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("tour-highlight");
+      
+      const updateRect = () => {
+        const r = el.getBoundingClientRect();
+        setSpotlightRect({
+          x: r.left,
+          y: r.top,
+          width: r.width,
+          height: r.height,
+        });
+      };
+      
+      // Delay slightly to let smooth scrolling settle
+      const timer = setTimeout(updateRect, 300);
+      
+      window.addEventListener("resize", updateRect);
+      window.addEventListener("scroll", updateRect, true);
+      
       return () => {
-        el.classList.remove("tour-highlight");
+        clearTimeout(timer);
+        window.removeEventListener("resize", updateRect);
+        window.removeEventListener("scroll", updateRect, true);
       };
     }
-  }, [tourStep]);
+  }, [loading, tourStep]);
 
   useEffect(() => {
     if (focusMode) {
@@ -741,7 +763,7 @@ export default function MapDetails() {
       </div>
 
       {focusMode && (
-        <div className="fixed inset-0 z-50 bg-background grain select-none overflow-hidden flex flex-col justify-between">
+        <div className="fixed inset-0 z-50 bg-background grain select-none overflow-hidden">
           {/* Immersive Background: Grid Dots with Parallax */}
           <div
             className="absolute inset-0 bg-grid-dots transition-transform duration-200 pointer-events-none"
@@ -777,7 +799,7 @@ export default function MapDetails() {
           </svg>
 
           {/* Interactive Drag/Pan Canvas using react-zoom-pan-pinch */}
-           <div className="w-full h-full flex-1 relative overflow-hidden">
+          <div className="absolute inset-0 w-full h-full overflow-hidden">
             <TransformWrapper
               initialScale={1}
               minScale={0.5}
@@ -826,11 +848,12 @@ export default function MapDetails() {
                     wrapperClass="!w-full !h-full"
                     contentClass="!w-full !h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
                   >
-                    <div className="relative w-full max-w-xl p-8 bg-card/65 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl pointer-events-auto select-text mx-4 my-8">
+                    <div className="relative w-full max-w-5xl p-8 bg-card/75 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl pointer-events-auto select-text mx-4 my-8">
                       <Trail
                         waypoints={waypoints}
                         onFeedback={handleFeedback}
                         interactive={true}
+                        layout="horizontal"
                       />
                     </div>
                   </TransformComponent>
@@ -905,6 +928,49 @@ export default function MapDetails() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Spotlight Tour Mask Overlay */}
+      {spotlightRect && (
+        <svg className="fixed inset-0 w-full h-full pointer-events-none z-45 transition-all duration-300">
+          <defs>
+            <mask id="tour-spotlight-mask">
+              {/* White keeps background visibility */}
+              <rect x="0" y="0" width="100%" height="100%" fill="white" />
+              {/* Black transparent cutout */}
+              <rect 
+                x={spotlightRect.x - 8} 
+                y={spotlightRect.y - 8} 
+                width={spotlightRect.width + 16} 
+                height={spotlightRect.height + 16} 
+                rx={8} 
+                fill="black" 
+              />
+            </mask>
+          </defs>
+          <rect 
+            x="0" 
+            y="0" 
+            width="100%" 
+            height="100%" 
+            fill="rgba(0, 0, 0, 0.45)" 
+            mask="url(#tour-spotlight-mask)"
+          />
+        </svg>
+      )}
+
+      {/* Spotlight Glowing Border */}
+      {spotlightRect && (
+        <div 
+          className="fixed pointer-events-none z-45 border-[2.5px] border-primary rounded-lg transition-all duration-300 animate-pulse"
+          style={{
+            left: spotlightRect.x - 8,
+            top: spotlightRect.y - 8,
+            width: spotlightRect.width + 16,
+            height: spotlightRect.height + 16,
+            boxShadow: "0 0 25px 8px hsl(var(--primary) / 0.35)",
+          }}
+        />
       )}
     </>
   );

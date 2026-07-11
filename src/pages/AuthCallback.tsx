@@ -91,7 +91,8 @@ export default function AuthCallback() {
       }
 
       // Check for an explicit ?next= redirect target (set by connectGitHub)
-      const next = params.get("next");
+      const next = params.get("next") || sessionStorage.getItem("atlas.auth.next");
+      sessionStorage.removeItem("atlas.auth.next");
       if (next) {
         nav(next, { replace: true });
         return;
