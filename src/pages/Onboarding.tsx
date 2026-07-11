@@ -189,8 +189,28 @@ export default function Onboarding() {
   const { user, loading } = useAuth();
   const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialStep = searchParams.get("step") ? parseInt(searchParams.get("step")!) : 0;
-  const [step, setStep] = useState(initialStep);
+
+  const getInitialStep = () => {
+    const urlStep = searchParams.get("step");
+    if (urlStep) return parseInt(urlStep);
+
+    try {
+      const savedNext = sessionStorage.getItem("atlas.auth.next");
+      if (savedNext) {
+        const savedUrl = new URL(savedNext, window.location.origin);
+        const savedStep = savedUrl.searchParams.get("step");
+        if (savedStep) {
+          sessionStorage.removeItem("atlas.auth.next");
+          return parseInt(savedStep);
+        }
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    return 0;
+  };
+
+  const [step, setStep] = useState(getInitialStep());
   const [celebrationProgress, setCelebrationProgress] = useState(0);
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -214,6 +234,26 @@ export default function Onboarding() {
       setSearchParams(s > 0 ? { step: String(s) } : {}, { replace: true });
     }
   };
+
+  // Sync step state with URL search params changes
+  useEffect(() => {
+    const s = searchParams.get("step");
+    if (s) {
+      const parsed = parseInt(s);
+      if (!isNaN(parsed) && parsed !== step) {
+        setStep(parsed);
+      }
+    } else if (step > 0 && step < TOTAL_FORM_STEPS) {
+      setStep(0);
+    }
+  }, [searchParams]);
+
+  // Ensure URL search params match the step state if initialized from storage
+  useEffect(() => {
+    if (step > 0 && step < TOTAL_FORM_STEPS && searchParams.get("step") !== String(step)) {
+      setSearchParams({ step: String(step) }, { replace: true });
+    }
+  }, [step, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!loading && !user) nav("/auth");
