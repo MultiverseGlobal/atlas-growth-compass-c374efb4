@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 type AuthCtx = { user: User | null; session: Session | null; loading: boolean; signOut: () => Promise<void> };
 const Ctx = createContext<AuthCtx>({ user: null, session: null, loading: true, signOut: async () => {} });
@@ -9,6 +10,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const syncToken = async (s: Session | null) => {
@@ -37,8 +39,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const pendingNext = sessionStorage.getItem("atlas.auth.next");
           if (pendingNext && !window.location.pathname.includes("/auth/callback")) {
             sessionStorage.removeItem("atlas.auth.next");
-            // Use replace so the OAuth redirect page isn't in browser history
-            window.location.replace(pendingNext);
+            // Use client-side routing to avoid flashing the landing page or full page reload
+            navigate(pendingNext, { replace: true });
             return;
           }
         } catch (e) {

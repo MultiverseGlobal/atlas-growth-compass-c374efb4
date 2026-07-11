@@ -14,6 +14,12 @@ export default function Landing() {
 
   useEffect(() => {
     if (loading || !user) return;
+
+    // If there is a pending OAuth redirect, let useAuth handle it
+    try {
+      if (sessionStorage.getItem("atlas.auth.next")) return;
+    } catch {}
+
     let cancelled = false;
     resolvePostAuthPath(user.id).then((path) => {
       if (!cancelled) navigate(path, { replace: true });
