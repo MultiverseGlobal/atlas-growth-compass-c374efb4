@@ -12,7 +12,7 @@ import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
  *   - A legacy hash: /auth/callback#access_token=…
  *
  * We exchange the code / hash for a session, then route the user to
- * /onboarding (if they haven't finished it) or /app.
+ * the ?next= destination, /onboarding (if not yet onboarded), or /app.
  */
 export default function AuthCallback() {
   const nav = useNavigate();
@@ -35,7 +35,52 @@ export default function AuthCallback() {
         return;
       }
 
-      const path = await resolvePostAuthPath(data.session.user.id);
+      const { session } = data;
+      const userId = session.user.id;
+
+      // If this is a GitHub OAuth callback, ensure an integrations row exists
+      // immediately so the destination page sees GitHub as connected.
+      const githubIdentity = session.user.identities?.find(
+        (i) => i.provider === "github"
+      );
+      if (githubIdentity) {
+        const label =
+          session.user.user_metadata?.user_name ||
+          session.user.user_metadata?.full_name ||
+          "Connected GitHub";
+
+        // Upsert integrations row (ignore conflict — row may already exist)
+        await supabase.from("integrations").upsert(
+          {
+            user_id: userId,
+            provider: "github",
+            status: "active",
+            external_account_label: label,
+            external_account_id: githubIdentity.id,
+          },
+          { onConflict: "user_id,provider", ignoreDuplicates: false }
+        );
+
+        // Also persist the provider_token if present
+        if (session.provider_token) {
+          await (supabase as any).rpc("upsert_github_token", {
+            p_token: session.provider_token,
+            p_scopes: "read:user repo",
+            p_expires_at: null,
+          });
+        }
+      }
+
+      // Check for an explicit ?next= redirect target (set by connectGitHub)
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("next");
+      if (next) {
+        nav(next, { replace: true });
+        return;
+      }
+
+      // Otherwise resolve based on profile completion
+      const path = await resolvePostAuthPath(userId);
       nav(path, { replace: true });
     };
 
@@ -60,3 +105,4 @@ export default function AuthCallback() {
     </div>
   );
 }
+

@@ -71,27 +71,26 @@ export function useIntegrations() {
   });
 
   const connectGitHub = async (redirectPath?: string) => {
-    const redirectTo = `${window.location.origin}${redirectPath ?? "/app/integrations"}`;
+    // Always route through /auth/callback so the PKCE code is exchanged
+    // before the user lands on the destination page. The callback then
+    // forwards to `redirectPath` via resolvePostAuthPath or state param.
+    const destination = redirectPath ?? "/app/integrations";
+    const callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(destination)}`;
     try {
-      // Try linkIdentity first — this properly links GitHub to an existing account
-      // but requires "Enable Manual Linking" to be ON in Supabase Dashboard →
-      // Authentication → Sign In / Providers.
+      // Try linkIdentity first (requires "Enable Manual Linking" in Supabase dashboard).
       const { error } = await supabase.auth.linkIdentity({
         provider: "github",
         options: {
           scopes: "read:user repo",
-          redirectTo,
+          redirectTo: callbackUrl,
           queryParams: { prompt: "consent" },
         },
       });
-      // If linkIdentity fails for ANY reason (404 when manual linking is disabled,
-      // identity already linked, etc.) fall back to a full OAuth re-auth flow.
-      // The useIntegrations queryFn will detect the GitHub identity on next load
-      // and persist the token automatically.
+      // Fall back to full OAuth re-auth if linkIdentity is unavailable/fails.
       if (error) {
         const { error: oauthErr } = await supabase.auth.signInWithOAuth({
           provider: "github",
-          options: { scopes: "read:user repo", redirectTo },
+          options: { scopes: "read:user repo", redirectTo: callbackUrl },
         });
         if (oauthErr) throw oauthErr;
       }

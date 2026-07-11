@@ -219,6 +219,7 @@ export default function MapDetails() {
   const checkGitHub = async () => {
     if (!user) return;
     try {
+      // Check 1: integrations table row (written by AuthCallback / useIntegrations)
       const { data: intData } = await supabase
         .from("integrations")
         .select("status")
@@ -226,8 +227,33 @@ export default function MapDetails() {
         .eq("provider", "github")
         .maybeSingle();
 
-      const isConnected = !!intData && intData.status === "active";
+      // Check 2: live session identity (available immediately after OAuth)
+      const hasGitHubIdentity = !!user.identities?.find(
+        (i) => i.provider === "github"
+      );
+
+      const isConnected =
+        hasGitHubIdentity || (!!intData && intData.status === "active");
       setHasGitHubIntegration(isConnected);
+
+      // If GitHub identity exists but no DB row yet, create it now
+      if (hasGitHubIdentity && !intData) {
+        const ghIdentity = user.identities!.find((i) => i.provider === "github")!;
+        const label =
+          user.user_metadata?.user_name ||
+          user.user_metadata?.full_name ||
+          "Connected GitHub";
+        await supabase.from("integrations").upsert(
+          {
+            user_id: user.id,
+            provider: "github",
+            status: "active",
+            external_account_label: label,
+            external_account_id: ghIdentity.id,
+          },
+          { onConflict: "user_id,provider", ignoreDuplicates: true }
+        );
+      }
 
       const token = await getGitHubToken();
       setGitHubToken(token);
