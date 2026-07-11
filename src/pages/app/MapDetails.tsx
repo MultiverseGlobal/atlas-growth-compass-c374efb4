@@ -17,6 +17,7 @@ import {
 import { ArrowLeft, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass } from "lucide-react";
 import { toast } from "sonner";
 import { CompassLoader } from "./Home";
+import { useIntegrations } from "@/hooks/useIntegrations";
 import {
   Select,
   SelectContent,
@@ -113,6 +114,14 @@ export default function MapDetails() {
   // Tour state
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [spotlightRect, setSpotlightRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [vpSize, setVpSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+
+  // Track viewport size for accurate SVG mask dimensions
+  useEffect(() => {
+    const handleResize = () => setVpSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Start tour automatically on first visit
   useEffect(() => {
@@ -136,9 +145,10 @@ export default function MapDetails() {
     const el = document.querySelector(step.target);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      
+
       const updateRect = () => {
         const r = el.getBoundingClientRect();
+        setVpSize({ w: window.innerWidth, h: window.innerHeight });
         setSpotlightRect({
           x: r.left,
           y: r.top,
@@ -146,13 +156,12 @@ export default function MapDetails() {
           height: r.height,
         });
       };
-      
-      // Delay slightly to let smooth scrolling settle
-      const timer = setTimeout(updateRect, 300);
-      
+
+      // Delay to let smooth scrolling settle
+      const timer = setTimeout(updateRect, 400);
       window.addEventListener("resize", updateRect);
       window.addEventListener("scroll", updateRect, true);
-      
+
       return () => {
         clearTimeout(timer);
         window.removeEventListener("resize", updateRect);
@@ -235,6 +244,18 @@ export default function MapDetails() {
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const noteRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reactively sync GitHub integration status from global integrations query
+  const { data: liveIntegrations = [] } = useIntegrations();
+  const liveGitHubConnected = liveIntegrations.some(i => i.provider === "github" && i.status === "active");
+
+  useEffect(() => {
+    if (liveGitHubConnected && !hasGitHubIntegration) {
+      // A new connection was just established — refresh github data
+      setHasGitHubIntegration(true);
+      checkGitHub();
+    }
+  }, [liveGitHubConnected]);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -606,11 +627,18 @@ export default function MapDetails() {
               id="tour-focus"
               variant="ghost"
               size="sm"
-              onClick={() => setFocusMode(true)}
-              className="text-primary hover:bg-primary/10 gap-1.5"
+              onClick={() => {
+                if (focusMode) {
+                  setFocusMode(false);
+                  setExpandedWaypoint(null);
+                } else {
+                  setFocusMode(true);
+                }
+              }}
+              className={`gap-1.5 ${focusMode ? "text-primary bg-primary/10" : "text-primary hover:bg-primary/10"}`}
             >
-              <Maximize2 className="h-4 w-4" />
-              <span>Focus Mode</span>
+              {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              <span>{focusMode ? "Exit Focus" : "Focus Mode"}</span>
             </Button>
             <Button
               variant="ghost"
@@ -869,7 +897,7 @@ export default function MapDetails() {
       )}
 
       {tourStep !== null && (
-        <div className="fixed bottom-6 right-6 left-6 md:left-auto md:w-96 z-50 bg-card border-2 border-primary rounded-xl shadow-2xl p-5 page-fade select-none">
+        <div className="fixed top-6 right-6 left-6 md:left-auto md:w-96 z-50 bg-card border-2 border-primary rounded-xl shadow-2xl p-5 page-fade select-none">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-primary font-bold">
               <Compass className="h-4 w-4 animate-spin" style={{ animationDuration: '6s' }} /> Map Guide ({tourStep + 1}/{TOUR_STEPS.length})
@@ -930,30 +958,33 @@ export default function MapDetails() {
         </div>
       )}
 
-      {/* Spotlight Tour Mask Overlay */}
+      {/* Spotlight Tour Mask Overlay — uses exact pixel dimensions for accurate masking */}
       {spotlightRect && (
-        <svg className="fixed inset-0 w-full h-full pointer-events-none z-45 transition-all duration-300">
+        <svg
+          className="fixed inset-0 pointer-events-none z-45 transition-all duration-300"
+          style={{ left: 0, top: 0 }}
+          width={vpSize.w}
+          height={vpSize.h}
+        >
           <defs>
             <mask id="tour-spotlight-mask">
-              {/* White keeps background visibility */}
-              <rect x="0" y="0" width="100%" height="100%" fill="white" />
-              {/* Black transparent cutout */}
-              <rect 
-                x={spotlightRect.x - 8} 
-                y={spotlightRect.y - 8} 
-                width={spotlightRect.width + 16} 
-                height={spotlightRect.height + 16} 
-                rx={8} 
-                fill="black" 
+              <rect x="0" y="0" width={vpSize.w} height={vpSize.h} fill="white" />
+              <rect
+                x={spotlightRect.x - 10}
+                y={spotlightRect.y - 10}
+                width={spotlightRect.width + 20}
+                height={spotlightRect.height + 20}
+                rx={10}
+                fill="black"
               />
             </mask>
           </defs>
-          <rect 
-            x="0" 
-            y="0" 
-            width="100%" 
-            height="100%" 
-            fill="rgba(0, 0, 0, 0.45)" 
+          <rect
+            x="0"
+            y="0"
+            width={vpSize.w}
+            height={vpSize.h}
+            fill="rgba(0, 0, 0, 0.5)"
             mask="url(#tour-spotlight-mask)"
           />
         </svg>
@@ -961,14 +992,15 @@ export default function MapDetails() {
 
       {/* Spotlight Glowing Border */}
       {spotlightRect && (
-        <div 
-          className="fixed pointer-events-none z-45 border-[2.5px] border-primary rounded-lg transition-all duration-300 animate-pulse"
+        <div
+          className="fixed pointer-events-none z-46 rounded-[10px] transition-all duration-300"
           style={{
-            left: spotlightRect.x - 8,
-            top: spotlightRect.y - 8,
-            width: spotlightRect.width + 16,
-            height: spotlightRect.height + 16,
-            boxShadow: "0 0 25px 8px hsl(var(--primary) / 0.35)",
+            left: spotlightRect.x - 10,
+            top: spotlightRect.y - 10,
+            width: spotlightRect.width + 20,
+            height: spotlightRect.height + 20,
+            border: "2px solid hsl(var(--primary))",
+            boxShadow: "0 0 0 2px hsl(var(--primary) / 0.2), 0 0 30px 8px hsl(var(--primary) / 0.3)",
           }}
         />
       )}
