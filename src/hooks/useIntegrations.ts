@@ -71,11 +71,12 @@ export function useIntegrations() {
   });
 
   const connectGitHub = async (redirectPath?: string) => {
-    // Always route through /auth/callback so the PKCE code is exchanged
-    // before the user lands on the destination page. The callback then
-    // forwards to `redirectPath` via resolvePostAuthPath or state param.
     const destination = redirectPath ?? "/app/integrations";
-    const callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(destination)}`;
+    // Store destination BEFORE triggering the OAuth flow.
+    // The redirectTo must be a clean, whitelisted URL — Supabase rejects URLs with
+    // query params that aren't explicitly listed. We pass ONLY /auth/callback and
+    // recover the target from sessionStorage in AuthCallback.
+    const callbackUrl = `${window.location.origin}/auth/callback`;
     try {
       sessionStorage.setItem("atlas.auth.next", destination);
     } catch (e) {

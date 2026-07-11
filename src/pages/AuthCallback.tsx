@@ -36,8 +36,9 @@ export default function AuthCallback() {
           msg = "This GitHub account is already linked to another Atlas account.";
         }
         toast.error(msg, { duration: 6000 });
-        
-        const next = params.get("next") || "/app/integrations";
+
+        const next = params.get("next") || sessionStorage.getItem("atlas.auth.next") || "/app/integrations";
+        sessionStorage.removeItem("atlas.auth.next");
         nav(next, { replace: true });
         return;
       }
@@ -48,8 +49,15 @@ export default function AuthCallback() {
       );
 
       if (error || !data.session) {
-        // Something went wrong – fall back to auth page
-        console.error("[AuthCallback] session exchange failed", error);
+        // If code exchange fails, it's likely a link-identity flow returning to an existing session.
+        // In that case, just proceed to the stored destination.
+        console.warn("[AuthCallback] session exchange failed or no code present", error?.message);
+        const savedNext = sessionStorage.getItem("atlas.auth.next");
+        sessionStorage.removeItem("atlas.auth.next");
+        if (savedNext) {
+          nav(savedNext, { replace: true });
+          return;
+        }
         nav("/auth", { replace: true });
         return;
       }
