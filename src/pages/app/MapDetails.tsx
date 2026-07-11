@@ -257,6 +257,36 @@ export default function MapDetails() {
     }
   }, [liveGitHubConnected]);
 
+  const transformRef = useRef<any>(null);
+
+  // Center focus mode view on mount, window resize, or sidebar toggle
+  useEffect(() => {
+    const handleSidebar = () => {
+      // Delay slightly for sidebar CSS width transition to settle
+      setTimeout(() => {
+        if (transformRef.current) {
+          transformRef.current.centerView();
+        }
+      }, 250);
+    };
+
+    window.addEventListener("sidebar-toggle", handleSidebar);
+    window.addEventListener("resize", handleSidebar);
+    
+    if (focusMode) {
+      setTimeout(() => {
+        if (transformRef.current) {
+          transformRef.current.centerView();
+        }
+      }, 150);
+    }
+
+    return () => {
+      window.removeEventListener("sidebar-toggle", handleSidebar);
+      window.removeEventListener("resize", handleSidebar);
+    };
+  }, [focusMode]);
+
   useEffect(() => {
     if (!id || !user) return;
     loadMap();
@@ -829,6 +859,7 @@ export default function MapDetails() {
           {/* Interactive Drag/Pan Canvas using react-zoom-pan-pinch */}
           <div className="absolute inset-0 w-full h-full overflow-hidden">
             <TransformWrapper
+              ref={transformRef}
               initialScale={1}
               minScale={0.5}
               maxScale={2.5}
@@ -874,9 +905,9 @@ export default function MapDetails() {
 
                   <TransformComponent
                     wrapperClass="!w-full !h-full"
-                    contentClass="!w-full !h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
+                    contentClass="cursor-grab active:cursor-grabbing flex items-center justify-center"
                   >
-                    <div className="relative w-full max-w-5xl p-8 bg-card/75 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl pointer-events-auto select-text mx-4 my-8">
+                    <div className="relative w-[90vw] max-w-5xl p-8 bg-card/75 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl pointer-events-auto select-text mx-4 my-8">
                       <Trail
                         waypoints={waypoints}
                         onFeedback={handleFeedback}

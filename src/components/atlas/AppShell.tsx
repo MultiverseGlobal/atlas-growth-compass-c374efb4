@@ -49,6 +49,7 @@ export default function AppShell() {
     setCollapsed((c) => {
       const next = !c;
       localStorage.setItem(STORAGE_KEY, String(next));
+      window.dispatchEvent(new Event("sidebar-toggle"));
       return next;
     });
   };
