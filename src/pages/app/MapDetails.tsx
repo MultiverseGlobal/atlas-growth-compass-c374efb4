@@ -99,6 +99,9 @@ export default function MapDetails() {
   const [gitStats, setGitStats] = useState<GitHubStats | null>(null);
   const [hasGitHubIntegration, setHasGitHubIntegration] = useState(false);
   const [gitHubSessionExpired, setGitHubSessionExpired] = useState(false);
+  // When true, the user has explicitly clicked "Change repository" and we
+  // show the picker (triggering the live token check at that point only).
+  const [changingRepo, setChangingRepo] = useState(false);
 
   // Waypoints
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
@@ -263,26 +266,34 @@ export default function MapDetails() {
 
   const transformRef = useRef<any>(null);
 
-  // Center focus mode view on mount, window resize, or sidebar toggle
+  // Center focus mode view on mount, window resize, or sidebar toggle.
+  // Use rAF-in-rAF + 350ms delay so we fire after the entrance animation
+  // completes and after TransformComponent has finished layout — not before.
   useEffect(() => {
     const handleSidebar = () => {
       // Delay slightly for sidebar CSS width transition to settle
       setTimeout(() => {
         if (transformRef.current) {
-          transformRef.current.centerView();
+          transformRef.current.centerView(1, 0);
         }
-      }, 250);
+      }, 300);
     };
 
     window.addEventListener("sidebar-toggle", handleSidebar);
     window.addEventListener("resize", handleSidebar);
-    
+
     if (focusMode) {
-      setTimeout(() => {
-        if (transformRef.current) {
-          transformRef.current.centerView();
-        }
-      }, 150);
+      // Double rAF ensures at least two paint frames have occurred before we
+      // measure, then the 350ms timeout waits for the CSS enter animation.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            if (transformRef.current) {
+              transformRef.current.centerView(1, 0);
+            }
+          }, 350);
+        });
+      });
     }
 
     return () => {
@@ -356,10 +367,12 @@ export default function MapDetails() {
     }
   };
 
+  // checkGitHub: only checks whether the GitHub integration exists in the DB.
+  // Does NOT call list_repos — that is deferred to loadRepoList(), which is
+  // only triggered when the user explicitly clicks "Change repository".
   const checkGitHub = async () => {
     if (!user) return;
     try {
-      // Check 1: integrations table row (written by AuthCallback / useIntegrations)
       const { data: intData } = await supabase
         .from("integrations")
         .select("status")
@@ -367,7 +380,6 @@ export default function MapDetails() {
         .eq("provider", "github")
         .maybeSingle();
 
-      // Check 2: live session identity (available immediately after OAuth)
       const hasGitHubIdentity = !!user.identities?.find(
         (i) => i.provider === "github"
       );
@@ -376,7 +388,7 @@ export default function MapDetails() {
         hasGitHubIdentity || (!!intData && intData.status === "active");
       setHasGitHubIntegration(isConnected);
 
-      // If GitHub identity exists but no DB row yet, create it now
+      // If GitHub identity exists but no DB row yet, backfill it now
       if (hasGitHubIdentity && !intData) {
         const ghIdentity = user.identities!.find((i) => i.provider === "github")!;
         const label =
@@ -394,22 +406,26 @@ export default function MapDetails() {
           { onConflict: "user_id,provider", ignoreDuplicates: true }
         );
       }
+    } catch {
+      // Silent — integration check failing should not surface UI errors
+    }
+  };
 
+  // loadRepoList: fetches the live repo list from the Edge Function using the
+  // server-stored token. Called only when the user explicitly clicks
+  // "Change repository". If the token is stale, sets gitHubSessionExpired.
+  const loadRepoList = async () => {
+    try {
       const token = await getGitHubToken();
       setGitHubToken(token);
-
-      if (isConnected) {
-        const { data, error } = await supabase.functions.invoke("sync-github", {
-          body: { action: "list_repos", github_token: token || undefined },
-        });
-        if (!error && data?.repos) {
-          setRepos(data.repos);
-          setGitHubSessionExpired(false);
-        } else {
-          setGitHubSessionExpired(true);
-        }
-      } else {
+      const { data, error } = await supabase.functions.invoke("sync-github", {
+        body: { action: "list_repos", github_token: token || undefined },
+      });
+      if (!error && data?.repos) {
+        setRepos(data.repos);
         setGitHubSessionExpired(false);
+      } else {
+        setGitHubSessionExpired(true);
       }
     } catch {
       setGitHubSessionExpired(true);
@@ -1027,6 +1043,7 @@ export default function MapDetails() {
         <div id="tour-github" className="mt-6 rounded-[16px] border border-border bg-card p-6">
           <div className="text-xs font-mono uppercase tracking-widest text-primary">GitHub source</div>
 
+          {/* State 1: No GitHub integration connected at all */}
           {!hasGitHubIntegration ? (
             <div className="mt-4">
               <p className="text-sm text-muted-foreground mb-3">Connect GitHub to pull commit signals into this map.</p>
@@ -1036,21 +1053,67 @@ export default function MapDetails() {
                 </Button>
               </Link>
             </div>
-          ) : gitHubSessionExpired ? (
+
+          ) : selectedRepo && !changingRepo ? (
+            /* State 2: Repo already linked — calm display, no live token check */
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <Github className="h-4 w-4 text-primary shrink-0" />
+                <div>
+                  <div className="text-sm font-medium text-foreground">{selectedRepo}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Linked repository · syncing via server token</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => map && fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
+                  disabled={isBusy}
+                  className="gap-1.5"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isBusy ? "sync-spring-spin" : ""}`} />
+                  <span>{isBusy ? "Syncing…" : "Force sync"}</span>
+                </Button>
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  onClick={() => {
+                    setChangingRepo(true);
+                    setGitHubSessionExpired(false);
+                    loadRepoList();
+                  }}
+                >
+                  Change repository
+                </button>
+              </div>
+            </div>
+
+          ) : changingRepo && gitHubSessionExpired ? (
+            /* State 3: User clicked "Change repository" but session token is stale */
             <div className="mt-4 border border-border/80 bg-card/50 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <div className="text-sm font-medium text-foreground">Connection Expired</div>
-                <p className="text-xs text-muted-foreground">Your GitHub connection session has expired. Reconnect GitHub to link a repository.</p>
+                <div className="text-sm font-medium text-foreground">Session Expired</div>
+                <p className="text-xs text-muted-foreground">Re-authenticate with GitHub to fetch your repository list.</p>
               </div>
-              <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/5 shrink-0" onClick={handleReconnectGitHub}>
-                <Plug className="mr-1.5 h-3.5 w-3.5" /> Reconnect GitHub
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  onClick={() => setChangingRepo(false)}
+                >
+                  Cancel
+                </button>
+                <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/5" onClick={handleReconnectGitHub}>
+                  <Plug className="mr-1.5 h-3.5 w-3.5" /> Reconnect GitHub
+                </Button>
+              </div>
             </div>
+
           ) : (
+            /* State 4: Picker — no repo linked yet, or user is actively changing */
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Select
-                value={selectedRepo}
-                onValueChange={(val) => handleLinkRepo(val)}
+                value={selectedRepo || "_empty"}
+                onValueChange={(val) => { handleLinkRepo(val); setChangingRepo(false); }}
                 disabled={isBusy}
               >
                 <SelectTrigger className="w-[280px] bg-background">
@@ -1065,15 +1128,13 @@ export default function MapDetails() {
                   ))}
                 </SelectContent>
               </Select>
-              {selectedRepo && (
-                <Button variant="outline" size="sm"
-                  onClick={() => map && fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
-                  disabled={isBusy}
-                  className="gap-1.5"
+              {changingRepo && (
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  onClick={() => setChangingRepo(false)}
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isBusy ? "sync-spring-spin" : ""}`} />
-                  <span>{isBusy ? "Syncing…" : "Force sync"}</span>
-                </Button>
+                  Cancel
+                </button>
               )}
             </div>
           )}
@@ -1133,7 +1194,7 @@ export default function MapDetails() {
               minScale={0.5}
               maxScale={2.5}
               limitToBounds={false}
-              centerOnInit={true}
+              centerOnInit={false}
               onTransform={(ref) => {
                 setZoom(ref.state.scale);
                 setPanOffset({ x: ref.state.positionX, y: ref.state.positionY });

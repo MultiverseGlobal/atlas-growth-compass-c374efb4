@@ -34,6 +34,11 @@ export default function Landing() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Prevent flash of landing hero during OAuth hard redirects.
+  // useAuth starts with loading=true; during that window, render a blank
+  // screen so the user never sees the Landing content before being redirected.
+  if (loading) return <div className="min-h-screen bg-background" />;
+
   return (
     <div className="min-h-screen bg-background page-fade">
       <header
