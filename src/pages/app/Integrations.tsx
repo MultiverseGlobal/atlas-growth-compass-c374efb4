@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { Github, Plug, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaps } from "@/hooks/useMaps";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 function getRecommendedSources(goalText: string): string[] {
   const t = (goalText || "").toLowerCase();
@@ -39,7 +44,7 @@ const connectors: Connector[] = [
         <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" />
       </svg>
     ),
-    available: false,
+    available: true,
   },
   {
     id: "notion",
@@ -83,14 +88,26 @@ export default function Integrations() {
   const { user } = useAuth();
   const { data: integrations = [], isLoading, connectGitHub, disconnect } = useIntegrations();
   const { data: maps = [] } = useMaps();
+  const qc = useQueryClient();
 
-  // Use the most-recently-updated map's goal to compute recommendations.
-  // If the user has no maps yet, no tags are shown (safe default).
   const primaryGoal = maps[0]?.goal_statement ?? "";
   const recommended = getRecommendedSources(primaryGoal);
 
   const getIntegration = (id: string) =>
     integrations.find((i) => i.provider === id && i.status === "active");
+
+  const handleConnectStripe = async (key: string) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase.rpc("upsert_stripe_token", { p_token: key });
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["integrations", user.id] });
+      toast.success("Stripe integration connected successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save Stripe key.");
+      throw err;
+    }
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
@@ -113,6 +130,7 @@ export default function Integrations() {
               loading={isLoading}
               isRecommended={recommended.includes(connector.id)}
               onConnect={connector.id === "github" ? connectGitHub : undefined}
+              onConnectStripe={connector.id === "stripe" ? handleConnectStripe : undefined}
               onDisconnect={
                 connected
                   ? () => disconnect.mutate(connected.id)
@@ -133,6 +151,7 @@ function ConnectorCard({
   loading,
   isRecommended,
   onConnect,
+  onConnectStripe,
   onDisconnect,
 }: {
   connector: Connector;
@@ -141,8 +160,27 @@ function ConnectorCard({
   loading: boolean;
   isRecommended?: boolean;
   onConnect?: () => void;
+  onConnectStripe?: (key: string) => Promise<void>;
   onDisconnect?: () => void;
 }) {
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!apiKey) return;
+    setSaving(true);
+    try {
+      await onConnectStripe?.(apiKey);
+      setShowKeyInput(false);
+      setApiKey("");
+    } catch {
+      // toast shown in parent
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5">
       <div className="flex items-start justify-between gap-3">
@@ -173,6 +211,38 @@ function ConnectorCard({
         {connectedLabel && (
           <div className="mt-1 font-mono text-xs text-muted-foreground">{connectedLabel}</div>
         )}
+
+        {/* Stripe credentials field */}
+        {!connected && showKeyInput && (
+          <div className="mt-3 space-y-2">
+            <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Stripe Secret Key</label>
+            <Input
+              type="password"
+              placeholder="sk_test_..."
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              className="h-9 bg-background text-xs font-mono"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving}
+                className="h-8 text-xs flex-1"
+              >
+                {saving ? "Connecting..." : "Save Key"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowKeyInput(false); setApiKey(""); }}
+                className="h-8 text-xs text-muted-foreground"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {connector.available && (
@@ -185,16 +255,22 @@ function ConnectorCard({
           >
             Disconnect
           </Button>
-        ) : (
+        ) : !showKeyInput ? (
           <Button
             size="sm"
             className="w-full"
-            onClick={onConnect}
+            onClick={() => {
+              if (connector.id === "stripe") {
+                setShowKeyInput(true);
+              } else {
+                onConnect?.();
+              }
+            }}
             disabled={loading}
           >
             Connect
           </Button>
-        )
+        ) : null
       )}
     </div>
   );

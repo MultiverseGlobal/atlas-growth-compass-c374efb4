@@ -207,16 +207,17 @@ export default function MapDetails() {
 
   // Escape key handler to exit focus mode
   useEffect(() => {
-    if (!focusMode) return;
+    if (!focusMode && !lightboxUrl) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (lightboxUrl) { setLightboxUrl(null); return; }
         setFocusMode(false);
         setExpandedWaypoint(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusMode]);
+  }, [focusMode, lightboxUrl]);
 
   // Cursor Parallax Listener for focus mode background
   useEffect(() => {
@@ -251,6 +252,8 @@ export default function MapDetails() {
   const [showAttachForm, setShowAttachForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  // Lightbox: stores the URL of the image currently expanded in the overlay
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Reactively sync GitHub integration status from global integrations query
   const { data: liveIntegrations = [] } = useIntegrations();
@@ -440,39 +443,53 @@ export default function MapDetails() {
       setSyncing(true);
 
       let stats: GitHubStats | null = null;
+      const syncPromises: Promise<any>[] = [];
 
       if (repo) {
-        // Step 1: call sync-github edge function to ingest real signals
-        try {
-          const { data: syncData, error: syncError } = await supabase.functions.invoke("sync-github", {
+        syncPromises.push(
+          supabase.functions.invoke("sync-github", {
             body: { map_id: id, repo_full_name: repo, github_token: gitHubToken || undefined },
-          });
-          if (!syncError && syncData) {
-            const sd = syncData as {
-              stats?: GitHubStats;
-            };
-            if (sd.stats) {
-              stats = sd.stats;
-              setGitStats(stats);
+          }).then(({ data, error }) => {
+            if (!error && data) {
+              const sd = data as { stats?: GitHubStats };
+              if (sd.stats) {
+                stats = sd.stats;
+                setGitStats(stats);
+              }
+            } else if (error && gitHubToken) {
+              // Fallback to client-side fetch if edge function fails
+              const [owner, repoName] = repo.split("/");
+              return fetchRepoCommitStats(gitHubToken, owner, repoName).then((s) => {
+                stats = s;
+                setGitStats(stats);
+              }).catch(() => {});
             }
-          } else if (syncError) {
-            // Fallback to client-side fetch if edge function fails
+          }).catch(() => {
+            // Client-side fallback on error
             if (gitHubToken) {
               const [owner, repoName] = repo.split("/");
-              stats = await fetchRepoCommitStats(gitHubToken, owner, repoName);
-              setGitStats(stats);
+              return fetchRepoCommitStats(gitHubToken, owner, repoName).then((s) => {
+                stats = s;
+                setGitStats(stats);
+              }).catch(() => {});
             }
-          }
-        } catch {
-          // Client-side fallback
-          if (gitHubToken) {
-            try {
-              const [owner, repoName] = repo.split("/");
-              stats = await fetchRepoCommitStats(gitHubToken, owner, repoName);
-              setGitStats(stats);
-            } catch { /* no stats */ }
-          }
-        }
+          })
+        );
+      }
+
+      const hasStripe = liveIntegrations.some(i => i.provider === "stripe" && i.status === "active");
+      if (hasStripe) {
+        syncPromises.push(
+          supabase.functions.invoke("sync-stripe", {
+            body: { map_id: id }
+          }).catch((err) => {
+            console.warn("[fullSync] sync-stripe failed:", err);
+          })
+        );
+      }
+
+      if (syncPromises.length > 0) {
+        await Promise.allSettled(syncPromises);
       }
 
       // Step 2: LLM diagnosis
@@ -508,7 +525,7 @@ export default function MapDetails() {
             waypoints: [
               { kind: "goal", title: mapGoal, confidence: "starter" },
               { kind: "constraint", title: "No data sources connected yet.", confidence: "starter" },
-              { kind: "evidence", title: "Add a manual note below or connect GitHub to generate signals.", confidence: "starter" },
+              { kind: "evidence", title: "Add a manual note below or connect GitHub/Stripe to generate signals.", confidence: "starter" },
               { kind: "move", title: "Connect a source or add context to get a diagnosis.", confidence: "starter" },
             ],
           };
@@ -995,11 +1012,10 @@ export default function MapDetails() {
                         
                         {payload.file_url && isImage && (
                           <div className="mt-3">
-                            <a
-                              href={payload.file_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-block relative rounded-lg border border-border overflow-hidden hover:border-primary/40 group max-w-xs transition-colors"
+                            <button
+                              type="button"
+                              onClick={() => setLightboxUrl(payload.file_url)}
+                              className="inline-block relative rounded-lg border border-border overflow-hidden hover:border-primary/40 group max-w-xs transition-colors text-left"
                             >
                               <img
                                 src={payload.file_url}
@@ -1008,10 +1024,10 @@ export default function MapDetails() {
                               />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
                                 <span className="text-[10px] font-mono bg-background/90 text-foreground px-2 py-1 rounded border border-border">
-                                  View Image
+                                  Expand
                                 </span>
                               </div>
-                            </a>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1149,6 +1165,32 @@ export default function MapDetails() {
           )}
         </div>
       </div>
+
+      {/* ── Attachment Lightbox Overlay ── */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <div
+            className="relative max-w-[92vw] max-h-[90vh] overflow-auto rounded-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightboxUrl}
+              alt="Attachment"
+              className="rounded-xl object-contain max-w-[92vw] max-h-[88vh]"
+            />
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+              aria-label="Close image"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {focusMode && (
         <div className="fixed inset-0 z-50 bg-background grain select-none overflow-hidden">
