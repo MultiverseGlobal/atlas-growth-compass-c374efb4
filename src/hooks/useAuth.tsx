@@ -31,6 +31,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       if (s) syncToken(s);
 
+      // Persist the GitHub provider token if it is available in the fresh session
+      if (s?.provider_token) {
+        (supabase as any).rpc("upsert_github_token", {
+          p_token: s.provider_token,
+          p_scopes: "read:user repo",
+          p_expires_at: null,
+        }).catch((err: any) => {
+          console.warn("[useAuth] Failed to upsert provider token:", err.message);
+        });
+      }
+
       // When returning from a linkIdentity or OAuth flow, Supabase may redirect
       // to the site URL (not /auth/callback) — especially for existing-session link flows.
       // Check sessionStorage for a pending destination and navigate there immediately.

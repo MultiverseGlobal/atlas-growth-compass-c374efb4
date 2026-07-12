@@ -14,7 +14,7 @@ import {
   type GitHubRepo,
   type GitHubStats,
 } from "@/lib/github";
-import { ArrowLeft, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass } from "lucide-react";
+import { ArrowLeft, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CompassLoader } from "./Home";
 import { useIntegrations } from "@/hooks/useIntegrations";
@@ -240,10 +240,14 @@ export default function MapDetails() {
     move: "Next move",
   };
 
-  // Manual notes
+  // Manual notes & Attachment Log
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const noteRef = useRef<HTMLTextAreaElement>(null);
+  const [manualNotesList, setManualNotesList] = useState<any[]>([]);
+  const [showAttachForm, setShowAttachForm] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   // Reactively sync GitHub integration status from global integrations query
   const { data: liveIntegrations = [] } = useIntegrations();
@@ -318,19 +322,15 @@ export default function MapDetails() {
         .maybeSingle();
       if (sourceData?.label) setSelectedRepo(sourceData.label);
 
-      // Load latest manual note
-      const { data: signalData } = await supabase
+      // Load all manual notes / attachments
+      const { data: signalsList } = await supabase
         .from("signals")
         .select("*")
         .eq("map_id", id)
         .eq("title", "__manual_note")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const sig = signalData as any;
-      if (sig?.payload && typeof sig.payload === "object" && "note" in sig.payload) {
-        setNote(sig.payload.note ?? "");
-      }
+        .order("created_at", { ascending: false });
+      
+      setManualNotesList(signalsList || []);
 
       // Load saved waypoints
       const { data: wpData } = await supabase
@@ -544,27 +544,118 @@ export default function MapDetails() {
     toast.success("Repository linked");
   };
 
-  // ─── Manual Note ──────────────────────────────────────────────────────────
+  // ─── Manual Note & Attachments Log ─────────────────────────────────────────
 
-  const saveNote = async () => {
+  const handleAddAttachment = async () => {
     if (!user || !id || !map) return;
+    if (!note.trim() && !selectedFile) {
+      toast.error("Please provide a note or select a file.");
+      return;
+    }
+
     setSavingNote(true);
+    let fileUrl = null;
+    let fileName = null;
+    let fileType = null;
+
     try {
-      await supabase.from("signals").insert({
-        map_id: id,
-        user_id: user.id,
-        title: "__manual_note",
-        score: 0,
-        occurred_at: new Date().toISOString(),
-        payload: { note: note.trim() },
-      } as any);
-      toast.success("Context saved");
-      // Re-run diagnosis with updated note
-      await fullSync(selectedRepo, map.goal_statement, note);
+      if (selectedFile) {
+        setUploadingFile(true);
+        const fileExt = selectedFile.name.split(".").pop();
+        const cleanName = selectedFile.name.replace(/[^a-zA-Z0-9]/g, "_");
+        const filePath = `${user.id}/${Date.now()}_${cleanName}.${fileExt}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("attachments")
+          .upload(filePath, selectedFile, {
+            cacheControl: "3600",
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("attachments")
+          .getPublicUrl(filePath);
+
+        fileUrl = publicUrl;
+        fileName = selectedFile.name;
+        fileType = selectedFile.type;
+      }
+
+      const noteText = note.trim();
+      
+      const payload: any = { note: noteText };
+      if (fileUrl) {
+        payload.file_url = fileUrl;
+        payload.file_name = fileName;
+        payload.file_type = fileType;
+      }
+
+      const { data: signalData, error: insertError } = await supabase
+        .from("signals")
+        .insert({
+          map_id: id,
+          user_id: user.id,
+          title: "__manual_note",
+          score: 0,
+          occurred_at: new Date().toISOString(),
+          payload,
+        } as any)
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      toast.success("Attachment logged");
+      
+      setManualNotesList(prev => [signalData, ...prev]);
+      setNote("");
+      setSelectedFile(null);
+      setShowAttachForm(false);
+
+      await fullSync(selectedRepo, map.goal_statement, noteText);
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error("Failed to save context: " + err.message);
     } finally {
+      setUploadingFile(false);
       setSavingNote(false);
+    }
+  };
+
+  const handleDeleteNote = async (signalId: string, fileUrl?: string) => {
+    if (!window.confirm("Are you sure you want to remove this context entry?")) return;
+    try {
+      const { error: dbError } = await supabase
+        .from("signals")
+        .delete()
+        .eq("id", signalId);
+
+      if (dbError) throw dbError;
+
+      if (fileUrl) {
+        try {
+          const match = fileUrl.match(/\/public\/attachments\/(.+)$/);
+          if (match && match[1]) {
+            const filePath = decodeURIComponent(match[1]);
+            await supabase.storage.from("attachments").remove([filePath]);
+          }
+        } catch (storageErr) {
+          console.warn("Could not delete associated file from storage:", storageErr);
+        }
+      }
+
+      toast.success("Entry removed");
+      
+      const updatedList = manualNotesList.filter(n => n.id !== signalId);
+      setManualNotesList(updatedList);
+
+      const nextLatest = updatedList[0]?.payload?.note || "";
+      if (map) {
+        await fullSync(selectedRepo, map.goal_statement, nextLatest);
+      }
+    } catch (err: any) {
+      toast.error("Delete failed: " + err.message);
     }
   };
 
@@ -717,7 +808,7 @@ export default function MapDetails() {
                 Last updated {lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} — refresh failed, showing cached diagnosis.
               </span>
               <button
-                onClick={() => map && fullSync(selectedRepo, map.goal_statement, note)}
+                onClick={() => map && fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
                 disabled={isBusy}
                 className="ml-auto shrink-0 font-medium underline hover:no-underline disabled:opacity-50"
               >
@@ -731,25 +822,203 @@ export default function MapDetails() {
           />
         </div>
 
-        {/* Manual Notes */}
+        {/* Attachment Log */}
         <div id="tour-context" className="mt-12 rounded-[16px] border border-border bg-card/75 p-6 bg-parchment-lines relative overflow-hidden">
+          {/* Ambient background decoration */}
+          <div className="absolute top-0 right-0 h-40 w-40 rounded-full bg-primary/2 blur-[80px] pointer-events-none" />
+          
           <div className="relative z-10">
-            <div className="text-xs font-mono uppercase tracking-widest text-primary">Add context</div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Notes are included in the diagnosis. The more specific, the better.
-            </p>
-            <textarea
-              ref={noteRef}
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              rows={4}
-              placeholder="e.g. We paused GitHub commits this week to focus on outbound — this is intentional"
-              className="mt-4 w-full resize-none rounded-md border border-input bg-background/90 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <div className="mt-3 flex justify-end">
-              <Button size="sm" onClick={saveNote} disabled={savingNote || !note.trim()}>
-                {savingNote ? "Saving…" : "Save and re-diagnose"}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-mono uppercase tracking-widest text-primary flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5" /> Attachment Log
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Provide qualitative context or screenshots to refine the strategy diagnosis.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAttachForm(!showAttachForm)}
+                className="gap-1.5 font-mono text-xs border-primary/20 hover:bg-primary/5 text-primary"
+              >
+                {showAttachForm ? (
+                  <>
+                    <X className="h-3.5 w-3.5" /> Cancel
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-3.5 w-3.5" /> Attach Context
+                  </>
+                )}
               </Button>
+            </div>
+
+            {/* Note & Upload Form */}
+            {showAttachForm && (
+              <div className="mt-5 border border-border/80 bg-background/60 rounded-xl p-5 space-y-4 animate-in fade-in slide-in-from-top-3 duration-200">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                    Context Note
+                  </label>
+                  <textarea
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    rows={3}
+                    placeholder="e.g., We paused GitHub commits this week to focus on outbound marketing."
+                    className="w-full resize-none rounded-lg border border-border bg-background/80 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                    Image / Screenshot
+                  </label>
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="file"
+                      id="attachment-file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setSelectedFile(file);
+                      }}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById("attachment-file")?.click()}
+                      className="gap-1.5 h-9 text-xs font-mono"
+                      disabled={savingNote}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Choose Image
+                    </Button>
+                    
+                    {selectedFile ? (
+                      <div className="flex items-center gap-2 text-xs text-foreground bg-muted/65 border border-border px-3 py-1.5 rounded-md max-w-xs truncate">
+                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="truncate">{selectedFile.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFile(null)}
+                          className="text-muted-foreground hover:text-destructive shrink-0 ml-1"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground font-mono">No screenshot selected</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    size="sm"
+                    onClick={handleAddAttachment}
+                    disabled={savingNote || (!note.trim() && !selectedFile)}
+                    className="gap-1.5"
+                  >
+                    {savingNote ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>{uploadingFile ? "Uploading..." : "Saving..."}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>Save to Log & Re-diagnose</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Log Feed */}
+            <div className="mt-6 space-y-3">
+              {manualNotesList.length > 0 ? (
+                manualNotesList.map((item) => {
+                  const payload = item.payload || {};
+                  const dateStr = item.created_at
+                    ? new Date(item.created_at).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : "";
+                  const timeStr = item.created_at
+                    ? new Date(item.created_at).toLocaleTimeString(undefined, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "";
+
+                  const isImage = payload.file_type?.startsWith("image/") || payload.file_url;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="border border-border/60 bg-card/40 rounded-xl p-4 flex flex-col md:flex-row md:items-start justify-between gap-4 transition-all hover:border-border/80 bg-parchment-lines"
+                    >
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+                          <span className="text-primary font-medium">{dateStr}</span>
+                          <span>•</span>
+                          <span>{timeStr}</span>
+                        </div>
+                        {payload.note && (
+                          <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                            {payload.note}
+                          </p>
+                        )}
+                        
+                        {payload.file_url && isImage && (
+                          <div className="mt-3">
+                            <a
+                              href={payload.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block relative rounded-lg border border-border overflow-hidden hover:border-primary/40 group max-w-xs transition-colors"
+                            >
+                              <img
+                                src={payload.file_url}
+                                alt={payload.file_name || "Attachment"}
+                                className="max-h-[160px] object-cover rounded-lg group-hover:scale-[1.02] transition-transform duration-200"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
+                                <span className="text-[10px] font-mono bg-background/90 text-foreground px-2 py-1 rounded border border-border">
+                                  View Image
+                                </span>
+                              </div>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteNote(item.id, payload.file_url)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 self-end md:self-start"
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 border border-dashed border-border rounded-xl">
+                  <FileText className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground font-mono">
+                    No manual context entries in log. Click "Attach Context" to add.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -798,7 +1067,7 @@ export default function MapDetails() {
               </Select>
               {selectedRepo && (
                 <Button variant="outline" size="sm"
-                  onClick={() => map && fullSync(selectedRepo, map.goal_statement, note)}
+                  onClick={() => map && fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
                   disabled={isBusy}
                   className="gap-1.5"
                 >

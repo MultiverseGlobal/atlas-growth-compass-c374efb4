@@ -31,6 +31,14 @@ import {
 import { loadStarterMap } from "@/lib/starterMap";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { friendlyError } from "@/lib/errors";
+import { getGitHubToken, fetchUserRepos, GitHubRepo } from "@/lib/github";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const FORM_STEPS = ["Profile", "Context", "Data sources", "Outcome"];
 const TOTAL_FORM_STEPS = FORM_STEPS.length;
@@ -227,6 +235,33 @@ export default function Onboarding() {
   const { data: integrations = [], connectGitHub } = useIntegrations();
   const isGitHubConnected = integrations.some(i => i.provider === "github" && i.status === "active");
 
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<string>("");
+  const [loadingRepos, setLoadingRepos] = useState(false);
+
+  useEffect(() => {
+    if (isGitHubConnected) {
+      const loadRepos = async () => {
+        setLoadingRepos(true);
+        try {
+          const token = await getGitHubToken();
+          if (token) {
+            const repoList = await fetchUserRepos(token);
+            setRepos(repoList);
+            if (repoList.length > 0 && !selectedRepo) {
+              setSelectedRepo(repoList[0].full_name);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to load GitHub repos in onboarding:", e);
+        } finally {
+          setLoadingRepos(false);
+        }
+      };
+      loadRepos();
+    }
+  }, [isGitHubConnected]);
+
   const goToStep = (s: number) => {
     setStep(s);
     // Don't push celebration step into URL
@@ -390,6 +425,29 @@ export default function Onboarding() {
       
       if (wpError) {
         toast.error("Failed to initialize map waypoints: " + wpError.message);
+      }
+
+      // Link repository if selected during onboarding step 2
+      if (isGitHubConnected && selectedRepo) {
+        const { error: srcError } = await supabase
+          .from("sources")
+          .insert({
+            map_id: mapData.id,
+            user_id: user.id,
+            provider: "github",
+            label: selectedRepo,
+          });
+        
+        if (srcError) {
+          console.warn("[Onboarding] Failed to auto-link repository source:", srcError.message);
+        } else {
+          // Proactively trigger a background sync of commit signals for the newly linked repo
+          supabase.functions.invoke("sync-github", {
+            body: { action: "sync", map_id: mapData.id, repo_full_name: selectedRepo },
+          }).catch((err) => {
+            console.warn("[Onboarding] Failed to trigger initial GitHub sync:", err);
+          });
+        }
       }
     }
 
@@ -669,39 +727,70 @@ export default function Onboarding() {
                       return (
                         <div
                           key={source.id}
-                          className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-all ${
+                          className={`flex flex-col gap-3 rounded-lg border p-4 text-left transition-all ${
                             isGitHubConnected ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-surface"
                           }`}
                         >
-                          <span className={`shrink-0 ${isGitHubConnected ? "text-emerald-500" : "text-foreground/70"}`}>
-                            {source.icon}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm flex items-center gap-1.5">
-                              {source.name}
-                              {isRecommended && (
-                                <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-tight font-medium">
-                                  Recommended
-                                </span>
+                          <div className="flex items-center gap-3 w-full">
+                            <span className={`shrink-0 ${isGitHubConnected ? "text-emerald-500" : "text-foreground/70"}`}>
+                              {source.icon}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-sm flex items-center gap-1.5">
+                                {source.name}
+                                {isRecommended && (
+                                  <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-tight font-medium">
+                                    Recommended
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {isGitHubConnected ? "Active and monitored" : source.detail}
+                              </div>
+                            </div>
+                            {isGitHubConnected ? (
+                              <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-500 font-medium">
+                                <ShieldCheck className="h-4 w-4" /> Connected
+                              </span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleConnectGitHub()}
+                                className="shrink-0 gap-1.5 h-8 text-xs font-mono"
+                              >
+                                <Plug className="h-3 w-3" /> Connect
+                              </Button>
+                            )}
+                          </div>
+
+                          {isGitHubConnected && (
+                            <div className="mt-1 border-t border-emerald-500/10 pt-3 w-full space-y-2">
+                              <label className="block text-[11px] font-mono text-muted-foreground uppercase tracking-wider">
+                                Link Repository
+                              </label>
+                              {loadingRepos ? (
+                                <div className="text-xs text-muted-foreground animate-pulse py-1">Loading repositories...</div>
+                              ) : repos.length > 0 ? (
+                                <Select
+                                  value={selectedRepo}
+                                  onValueChange={(val) => setSelectedRepo(val)}
+                                >
+                                  <SelectTrigger className="w-full bg-background/50 text-xs">
+                                    <SelectValue placeholder="Select a repository" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {repos.map((r) => (
+                                      <SelectItem key={r.id} value={r.full_name}>
+                                        {r.full_name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <div className="text-xs text-muted-foreground">No repositories found. Ensure your GitHub account has public/private repositories.</div>
                               )}
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {isGitHubConnected ? "Active and monitored" : source.detail}
-                            </div>
-                          </div>
-                          {isGitHubConnected ? (
-                            <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-500 font-medium">
-                              <ShieldCheck className="h-4 w-4" /> Connected
-                            </span>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleConnectGitHub()}
-                              className="shrink-0 gap-1.5 h-8 text-xs font-mono"
-                            >
-                              <Plug className="h-3 w-3" /> Connect
-                            </Button>
                           )}
                         </div>
                       );
