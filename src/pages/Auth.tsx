@@ -25,10 +25,22 @@ export default function Auth() {
   useEffect(() => {
     if (authLoading || !user) return;
 
-    // If there is a pending OAuth redirect, let useAuth handle it
+    let pendingNext: string | null = null;
     try {
-      if (sessionStorage.getItem("atlas.auth.next")) return;
-    } catch {}
+      pendingNext = sessionStorage.getItem("atlas.auth.next");
+    } catch (e) {
+      console.warn(e);
+    }
+
+    if (pendingNext) {
+      try {
+        sessionStorage.removeItem("atlas.auth.next");
+      } catch (e) {
+        console.warn(e);
+      }
+      nav(pendingNext, { replace: true });
+      return;
+    }
 
     let cancelled = false;
     resolvePostAuthPath(user.id).then((path) => {

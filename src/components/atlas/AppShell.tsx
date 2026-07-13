@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun } from "lucide-react";
+import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun, Palette } from "lucide-react";
 import { Logo, LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -24,7 +24,7 @@ export default function AppShell() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, cycleTheme } = useTheme();
   const [profile, setProfile] = useState<{ handle: string | null; display_name: string | null } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -155,16 +155,22 @@ export default function AppShell() {
               {!collapsed && <span>Collapse</span>}
             </button>
 
-            {/* Dark mode toggle */}
+            {/* Theme cycling toggle */}
             <button
-              onClick={toggleTheme}
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              onClick={cycleTheme}
+              aria-label="Cycle theme"
               className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
                 collapsed ? "justify-center" : ""
               }`}
             >
-              {theme === "dark" ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
-              {!collapsed && <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
+              {theme === "dark" ? (
+                <Moon className="h-4 w-4 text-amber-400" />
+              ) : theme === "paper" ? (
+                <Palette className="h-4 w-4 text-amber-500" />
+              ) : (
+                <Sun className="h-4 w-4 text-primary" />
+              )}
+              {!collapsed && <span>Theme: {theme === "clean" ? "Clean" : theme === "paper" ? "Paper" : "Dark"}</span>}
             </button>
 
             <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? "justify-center" : ""}`}>

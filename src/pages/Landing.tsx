@@ -1,4 +1,4 @@
-﻿import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { ArrowRight, Check, Target, Layers, Activity, ChevronRight } from "lucide-react";
 import { Logo, LogoMark } from "@/components/atlas/Logo";
@@ -37,7 +37,24 @@ export default function Landing() {
 
   useEffect(() => {
     if (loading || !user) return;
-    try { if (sessionStorage.getItem("atlas.auth.next")) return; } catch {}
+    
+    let pendingNext: string | null = null;
+    try {
+      pendingNext = sessionStorage.getItem("atlas.auth.next");
+    } catch (e) {
+      console.warn(e);
+    }
+
+    if (pendingNext) {
+      try {
+        sessionStorage.removeItem("atlas.auth.next");
+      } catch (e) {
+        console.warn(e);
+      }
+      navigate(pendingNext, { replace: true });
+      return;
+    }
+
     let cancelled = false;
     resolvePostAuthPath(user.id).then((path) => {
       if (!cancelled) navigate(path, { replace: true });

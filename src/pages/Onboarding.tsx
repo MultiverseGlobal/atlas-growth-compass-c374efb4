@@ -812,9 +812,6 @@ export default function Onboarding() {
                                 Recommended
                               </span>
                             )}
-                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground/60 uppercase">
-                              Pilot mock
-                            </span>
                           </div>
                           <div className="text-xs text-muted-foreground/80">{source.detail}</div>
                         </div>
