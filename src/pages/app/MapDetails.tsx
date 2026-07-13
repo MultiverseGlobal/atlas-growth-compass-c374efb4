@@ -476,11 +476,32 @@ export default function MapDetails() {
       const hasStripe = liveIntegrations.some(i => i.provider === "stripe" && i.status === "active");
       if (hasStripe) {
         syncPromises.push(
-          supabase.functions.invoke("sync-stripe", {
-            body: { map_id: id }
-          }).catch((err) => {
-            console.warn("[fullSync] sync-stripe failed:", err);
-          })
+          supabase.functions.invoke("sync-stripe", { body: { map_id: id } })
+            .catch((err) => console.warn("[fullSync] sync-stripe failed:", err))
+        );
+      }
+
+      const hasNotion = liveIntegrations.some(i => i.provider === "notion" && i.status === "active");
+      if (hasNotion) {
+        syncPromises.push(
+          supabase.functions.invoke("sync-notion", { body: { map_id: id } })
+            .catch((err) => console.warn("[fullSync] sync-notion failed:", err))
+        );
+      }
+
+      const hasSlack = liveIntegrations.some(i => i.provider === "slack" && i.status === "active");
+      if (hasSlack) {
+        syncPromises.push(
+          supabase.functions.invoke("sync-slack", { body: { map_id: id } })
+            .catch((err) => console.warn("[fullSync] sync-slack failed:", err))
+        );
+      }
+
+      const hasGoogle = liveIntegrations.some(i => i.provider === "google" && i.status === "active");
+      if (hasGoogle) {
+        syncPromises.push(
+          supabase.functions.invoke("sync-google", { body: { map_id: id } })
+            .catch((err) => console.warn("[fullSync] sync-google failed:", err))
         );
       }
 
@@ -1292,33 +1313,33 @@ export default function MapDetails() {
       {tourStep !== null && typeof document !== "undefined" && createPortal(
         <>
           {/* Guide Modal Box */}
-          <div className="fixed top-6 right-6 left-6 md:left-auto md:w-96 z-50 bg-card border-2 border-primary rounded-xl shadow-2xl p-5 page-fade select-none">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-primary font-bold">
-                <Compass className="h-4 w-4 animate-spin" style={{ animationDuration: '6s' }} /> Map Guide ({tourStep + 1}/{TOUR_STEPS.length})
+          <div className="fixed top-6 right-6 left-6 md:left-auto md:w-96 z-50 bg-[#FAFAF8] border border-border/75 rounded-2xl shadow-2xl p-6 page-fade select-none">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-widest text-primary font-semibold">
+                <Compass className="h-4 w-4 animate-spin text-primary/70" style={{ animationDuration: '6s' }} /> Map Guide (0{tourStep + 1} / 0{TOUR_STEPS.length})
               </div>
               <button 
                 onClick={() => {
                   setTourStep(null);
                   localStorage.setItem("atlas.tour.seen", "true");
                 }} 
-                className="text-xs text-muted-foreground hover:text-foreground underline font-mono"
+                className="text-[11px] text-muted-foreground/60 hover:text-foreground font-mono transition-colors"
               >
                 Skip tour
               </button>
             </div>
-            <h4 className="font-display text-lg font-semibold text-foreground mb-1">
+            <h4 className="font-display text-lg font-semibold text-foreground mb-1.5 leading-tight">
               {TOUR_STEPS[tourStep].title}
             </h4>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-xs text-muted-foreground/80 leading-relaxed">
               {TOUR_STEPS[tourStep].description}
             </p>
-            <div className="mt-4 flex items-center justify-between">
-              <div className="flex gap-1">
+            <div className="mt-6 flex items-center justify-between">
+              <div className="flex gap-1.5">
                 {TOUR_STEPS.map((_, idx) => (
                   <div 
                     key={idx} 
-                    className={`h-1.5 w-1.5 rounded-full transition-all duration-200 ${idx === tourStep ? "bg-primary w-3" : "bg-muted-foreground/30"}`} 
+                    className={`h-1 rounded-full transition-all duration-200 ${idx === tourStep ? "bg-primary w-4" : "bg-muted-foreground/20 w-1"}`} 
                   />
                 ))}
               </div>
@@ -1328,7 +1349,7 @@ export default function MapDetails() {
                     variant="ghost" 
                     size="sm" 
                     onClick={() => setTourStep(prev => prev! - 1)}
-                    className="h-8 text-xs font-mono"
+                    className="h-8 rounded-full text-[11px] font-mono font-medium px-3 text-muted-foreground"
                   >
                     Back
                   </Button>
@@ -1344,7 +1365,7 @@ export default function MapDetails() {
                       toast.success("Tour completed! You are ready to navigate your maps.");
                     }
                   }}
-                  className="h-8 text-xs font-mono"
+                  className="h-8 rounded-full text-[11px] font-mono font-semibold px-4"
                 >
                   {tourStep === TOUR_STEPS.length - 1 ? "Got it" : "Next"}
                 </Button>

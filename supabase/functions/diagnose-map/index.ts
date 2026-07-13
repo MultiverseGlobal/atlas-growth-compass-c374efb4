@@ -315,16 +315,18 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 3. Compute GitHub flags based on the last 14 days of signals
+    // 3. Compute Multi-Source Integration flags based on the last 14 days of signals
+    const flags: DiagnosticFlag[] = [];
+    const now = new Date();
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    // ─── GitHub ───
     const commitSignals = signals?.filter(
       (s) =>
         new Date(s.occurred_at) >= twoWeeksAgo &&
         (s.payload?.type === "commit" || s.title.startsWith("Commit:"))
     ) ?? [];
-
-    const now = new Date();
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
     const commitsThisWeek = commitSignals.filter(
       (c) => new Date(c.occurred_at) >= oneWeekAgo
@@ -340,7 +342,6 @@ Deno.serve(async (req: Request) => {
       ? (latestCommit.payload?.message || latestCommit.title.replace("Commit: ", ""))
       : "";
 
-    const flags: DiagnosticFlag[] = [];
     if (daysSinceLastCommit > 7) {
       flags.push({
         flag: "No GitHub activity in over a week",
@@ -363,11 +364,81 @@ Deno.serve(async (req: Request) => {
         severity: "medium",
       });
     }
-    if (commitsThisWeek >= commitsLastWeek && commitsThisWeek > 0) {
+
+    // ─── Stripe ───
+    const stripeSignals = signals?.filter(
+      (s) => new Date(s.occurred_at) >= twoWeeksAgo && s.payload?.type === "stripe"
+    ) ?? [];
+    const chargesThisWeek = stripeSignals.filter(
+      (s) => new Date(s.occurred_at) >= oneWeekAgo
+    ).length;
+    const chargesLastWeek = stripeSignals.length - chargesThisWeek;
+
+    if (stripeSignals.length > 0) {
+      if (chargesThisWeek === 0) {
+        flags.push({
+          flag: "Zero Stripe charges this week",
+          reason: `Had ${chargesLastWeek} charges last week, but none in the last 7 days.`,
+          severity: "high",
+        });
+      } else if (chargesThisWeek < chargesLastWeek * 0.5) {
+        flags.push({
+          flag: "Customer billing frequency dropped",
+          reason: `${chargesThisWeek} charges this week vs ${chargesLastWeek} last week.`,
+          severity: "medium",
+        });
+      }
+    }
+
+    // ─── Notion ───
+    const notionSignals = signals?.filter(
+      (s) => new Date(s.occurred_at) >= twoWeeksAgo && s.payload?.type === "notion"
+    ) ?? [];
+    const updatesThisWeek = notionSignals.filter(
+      (s) => new Date(s.occurred_at) >= oneWeekAgo
+    ).length;
+
+    if (notionSignals.length > 0 && updatesThisWeek === 0) {
       flags.push({
-        flag: "Development velocity is stable or increasing",
-        reason: `${commitsThisWeek} commits this week vs ${commitsLastWeek} last week.`,
-        severity: "low",
+        flag: "No product docs or specs updated in Notion",
+        reason: `Zero Notion document updates recorded in the last 7 days.`,
+        severity: "medium",
+      });
+    }
+
+    // ─── Slack ───
+    const slackSignals = signals?.filter(
+      (s) => new Date(s.occurred_at) >= twoWeeksAgo && s.payload?.type === "slack"
+    ) ?? [];
+    const slackThisWeek = slackSignals.filter(
+      (s) => new Date(s.occurred_at) >= oneWeekAgo
+    ).length;
+    const slackLastWeek = slackSignals.length - slackThisWeek;
+
+    if (slackSignals.length > 0) {
+      if (slackThisWeek < slackLastWeek * 0.4) {
+        flags.push({
+          flag: "Team Slack chat activity dropped significantly",
+          reason: `Only ${slackThisWeek} messages this week vs ${slackLastWeek} last week.`,
+          severity: "medium",
+        });
+      }
+    }
+
+    // ─── Google Workspace ───
+    const googleSignals = signals?.filter(
+      (s) => new Date(s.occurred_at) >= twoWeeksAgo && s.payload?.type === "google"
+    ) ?? [];
+    const meetingMinutesThisWeek = googleSignals
+      .filter((s) => new Date(s.occurred_at) >= oneWeekAgo)
+      .reduce((acc, s) => acc + (s.payload?.duration_minutes || 0), 0);
+    const meetingHours = Math.round(meetingMinutesThisWeek / 60);
+
+    if (meetingHours > 15) {
+      flags.push({
+        flag: "Meeting overload detected in Calendar",
+        reason: `Spent ${meetingHours} hours in calendar meetings this week. High shipping bottleneck risk.`,
+        severity: "high",
       });
     }
 
@@ -404,10 +475,18 @@ Deno.serve(async (req: Request) => {
     const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes);
 
     // Build structured evidence_sources from deterministic flags and manual notes
-    const evidenceSources = flags.map(f => ({
-      source: "GitHub",
-      detail: `${f.flag}: ${f.reason}`
-    }));
+    const evidenceSources = flags.map(f => {
+      let src = "GitHub";
+      const fl = f.flag.toLowerCase();
+      if (fl.includes("stripe")) src = "Stripe";
+      else if (fl.includes("notion") || fl.includes("docs")) src = "Notion";
+      else if (fl.includes("slack")) src = "Slack";
+      else if (fl.includes("calendar") || fl.includes("meeting")) src = "Google Workspace";
+      return {
+        source: src,
+        detail: `${f.flag}: ${f.reason}`
+      };
+    });
 
     if (manualNotes && manualNotes.trim()) {
       evidenceSources.push({

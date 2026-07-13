@@ -580,51 +580,47 @@ export default function Onboarding() {
 
   // ─── Onboarding form (steps 0-3) ─────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background grain">
-      <header className="container flex h-16 items-center justify-between border-b border-border/60">
+    <div className="min-h-screen bg-background grain relative flex flex-col justify-between overflow-hidden">
+      {/* Amber radial glow backdrop */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0" style={{ background: "radial-gradient(ellipse 60% 50% at 50% 15%, hsla(37,72%,62%,0.12) 0%, transparent 60%)" }} />
+
+      <header className="container relative z-10 flex h-16 items-center justify-between border-b border-border/50 bg-background/30 backdrop-blur-md">
         <Logo />
-        <div className="hidden text-xs font-mono uppercase text-muted-foreground sm:block">Intake setup</div>
+        <div className="hidden text-xs font-mono uppercase tracking-widest text-muted-foreground/60 sm:block">Intake setup</div>
       </header>
 
-      <main className="container max-w-xl py-12 md:py-20">
-        {/* Step indicator */}
-        <div className="flex items-center gap-2 mb-8">
-          {FORM_STEPS.map((label, index) => (
-            <div key={label} className="flex items-center gap-2">
-              <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-mono ${
-                index < step ? "bg-primary text-primary-foreground" :
-                index === step ? "border-2 border-primary text-primary" :
-                "border border-border text-muted-foreground"
-              }`}>
-                {index < step ? <Check className="h-3 w-3" /> : index + 1}
-              </div>
-              <span className={`text-xs md:text-sm ${index === step ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                {label}
-              </span>
-              {index < FORM_STEPS.length - 1 && (
-                <div className={`h-px w-4 md:w-6 ${index < step ? "bg-primary" : "bg-border"}`} />
-              )}
-            </div>
-          ))}
+      <main className="container relative z-10 max-w-xl py-12 md:py-16 flex-1 flex flex-col justify-center">
+        {/* Minimalist Step indicator */}
+        <div className="flex items-center justify-between mb-6 px-1">
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-xs font-semibold text-primary">0{step + 1}</span>
+            <span className="text-xs text-muted-foreground">/ 0{TOTAL_FORM_STEPS}</span>
+            <span className="font-display text-sm font-semibold text-foreground ml-2">{FORM_STEPS[step]}</span>
+          </div>
+          <div className="flex gap-1.5">
+            {FORM_STEPS.map((_, idx) => (
+              <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${idx === step ? "w-6 bg-primary" : "w-1.5 bg-border"}`} />
+            ))}
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-6 md:p-8 shadow-sm">
+        <div className="rounded-[20px] border border-border/60 bg-card p-6 md:p-8 shadow-sm">
           {/* STEP 0: Public identity */}
           {step === 0 && (
             <div>
-              <div className="text-xs font-mono uppercase tracking-widest text-primary">Public identity</div>
-              <h2 className="mt-2 font-display text-2xl font-semibold">Set your public handle.</h2>
-              <p className="text-xs text-muted-foreground mt-1">This sets up your default showcase URL at atlas.so/@handle.</p>
-              <div className="mt-7 grid gap-5">
-                <div>
-                  <Label htmlFor="dn">Display name</Label>
-                  <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Jane Founder" className="mt-1.5" />
+              <div className="text-xs font-mono uppercase tracking-widest text-primary/70">Public identity</div>
+              <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-foreground">Set your public handle.</h2>
+              <p className="text-sm text-muted-foreground mt-1.5">This sets up your default showcase URL at <span className="font-medium text-foreground">atlas.so/@handle</span>.</p>
+              <div className="mt-8 grid gap-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="dn" className="text-xs font-semibold text-foreground/80">Display name</Label>
+                  <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Jane Founder" className="h-11 rounded-xl bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20" />
                 </div>
-                <div>
-                  <Label htmlFor="handle">Handle</Label>
-                  <div className="mt-1.5 flex items-center rounded-md border border-input bg-input/40 focus-within:ring-2 focus-within:ring-ring">
-                    <span className="pl-3 pr-1 font-mono text-sm text-muted-foreground">atlas.so/@</span>
-                    <Input id="handle" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="janef" className="border-0 bg-transparent pl-0 focus-visible:ring-0" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="handle" className="text-xs font-semibold text-foreground/80">Handle</Label>
+                  <div className="flex h-11 items-center rounded-xl border border-border/50 bg-background/50 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary overflow-hidden">
+                    <span className="pl-3.5 pr-1 font-mono text-sm text-muted-foreground/60 select-none">atlas.so/@</span>
+                    <Input id="handle" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="janef" className="border-0 bg-transparent pl-0 h-full focus-visible:ring-0 focus-visible:ring-offset-0" />
                   </div>
                 </div>
               </div>
@@ -635,26 +631,26 @@ export default function Onboarding() {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <div className="text-xs font-mono uppercase tracking-widest text-primary">Context intake</div>
-                <h2 className="mt-2 font-display text-2xl font-semibold">Tell us about your goal.</h2>
-                <p className="text-xs text-muted-foreground mt-1">Stating your objective allows Atlas to align operating signals correctly.</p>
+                <div className="text-xs font-mono uppercase tracking-widest text-primary/70">Context intake</div>
+                <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-foreground">Tell us about your goal.</h2>
+                <p className="text-sm text-muted-foreground mt-1.5">Stating your objective allows Atlas to align operating signals correctly.</p>
               </div>
 
-              <div>
-                <Label htmlFor="onboarding-goal">Your primary objective</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="onboarding-goal" className="text-xs font-semibold text-foreground/80">Your primary objective</Label>
                 <textarea
                   id="onboarding-goal"
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
                   placeholder="e.g. Launch the scheduler beta and onboard 10 beta testers"
                   rows={2}
-                  className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full resize-none rounded-xl border border-border/50 bg-background/50 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
               </div>
 
-              <div>
-                <Label>Primary operating area</Label>
-                <div className="mt-2 grid gap-2 grid-cols-1 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-foreground/80">Primary operating area</Label>
+                <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
                   {areas.map((a) => {
                     const active = operatingArea === a.id;
                     return (
@@ -662,11 +658,11 @@ export default function Onboarding() {
                         key={a.id}
                         type="button"
                         onClick={() => setOperatingArea(a.id)}
-                        className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-all ${
-                          active ? "border-primary bg-primary/5" : "border-border bg-background/50 hover:bg-muted/30"
+                        className={`flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all duration-200 lift ${
+                          active ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border/60 bg-background/30 hover:bg-muted/20"
                         }`}
                       >
-                        <span className={`mt-0.5 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`}>
+                        <span className={`mt-0.5 shrink-0 ${active ? "text-primary" : "text-muted-foreground/60"}`}>
                           {a.icon}
                         </span>
                         <div>
@@ -679,9 +675,9 @@ export default function Onboarding() {
                 </div>
               </div>
 
-              <div>
-                <Label>Main priority bottleneck</Label>
-                <div className="mt-2 grid gap-2 grid-cols-1 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-foreground/80">Main priority bottleneck</Label>
+                <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
                   {constraints.map((c) => {
                     const active = primaryConstraint === c.id;
                     return (
@@ -689,11 +685,11 @@ export default function Onboarding() {
                         key={c.id}
                         type="button"
                         onClick={() => setPrimaryConstraint(c.id)}
-                        className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-all ${
-                          active ? "border-primary bg-primary/5" : "border-border bg-background/50 hover:bg-muted/30"
+                        className={`flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all duration-200 lift ${
+                          active ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border/60 bg-background/30 hover:bg-muted/20"
                         }`}
                       >
-                        <span className={`mt-0.5 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`}>
+                        <span className={`mt-0.5 shrink-0 ${active ? "text-primary" : "text-muted-foreground/60"}`}>
                           {c.icon}
                         </span>
                         <div>
@@ -711,11 +707,11 @@ export default function Onboarding() {
           {/* STEP 2: Data sources */}
           {step === 2 && (
             <div>
-              <div className="text-xs font-mono uppercase tracking-widest text-primary">Data connections</div>
-              <h2 className="mt-2 font-display text-2xl font-semibold">Select your data sources.</h2>
-              <p className="text-xs text-muted-foreground mt-1">Connecting sources unlocks high-signal analysis of operational constraints.</p>
+              <div className="text-xs font-mono uppercase tracking-widest text-primary/70">Data connections</div>
+              <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-foreground">Select your data sources.</h2>
+              <p className="text-sm text-muted-foreground mt-1.5">Connecting sources unlocks high-signal analysis of operational constraints.</p>
               
-              <div className="mt-6 grid gap-2">
+              <div className="mt-6 grid gap-2.5">
                 {(() => {
                   const recommended = getRecommendedSources(goal);
                   return sources.map((source) => {
@@ -727,16 +723,16 @@ export default function Onboarding() {
                       return (
                         <div
                           key={source.id}
-                          className={`flex flex-col gap-3 rounded-lg border p-4 text-left transition-all ${
-                            isGitHubConnected ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-surface"
+                          className={`flex flex-col gap-3 rounded-xl border p-4 text-left transition-all ${
+                            isGitHubConnected ? "border-emerald-500/30 bg-emerald-500/5" : "border-border/60 bg-background/30"
                           }`}
                         >
                           <div className="flex items-center gap-3 w-full">
-                            <span className={`shrink-0 ${isGitHubConnected ? "text-emerald-500" : "text-foreground/70"}`}>
+                            <span className={`shrink-0 ${isGitHubConnected ? "text-emerald-500" : "text-foreground/60"}`}>
                               {source.icon}
                             </span>
                             <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-sm flex items-center gap-1.5">
+                              <div className="font-semibold text-sm flex items-center gap-1.5 text-foreground">
                                 {source.name}
                                 {isRecommended && (
                                   <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-tight font-medium">
@@ -744,7 +740,7 @@ export default function Onboarding() {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-xs text-muted-foreground">
+                              <div className="text-xs text-muted-foreground/80">
                                 {isGitHubConnected ? "Active and monitored" : source.detail}
                               </div>
                             </div>
@@ -757,7 +753,7 @@ export default function Onboarding() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleConnectGitHub()}
-                                className="shrink-0 gap-1.5 h-8 text-xs font-mono"
+                                className="shrink-0 gap-1.5 h-8 text-xs font-mono rounded-lg"
                               >
                                 <Plug className="h-3 w-3" /> Connect
                               </Button>
@@ -766,7 +762,7 @@ export default function Onboarding() {
 
                           {isGitHubConnected && (
                             <div className="mt-1 border-t border-emerald-500/10 pt-3 w-full space-y-2">
-                              <label className="block text-[11px] font-mono text-muted-foreground uppercase tracking-wider">
+                              <label className="block text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
                                 Link Repository
                               </label>
                               {loadingRepos ? (
@@ -776,10 +772,10 @@ export default function Onboarding() {
                                   value={selectedRepo}
                                   onValueChange={(val) => setSelectedRepo(val)}
                                 >
-                                  <SelectTrigger className="w-full bg-background/50 text-xs">
+                                  <SelectTrigger className="w-full bg-background/50 text-xs rounded-lg h-9">
                                     <SelectValue placeholder="Select a repository" />
                                   </SelectTrigger>
-                                  <SelectContent>
+                                  <SelectContent className="rounded-lg">
                                     {repos.map((r) => (
                                       <SelectItem key={r.id} value={r.full_name}>
                                         {r.full_name}
@@ -801,26 +797,26 @@ export default function Onboarding() {
                         key={source.id}
                         type="button"
                         onClick={() => toggleSource(source.id)}
-                        className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-colors ${
-                          selected ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-surface-2"
+                        className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-colors lift ${
+                          selected ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border/60 bg-background/30 hover:bg-muted/10"
                         }`}
                       >
-                        <span className={`shrink-0 ${selected ? "text-primary" : "text-foreground/70"}`}>
+                        <span className={`shrink-0 ${selected ? "text-primary" : "text-foreground/60"}`}>
                           {source.icon}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm flex items-center gap-1.5">
+                          <div className="font-semibold text-sm flex items-center gap-1.5 text-foreground">
                             {source.name}
                             {isRecommended && (
                               <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 font-mono text-[9px] text-primary uppercase tracking-tight font-medium">
                                 Recommended
                               </span>
                             )}
-                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground uppercase">
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground/60 uppercase">
                               Pilot mock
                             </span>
                           </div>
-                          <div className="text-xs text-muted-foreground">{source.detail}</div>
+                          <div className="text-xs text-muted-foreground/80">{source.detail}</div>
                         </div>
                         {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
                       </button>
@@ -834,9 +830,9 @@ export default function Onboarding() {
           {/* STEP 3: Outcome output */}
           {step === 3 && (
             <div>
-              <div className="text-xs font-mono uppercase tracking-widest text-primary">Strategic outcomes</div>
-              <h2 className="mt-2 font-display text-2xl font-semibold">Select your first outcome.</h2>
-              <p className="text-xs text-muted-foreground mt-1">Determine the primary deliverable Atlas will compile for you.</p>
+              <div className="text-xs font-mono uppercase tracking-widest text-primary/70">Strategic outcomes</div>
+              <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-foreground">Select your first outcome.</h2>
+              <p className="text-sm text-muted-foreground mt-1.5">Determine the primary deliverable Atlas will compile for you.</p>
 
               <div className="mt-6 grid gap-3">
                 {outcomes.map((o) => {
@@ -846,16 +842,16 @@ export default function Onboarding() {
                       key={o.id}
                       type="button"
                       onClick={() => setDesiredOutcome(o.id)}
-                      className={`flex items-start gap-4 rounded-xl border p-4 text-left transition-all ${
-                        active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-background hover:bg-muted/30"
+                      className={`flex items-start gap-4 rounded-xl border p-4 text-left transition-all duration-200 lift ${
+                        active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border/60 bg-background/30 hover:bg-muted/20"
                       }`}
                     >
-                      <span className={`mt-0.5 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`}>
+                      <span className={`mt-0.5 shrink-0 ${active ? "text-primary" : "text-muted-foreground/60"}`}>
                         {o.icon}
                       </span>
                       <div>
                         <div className="font-semibold text-sm text-foreground">{o.label}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{o.description}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{o.description}</div>
                       </div>
                     </button>
                   );
@@ -864,17 +860,17 @@ export default function Onboarding() {
             </div>
           )}
 
-          <div className="mt-8 flex items-center justify-between border-t border-border pt-5">
-            <Button variant="ghost" onClick={() => setStep((cur) => Math.max(cur - 1, 0))} disabled={step === 0 || saving}>
-              <ArrowLeft className="h-4 w-4" /> Back
+          <div className="mt-8 flex items-center justify-between border-t border-border/50 pt-5">
+            <Button variant="ghost" onClick={() => setStep((cur) => Math.max(cur - 1, 0))} disabled={step === 0 || saving} className="h-10 rounded-full font-mono text-xs text-muted-foreground">
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
             </Button>
             {step < TOTAL_FORM_STEPS - 1 ? (
-              <Button onClick={next} disabled={!canContinue} className="h-11 px-5">
-                Continue <ArrowRight className="h-4 w-4" />
+              <Button onClick={next} disabled={!canContinue} className="h-10 px-5 rounded-full text-xs font-mono font-semibold">
+                Continue <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             ) : (
-              <Button onClick={finish} disabled={saving || !canContinue} className="h-11 px-5">
-                {saving ? "Generating Maps…" : "Initialize Workspace"} <ShieldCheck className="h-4 w-4" />
+              <Button onClick={finish} disabled={saving || !canContinue} className="h-10 px-5 rounded-full text-xs font-mono font-semibold bg-foreground text-background hover:bg-foreground/90">
+                {saving ? "Generating Maps…" : "Initialize Workspace"} <ShieldCheck className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
