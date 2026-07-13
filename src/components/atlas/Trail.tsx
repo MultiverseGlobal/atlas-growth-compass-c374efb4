@@ -184,29 +184,33 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
     );
   }
 
+  // ── Vertical layout (default) ────────────────────────────────────────────
   return (
     <div className="relative pl-8">
-      {/* Flowing SVGs for the cartographic pathway */}
+      {/* Animated trail line */}
       <svg className="absolute left-[9px] top-3 bottom-3 w-[4px] h-[calc(100%-24px)] pointer-events-none" aria-hidden="true">
-        <line
-          x1="2"
-          y1="0"
-          x2="2"
-          y2="100%"
-          stroke="hsl(var(--primary) / 0.55)"
-          strokeWidth="2.5"
-          className="flow-line"
-        />
+        <line x1="2" y1="0" x2="2" y2="100%" stroke="hsl(var(--primary) / 0.55)" strokeWidth="2.5" className="flow-line" />
       </svg>
 
       <ol className="space-y-10">
         {waypoints.map((w, i) => {
-          // Support both `kind` (DB) and `type` (legacy starterMap) field names
           const kind = (w.kind ?? w.type ?? "goal") as string;
           const label = w.label ?? KIND_LABELS[kind] ?? kind;
           const confidence = w.confidence as string | undefined;
           const isExpanded = !interactive || expandedIndex === i;
           const descriptionText = w.description || (interactive ? "Establish more integrations or context inputs to update and verify this waypoint status." : undefined);
+
+          // Color-coded label per kind
+          const labelColor =
+            kind === "goal" ? "text-primary" :
+            kind === "constraint" ? "text-destructive" :
+            kind === "evidence" ? "text-[hsl(var(--source))]" :
+            "text-foreground";
+
+          // Evidence source badges — pull from metadata if available
+          const sourceBadges: string[] = kind === "evidence" && w.metadata?.sources
+            ? (Array.isArray(w.metadata.sources) ? w.metadata.sources : [])
+            : [];
 
           return (
             <li
@@ -214,99 +218,110 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
               id={`tour-wp-${kind}`}
               className={`relative waypoint-rise ${interactive ? "cursor-pointer group select-none" : ""}`}
               style={{ animationDelay: `${0.5 + i * 0.4}s` }}
-              onClick={() => {
-                if (interactive) {
-                  setExpandedIndex(isExpanded ? null : i);
-                }
-              }}
+              onClick={() => { if (interactive) setExpandedIndex(isExpanded ? null : i); }}
             >
-              {/* Pin with Sonar ring for Active/Constraint blocking factors */}
-              <div className="absolute -left-8 top-0.5">
+              {/* Pin */}
+              <div className="absolute -left-8 top-1">
                 {kind === "constraint" && (
                   <div className="absolute left-[-2px] top-[-2px] h-[26px] w-[26px] pointer-events-none rounded-full border border-destructive/60 sonar-ring" />
                 )}
                 <Pin kind={kind} confidence={confidence} />
               </div>
 
-              <div className="max-w-2xl">
-                <div className="eyebrow text-muted-foreground group-hover:text-primary transition-colors">{label}</div>
-                <h3 className="mt-2 font-display text-2xl md:text-[26px] leading-snug text-foreground group-hover:text-primary/95 transition-colors">
-                  {w.title}
-                </h3>
-                {descriptionText && isExpanded && (
-                  <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground page-fade">
-                    {descriptionText}
-                  </p>
-                )}
-                {/* Sourced recommendation details (Evidence Engine) */}
-                {kind === "move" && (
-                  <div className="mt-4 space-y-3">
-                    {w.metadata?.evidence && Array.isArray(w.metadata.evidence) && w.metadata.evidence.length > 0 && (
-                      <div className="space-y-1.5">
-                        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/75">Evidence used</div>
-                        <ul className="space-y-1">
-                          {w.metadata.evidence.map((ev: any, idx: number) => (
-                            <li key={idx} className="font-mono text-xs text-muted-foreground leading-relaxed flex items-start gap-1">
-                              <span className="text-muted-foreground/60 select-none">—</span>
-                              <span>
-                                <strong className="text-foreground/80 font-semibold">{ev.source}:</strong> {ev.detail}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {confidence && (
-                      <div className="font-mono text-xs text-muted-foreground/70">
-                        Confidence: <span className="text-foreground font-semibold capitalize">{confidence}</span>
-                      </div>
-                    )}
+              {/* ── Constraint alert card ── */}
+              {kind === "constraint" ? (
+                <div className="rounded-[14px] border border-destructive/25 bg-destructive/5 px-5 py-4 transition-colors hover:bg-destructive/8">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`eyebrow ${labelColor}`}>{label}</span>
+                    <span className="rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-destructive font-semibold">
+                      Blocking
+                    </span>
                   </div>
-                )}
-                {typeof w.lastUpdatedDays === "number" && w.lastUpdatedDays >= 7 && (
-                  <p className="mt-2.5 font-mono text-[10px] text-muted-foreground/50 tracking-tight">
-                    Last updated {w.lastUpdatedDays} days ago
-                  </p>
-                )}
+                  <h3 className="font-display text-2xl md:text-[26px] leading-snug text-foreground">
+                    {w.title}
+                  </h3>
+                  {descriptionText && isExpanded && (
+                    <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground page-fade">{descriptionText}</p>
+                  )}
+                  {onFeedback && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onFeedback(kind, "constraint_wrong", w.title); }}
+                      className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 font-mono text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      This isn't right
+                    </button>
+                  )}
+                </div>
 
-                {/* Feedback actions — only rendered when onFeedback is provided */}
-                {onFeedback && kind === "constraint" && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onFeedback(kind, "constraint_wrong", w.title);
-                    }}
-                    className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 font-mono text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    This isn't right
-                  </button>
-                )}
-                {onFeedback && kind === "move" && (
-                  <div className="mt-4 flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onFeedback(kind, "move_done", w.title);
-                      }}
-                      className="inline-flex items-center rounded-full bg-primary px-3 py-1 font-mono text-[11px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                    >
-                      Mark Done
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onFeedback(kind, "move_skipped", w.title);
-                      }}
-                      className="font-mono text-xs text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors"
-                    >
-                      Skip
-                    </button>
+              ) : kind === "move" ? (
+                /* ── Move CTA card ── */
+                <div className="rounded-[14px] border border-primary/20 bg-primary/5 px-5 py-4">
+                  <div className={`eyebrow ${labelColor} mb-2`}>{label}</div>
+                  <h3 className="font-display text-2xl md:text-[26px] leading-snug text-foreground">
+                    {w.title}
+                  </h3>
+                  {descriptionText && isExpanded && (
+                    <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground page-fade">{descriptionText}</p>
+                  )}
+                  {/* Evidence used */}
+                  {w.metadata?.evidence && Array.isArray(w.metadata.evidence) && w.metadata.evidence.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">Evidence used</div>
+                      <ul className="space-y-0.5">
+                        {w.metadata.evidence.map((ev: any, idx: number) => (
+                          <li key={idx} className="font-mono text-xs text-muted-foreground flex items-start gap-1">
+                            <span className="text-muted-foreground/50 select-none">—</span>
+                            <span><strong className="text-foreground/80 font-semibold">{ev.source}:</strong> {ev.detail}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {onFeedback && (
+                    <div className="mt-5 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onFeedback(kind, "move_done", w.title); }}
+                        className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2 font-mono text-[12px] font-semibold text-background hover:bg-foreground/85 transition-colors shadow-sm"
+                      >
+                        Mark done →
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onFeedback(kind, "move_skipped", w.title); }}
+                        className="font-mono text-xs text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors"
+                      >
+                        Skip
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+              ) : (
+                /* ── Goal / Evidence standard row ── */
+                <div className="max-w-2xl group-hover:opacity-90 transition-opacity">
+                  <div className="flex items-center gap-2">
+                    <span className={`eyebrow ${labelColor}`}>{label}</span>
+                    {sourceBadges.length > 0 && sourceBadges.map((src) => (
+                      <span key={src} className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground uppercase tracking-wide">
+                        {src}
+                      </span>
+                    ))}
                   </div>
-                )}
-              </div>
+                  <h3 className="mt-2 font-display text-2xl md:text-[26px] leading-snug text-foreground">
+                    {w.title}
+                  </h3>
+                  {descriptionText && isExpanded && (
+                    <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground page-fade">{descriptionText}</p>
+                  )}
+                  {typeof w.lastUpdatedDays === "number" && w.lastUpdatedDays >= 7 && (
+                    <p className="mt-2.5 font-mono text-[10px] text-muted-foreground/50 tracking-tight">
+                      Last updated {w.lastUpdatedDays} days ago
+                    </p>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
@@ -314,3 +329,4 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
     </div>
   );
 }
+
