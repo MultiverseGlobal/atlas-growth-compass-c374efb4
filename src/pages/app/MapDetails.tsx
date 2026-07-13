@@ -200,11 +200,14 @@ export default function MapDetails() {
   useEffect(() => {
     if (focusMode) {
       document.documentElement.classList.add("focus-mode-active");
+      window.dispatchEvent(new CustomEvent("focus-mode-change", { detail: { active: true } }));
     } else {
       document.documentElement.classList.remove("focus-mode-active");
+      window.dispatchEvent(new CustomEvent("focus-mode-change", { detail: { active: false } }));
     }
     return () => {
       document.documentElement.classList.remove("focus-mode-active");
+      window.dispatchEvent(new CustomEvent("focus-mode-change", { detail: { active: false } }));
     };
   }, [focusMode]);
 
@@ -352,11 +355,9 @@ export default function MapDetails() {
       if (wpData && wpData.length > 0) {
         setWaypoints(wpData as Waypoint[]);
       } else {
+        // No saved waypoints — show just the goal. The undiagnosed state UI handles the rest.
         setWaypoints([
           { kind: "goal", title: mapData.goal_statement, confidence: "starter" },
-          { kind: "constraint", title: "No diagnostic signals have been received yet.", confidence: "starter" },
-          { kind: "evidence", title: "Establish data sources or provide manual context notes to identify constraints.", confidence: "starter" },
-          { kind: "move", title: "Link a GitHub repository or submit a manual context note below.", confidence: "starter" },
         ]);
       }
     } catch (err: any) {
@@ -775,9 +776,11 @@ export default function MapDetails() {
   if (!map) return null;
 
   const isBusy = syncing || diagnosing;
+  // "Not yet diagnosed" = only has the goal waypoint and no data sources have run
+  const isUndiagnosed = waypoints.length <= 1 && !syncing && !diagnosing;
 
   return (
-    <>
+    <div className="w-full">
       <div className="mx-auto max-w-2xl px-4 py-10 md:px-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -849,8 +852,8 @@ export default function MapDetails() {
           </h1>
         </div>
 
-        {/* Trail */}
-        <div className="mt-14">
+        {/* Trail OR Undiagnosed State */}
+        <div className="mt-14" id="tour-trail">
           {syncFailed && lastSyncedAt && (
             <div className="mb-4 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
               <RefreshCw className="h-3.5 w-3.5 shrink-0" />
@@ -866,10 +869,26 @@ export default function MapDetails() {
               </button>
             </div>
           )}
-          <Trail
-            waypoints={waypoints}
-            onFeedback={handleFeedback}
-          />
+
+          {isUndiagnosed ? (
+            <UndiagnosedState
+              goalStatement={map.goal_statement}
+              integrations={liveIntegrations}
+              hasGitHub={hasGitHubIntegration}
+              hasRepo={!!selectedRepo}
+              isBusy={isBusy}
+              diagnosing={diagnosing}
+              syncing={syncing}
+              onDiagnose={() => fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
+              onAddContext={() => setIsAttachmentLogOpen(true)}
+              onConnectSource={() => {}}
+            />
+          ) : (
+            <Trail
+              waypoints={waypoints}
+              onFeedback={handleFeedback}
+            />
+          )}
         </div>
 
         {/* Attachment Log */}
@@ -1422,6 +1441,156 @@ export default function MapDetails() {
         </>,
         document.body
       )}
-    </>
+    </div>
   );
 }
+
+// ── UndiagnosedState ────────────────────────────────────────────────────────
+
+function UndiagnosedState({
+  goalStatement,
+  integrations,
+  hasGitHub,
+  hasRepo,
+  isBusy,
+  diagnosing,
+  syncing,
+  onDiagnose,
+  onAddContext,
+}: {
+  goalStatement: string;
+  integrations: Array<{ provider: string; status: string }>;
+  hasGitHub: boolean;
+  hasRepo: boolean;
+  isBusy: boolean;
+  diagnosing: boolean;
+  syncing: boolean;
+  onDiagnose: () => void;
+  onAddContext: () => void;
+  onConnectSource: () => void;
+}) {
+  const connected = [
+    { id: "github", label: "GitHub", icon: "GH", active: hasGitHub },
+    { id: "stripe", label: "Stripe", icon: "$", active: integrations.some(i => i.provider === "stripe" && i.status === "active") },
+    { id: "notion", label: "Notion", icon: "N", active: integrations.some(i => i.provider === "notion" && i.status === "active") },
+    { id: "slack", label: "Slack", icon: "#", active: integrations.some(i => i.provider === "slack" && i.status === "active") },
+  ];
+
+  const anyConnected = hasGitHub || hasRepo || connected.some(c => c.active);
+
+  return (
+    <div className="relative space-y-4">
+      {/* Goal waypoint — real data */}
+      <div className="relative pl-8">
+        <svg className="absolute left-[9px] top-3 h-[60px] w-[4px] pointer-events-none" aria-hidden="true">
+          <line x1="2" y1="0" x2="2" y2="60" stroke="hsl(var(--primary) / 0.4)" strokeWidth="2.5" strokeDasharray="4 4" />
+        </svg>
+        <div className="absolute -left-[0.5px] top-1">
+          <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" className="shrink-0">
+            <circle cx="11" cy="11" r="8" fill="hsl(var(--background))" stroke="hsl(var(--primary))" strokeWidth="1.75" />
+            <circle cx="11" cy="11" r="4.5" fill="hsl(var(--primary))" />
+          </svg>
+        </div>
+        <div className="eyebrow text-primary mb-2">Goal</div>
+        <h3 className="font-display text-2xl md:text-[26px] leading-snug text-foreground">
+          {goalStatement}
+        </h3>
+      </div>
+
+      {/* Not yet diagnosed card */}
+      <div className="relative pl-8">
+        <div className="absolute -left-[0.5px] top-5">
+          <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" className="shrink-0 opacity-30">
+            <circle cx="11" cy="11" r="8" fill="hsl(var(--background))" stroke="hsl(var(--muted-foreground))" strokeWidth="1.75" strokeDasharray="3 3" />
+          </svg>
+        </div>
+
+        <div className="rounded-[18px] border border-dashed border-border bg-card/50 px-6 py-8 space-y-6">
+          {/* Animated compass waiting state */}
+          <div className="flex items-center gap-4">
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 rounded-full border border-primary/15 scale-[1.5] animate-ping" />
+              <div className="h-12 w-12 rounded-full bg-primary/8 border border-primary/20 flex items-center justify-center">
+                {isBusy ? (
+                  <RefreshCw className="h-5 w-5 text-primary animate-spin" />
+                ) : (
+                  <svg className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" fill="currentColor" fillOpacity="0.3" />
+                  </svg>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="eyebrow text-muted-foreground/70 mb-1">Constraint</div>
+              <p className="font-display text-xl font-medium text-muted-foreground">
+                {isBusy
+                  ? diagnosing ? "Reading your signals…" : "Syncing data sources…"
+                  : "Awaiting first diagnosis"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground/70">
+                {anyConnected
+                  ? "You have sources connected. Run a diagnosis to map your constraint."
+                  : "Connect a data source or add context manually to get started."}
+              </p>
+            </div>
+          </div>
+
+          {/* Integration status row */}
+          <div className="flex flex-wrap gap-2">
+            {connected.map(c => (
+              <span
+                key={c.id}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xs transition-colors ${
+                  c.active
+                    ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-700 dark:text-emerald-400"
+                    : "border-border bg-muted/50 text-muted-foreground"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${
+                  c.active ? "bg-emerald-500" : "bg-muted-foreground/30"
+                }`} />
+                {c.label}
+              </span>
+            ))}
+          </div>
+
+          {/* CTA buttons */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={onDiagnose}
+              disabled={isBusy}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-2.5 font-mono text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isBusy ? (
+                <><RefreshCw className="h-4 w-4 animate-spin" /> {diagnosing ? "Diagnosing…" : "Syncing…"}</>
+              ) : (
+                <><Compass className="h-4 w-4" /> Diagnose now →</>
+              )}
+            </button>
+            <button
+              onClick={onAddContext}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-card/60 px-6 py-2.5 font-mono text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+            >
+              <PaperclipIcon className="h-4 w-4" /> Add context manually
+            </button>
+          </div>
+
+          {/* Hint */}
+          {!anyConnected && (
+            <p className="text-xs text-muted-foreground/60 leading-relaxed border-t border-border/40 pt-4">
+              Tip: Connect GitHub from the{" "}
+              <Link to="/app/integrations" className="underline underline-offset-2 text-primary hover:no-underline">Data Sources</Link>{" "}
+              tab, or add a manual note below describing your current situation.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaperclipIcon({ className }: { className?: string }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
+}
+

@@ -57,7 +57,61 @@
     --sidebar-border: 41 39% 79%;
     --sidebar-ring: 37 72% 45%;
   }
+
+  /* ── Dark mode — ink-canvas cartographic palette ──────────────────────── */
+  .dark {
+    /* Deep ink canvas */
+    --background: 210 18% 9%;        /* #111A16 */
+    --foreground: 37 30% 85%;        /* #E3D9C8 warm parchment */
+
+    --card: 210 15% 13%;             /* #18221E */
+    --card-foreground: 37 30% 85%;
+
+    --popover: 210 15% 13%;
+    --popover-foreground: 37 30% 85%;
+
+    --surface: 210 13% 16%;
+    --surface-2: 210 11% 20%;
+
+    /* Gold — slightly brighter on dark bg */
+    --primary: 37 75% 55%;           /* #D4942E */
+    --primary-foreground: 210 18% 9%;
+
+    /* Sage */
+    --source: 148 20% 52%;           /* #6FA88A */
+    --source-foreground: 210 18% 9%;
+
+    /* Brick */
+    --destructive: 7 55% 55%;        /* #C4583E */
+    --destructive-foreground: 37 30% 85%;
+
+    --secondary: 210 11% 20%;
+    --secondary-foreground: 37 30% 85%;
+
+    --muted: 210 12% 18%;
+    --muted-foreground: 146 8% 55%;  /* softer ink on dark */
+
+    --accent: 210 11% 20%;
+    --accent-foreground: 37 30% 85%;
+
+    --success: 148 20% 52%;
+    --warning: 37 75% 55%;
+
+    --border: 210 10% 22%;           /* subtle dark border */
+    --input: 210 10% 22%;
+    --ring: 37 75% 55%;
+
+    --sidebar-background: 210 16% 11%;
+    --sidebar-foreground: 146 8% 55%;
+    --sidebar-primary: 37 75% 55%;
+    --sidebar-primary-foreground: 210 18% 9%;
+    --sidebar-accent: 210 11% 18%;
+    --sidebar-accent-foreground: 37 30% 85%;
+    --sidebar-border: 210 10% 18%;
+    --sidebar-ring: 37 75% 55%;
+  }
 }
+
 
 @layer base {
   * { @apply border-border; }

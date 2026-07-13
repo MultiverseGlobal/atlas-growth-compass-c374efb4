@@ -1,11 +1,12 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell } from "lucide-react";
+import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun } from "lucide-react";
 import { Logo, LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CompassLoader } from "@/pages/app/Home";
+import { useTheme } from "@/hooks/useTheme";
 
 const nav = [
   { to: "/app", end: true, icon: Compass, label: "Maps" },
@@ -23,6 +24,7 @@ export default function AppShell() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
   const [profile, setProfile] = useState<{ handle: string | null; display_name: string | null } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -151,6 +153,18 @@ export default function AppShell() {
             >
               {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
               {!collapsed && <span>Collapse</span>}
+            </button>
+
+            {/* Dark mode toggle */}
+            <button
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
+                collapsed ? "justify-center" : ""
+              }`}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
+              {!collapsed && <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
             </button>
 
             <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? "justify-center" : ""}`}>
