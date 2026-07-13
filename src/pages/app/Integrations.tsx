@@ -23,6 +23,8 @@ type Connector = {
   id: string;
   name: string;
   tagline: string;
+  hint?: string;
+  placeholder?: string;
   icon: React.ReactNode;
   available: boolean;
 };
@@ -50,28 +52,34 @@ const connectors: Connector[] = [
     id: "notion",
     name: "Notion",
     tagline: "Docs, databases, and project context.",
+    hint: "Get your token from Notion → Settings → Connections → Create new integration. Paste the Internal Integration Token.",
+    placeholder: "secret_...",
     icon: (
       <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current">
         <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
       </svg>
     ),
-    available: false,
+    available: true,
   },
   {
     id: "slack",
     name: "Slack",
-    tagline: "Team conversations and decision signals.",
+    tagline: "Team activity volume and conversation signals.",
+    hint: "Create a Slack app at api.slack.com, add channels:read + channels:history scopes, install to workspace, and paste the Bot User OAuth Token (xoxb-...).",
+    placeholder: "xoxb-...",
     icon: (
       <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current">
         <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
       </svg>
     ),
-    available: false,
+    available: true,
   },
   {
     id: "google",
     name: "Google Workspace",
-    tagline: "Gmail, Drive, Docs, and Calendar.",
+    tagline: "Calendar load, Drive activity, and Docs signals.",
+    hint: "Go to console.cloud.google.com, create a project, enable the Google Workspace APIs, create an API key, and paste it here.",
+    placeholder: "AIza...",
     icon: (
       <svg viewBox="0 0 24 24" className="h-7 w-7">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -83,6 +91,13 @@ const connectors: Connector[] = [
     available: false,
   },
 ];
+
+const TOKEN_RPC_MAP: Record<string, string> = {
+  stripe: "upsert_stripe_token",
+  notion: "upsert_notion_token",
+  slack: "upsert_slack_token",
+  google: "upsert_google_token",
+};
 
 export default function Integrations() {
   const { user } = useAuth();
@@ -96,15 +111,17 @@ export default function Integrations() {
   const getIntegration = (id: string) =>
     integrations.find((i) => i.provider === id && i.status === "active");
 
-  const handleConnectStripe = async (key: string) => {
+  const handleConnectToken = async (provider: string, key: string) => {
     if (!user) return;
+    const rpc = TOKEN_RPC_MAP[provider];
+    if (!rpc) return;
     try {
-      const { error } = await supabase.rpc("upsert_stripe_token", { p_token: key });
+      const { error } = await supabase.rpc(rpc, { p_token: key });
       if (error) throw error;
       qc.invalidateQueries({ queryKey: ["integrations", user.id] });
-      toast.success("Stripe integration connected successfully!");
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} connected!`);
     } catch (err: any) {
-      toast.error(err.message || "Failed to save Stripe key.");
+      toast.error(err.message || `Failed to connect ${provider}.`);
       throw err;
     }
   };
@@ -117,6 +134,9 @@ export default function Integrations() {
       <h1 className="mt-4 font-display text-4xl font-semibold leading-tight">
         Connect your sources.
       </h1>
+      <p className="mt-2 text-sm text-muted-foreground max-w-xl">
+        Atlas reads signals from these tools to diagnose your dominant constraint. The more you connect, the sharper the intelligence.
+      </p>
 
       <div className="mt-10 grid gap-3 sm:grid-cols-2">
         {connectors.map((connector) => {
@@ -130,7 +150,7 @@ export default function Integrations() {
               loading={isLoading}
               isRecommended={recommended.includes(connector.id)}
               onConnect={connector.id === "github" ? connectGitHub : undefined}
-              onConnectStripe={connector.id === "stripe" ? handleConnectStripe : undefined}
+              onConnectToken={TOKEN_RPC_MAP[connector.id] ? (key) => handleConnectToken(connector.id, key) : undefined}
               onDisconnect={
                 connected
                   ? () => disconnect.mutate(connected.id)
@@ -151,7 +171,7 @@ function ConnectorCard({
   loading,
   isRecommended,
   onConnect,
-  onConnectStripe,
+  onConnectToken,
   onDisconnect,
 }: {
   connector: Connector;
@@ -160,18 +180,19 @@ function ConnectorCard({
   loading: boolean;
   isRecommended?: boolean;
   onConnect?: () => void;
-  onConnectStripe?: (key: string) => Promise<void>;
+  onConnectToken?: (key: string) => Promise<void>;
   onDisconnect?: () => void;
 }) {
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const isTokenBased = !!onConnectToken;
 
   const handleSave = async () => {
-    if (!apiKey) return;
+    if (!apiKey.trim()) return;
     setSaving(true);
     try {
-      await onConnectStripe?.(apiKey);
+      await onConnectToken?.(apiKey.trim());
       setShowKeyInput(false);
       setApiKey("");
     } catch {
@@ -182,9 +203,9 @@ function ConnectorCard({
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5">
+    <div className="flex flex-col gap-4 rounded-[16px] border border-border bg-card p-5 transition-all hover:shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted text-foreground">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-foreground">
           {connector.icon}
         </div>
         <div className="flex items-center gap-1.5">
@@ -212,32 +233,31 @@ function ConnectorCard({
           <div className="mt-1 font-mono text-xs text-muted-foreground">{connectedLabel}</div>
         )}
 
-        {/* Stripe credentials field */}
+        {/* Token / key input */}
         {!connected && showKeyInput && (
           <div className="mt-3 space-y-2">
-            <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Stripe Secret Key</label>
+            {connector.hint && (
+              <p className="text-[11px] text-muted-foreground leading-snug rounded-lg bg-muted/50 px-3 py-2 border border-border">
+                {connector.hint}
+              </p>
+            )}
+            <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              {connector.id === "google" ? "API Key" : connector.id === "slack" ? "Bot Token" : "Integration Token"}
+            </label>
             <Input
               type="password"
-              placeholder="sk_test_..."
+              placeholder={connector.placeholder ?? "Paste token here..."}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
               className="h-9 bg-background text-xs font-mono"
+              autoFocus
             />
             <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={saving}
-                className="h-8 text-xs flex-1"
-              >
-                {saving ? "Connecting..." : "Save Key"}
+              <Button size="sm" onClick={handleSave} disabled={saving || !apiKey.trim()} className="h-8 text-xs flex-1">
+                {saving ? "Connecting..." : "Save & Connect"}
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setShowKeyInput(false); setApiKey(""); }}
-                className="h-8 text-xs text-muted-foreground"
-              >
+              <Button variant="ghost" size="sm" onClick={() => { setShowKeyInput(false); setApiKey(""); }} className="h-8 text-xs text-muted-foreground">
                 Cancel
               </Button>
             </div>
@@ -247,12 +267,7 @@ function ConnectorCard({
 
       {connector.available && (
         connected ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={onDisconnect}
-          >
+          <Button variant="outline" size="sm" className="w-full" onClick={onDisconnect}>
             Disconnect
           </Button>
         ) : !showKeyInput ? (
@@ -260,7 +275,7 @@ function ConnectorCard({
             size="sm"
             className="w-full"
             onClick={() => {
-              if (connector.id === "stripe") {
+              if (isTokenBased) {
                 setShowKeyInput(true);
               } else {
                 onConnect?.();

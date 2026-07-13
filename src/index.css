@@ -298,3 +298,15 @@ aside, header, nav.fixed {
   transition: outline 0.2s ease, outline-offset 0.2s ease, box-shadow 0.2s ease;
   background-color: hsl(var(--card)) !important;
 }
+
+/* Landing page — integration logo marquee */
+.marquee-track {
+  animation: marquee-scroll 28s linear infinite;
+}
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-33.333%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
