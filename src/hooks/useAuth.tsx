@@ -49,7 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const pendingNext = sessionStorage.getItem("atlas.auth.next");
           if (pendingNext && !window.location.pathname.includes("/auth/callback")) {
-            sessionStorage.removeItem("atlas.auth.next");
+            // Defer clearing so that rendering pages (like Landing/Auth) can see it
+            // during this tick's layout/effect cycle and skip their own redirects.
+            setTimeout(() => {
+              try {
+                sessionStorage.removeItem("atlas.auth.next");
+              } catch {}
+            }, 500);
             // Use client-side routing to avoid flashing the landing page or full page reload
             navigate(pendingNext, { replace: true });
             return;

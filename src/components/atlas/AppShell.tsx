@@ -104,6 +104,23 @@ export default function AppShell() {
     };
   }, [user]);
 
+  const [isFocusMode, setIsFocusMode] = useState(false);
+
+  useEffect(() => {
+    const handleFocusChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setIsFocusMode(!!customEvent.detail?.active);
+    };
+    window.addEventListener("focus-mode-change", handleFocusChange);
+    
+    // Check initial state in case the DOM already contains the class on mount
+    setIsFocusMode(document.documentElement.classList.contains("focus-mode-active"));
+
+    return () => {
+      window.removeEventListener("focus-mode-change", handleFocusChange);
+    };
+  }, []);
+
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center grain">
@@ -114,83 +131,89 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen bg-background grain md:flex">
-      <aside
-        className={`hidden shrink-0 border-r border-border/60 bg-sidebar md:flex md:flex-col transition-[width] duration-200 ease-out ${
-          collapsed ? "w-16" : "w-60"
-        }`}
-      >
-        <div className={`h-16 flex items-center border-b border-border/60 ${collapsed ? "justify-center px-2" : "px-5"}`}>
-          {collapsed ? <LogoMark size={22} /> : <Logo />}
-        </div>
-        <SidebarNav collapsed={collapsed} unreadCount={unreadCount} />
-        <div className="p-3 border-t border-border/60 space-y-1">
-          <button
-            onClick={toggle}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
-              collapsed ? "justify-center" : ""
-            }`}
-          >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            {!collapsed && <span>Collapse</span>}
-          </button>
-
-          <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? "justify-center" : ""}`}>
-            <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-              <UserIcon className="h-3.5 w-3.5 text-primary" />
-            </div>
-            {!collapsed && (
-              <>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate">{profile?.display_name ?? user.email}</div>
-                  {profile?.handle && <div className="text-xs text-muted-foreground truncate font-mono">@{profile.handle}</div>}
-                </div>
-                <button
-                  onClick={() => signOut().then(() => navigate("/"))}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Sign out"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </>
-            )}
+      {!isFocusMode && (
+        <aside
+          className={`hidden shrink-0 border-r border-border/60 bg-sidebar md:flex md:flex-col transition-[width] duration-200 ease-out ${
+            collapsed ? "w-16" : "w-60"
+          }`}
+        >
+          <div className={`h-16 flex items-center border-b border-border/60 ${collapsed ? "justify-center px-2" : "px-5"}`}>
+            {collapsed ? <LogoMark size={22} /> : <Logo />}
           </div>
-        </div>
-      </aside>
+          <SidebarNav collapsed={collapsed} unreadCount={unreadCount} />
+          <div className="p-3 border-t border-border/60 space-y-1">
+            <button
+              onClick={toggle}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
+                collapsed ? "justify-center" : ""
+              }`}
+            >
+              {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              {!collapsed && <span>Collapse</span>}
+            </button>
 
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border/60 bg-background/95 px-4 backdrop-blur md:hidden">
-        <Logo />
-        <button onClick={() => signOut().then(() => navigate("/"))} className="text-muted-foreground hover:text-foreground" aria-label="Sign out">
-          <LogOut className="h-4 w-4" />
-        </button>
-      </header>
+            <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? "justify-center" : ""}`}>
+              <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                <UserIcon className="h-3.5 w-3.5 text-primary" />
+              </div>
+              {!collapsed && (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm truncate">{profile?.display_name ?? user.email}</div>
+                    {profile?.handle && <div className="text-xs text-muted-foreground truncate font-mono">@{profile.handle}</div>}
+                  </div>
+                  <button
+                    onClick={() => signOut().then(() => navigate("/"))}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </aside>
+      )}
 
-      <main key={location.pathname} className="min-w-0 flex-1 pb-20 md:pb-0 page-fade">
+      {!isFocusMode && (
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border/60 bg-background/95 px-4 backdrop-blur md:hidden">
+          <Logo />
+          <button onClick={() => signOut().then(() => navigate("/"))} className="text-muted-foreground hover:text-foreground" aria-label="Sign out">
+            <LogOut className="h-4 w-4" />
+          </button>
+        </header>
+      )}
+
+      <main key={location.pathname} className={`min-w-0 flex-1 page-fade ${isFocusMode ? "" : "pb-20 md:pb-0"}`}>
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border/70 bg-sidebar/95 px-2 py-2 backdrop-blur md:hidden">
-        {nav.slice(0, 5).map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.end}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-1 rounded-md px-1 py-1.5 text-[10px] transition-colors ${
-                isActive ? "bg-sidebar-accent text-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
-              }`
-            }
-          >
-            <div className="relative">
-              <n.icon className="h-4 w-4" />
-              {n.to === "/app/notifications" && unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-destructive" />
-              )}
-            </div>
-            <span className="max-w-full truncate">{n.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      {!isFocusMode && (
+        <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border/70 bg-sidebar/95 px-2 py-2 backdrop-blur md:hidden">
+          {nav.slice(0, 5).map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.end}
+              className={({ isActive }) =>
+                `flex flex-col items-center gap-1 rounded-md px-1 py-1.5 text-[10px] transition-colors ${
+                  isActive ? "bg-sidebar-accent text-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
+                }`
+              }
+            >
+              <div className="relative">
+                <n.icon className="h-4 w-4" />
+                {n.to === "/app/notifications" && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-destructive" />
+                )}
+              </div>
+              <span className="max-w-full truncate">{n.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

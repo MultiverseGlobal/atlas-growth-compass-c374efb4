@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,7 +15,7 @@ import {
   type GitHubRepo,
   type GitHubStats,
 } from "@/lib/github";
-import { ArrowLeft, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CompassLoader } from "./Home";
 import { useIntegrations } from "@/hooks/useIntegrations";
@@ -113,6 +114,8 @@ export default function MapDetails() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [expandedWaypoint, setExpandedWaypoint] = useState<number | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  // Lightbox: stores the URL of the image currently expanded in the overlay
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Tour state
   const [tourStep, setTourStep] = useState<number | null>(null);
@@ -252,8 +255,8 @@ export default function MapDetails() {
   const [showAttachForm, setShowAttachForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
-  // Lightbox: stores the URL of the image currently expanded in the overlay
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  // Attachment Log collapsed state: false means collapsed tab, true means fully open card
+  const [isAttachmentLogOpen, setIsAttachmentLogOpen] = useState(false);
 
   // Reactively sync GitHub integration status from global integrations query
   const { data: liveIntegrations = [] } = useIntegrations();
@@ -268,42 +271,35 @@ export default function MapDetails() {
   }, [liveGitHubConnected]);
 
   const transformRef = useRef<any>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
 
-  // Center focus mode view on mount, window resize, or sidebar toggle.
-  // Use rAF-in-rAF + 350ms delay so we fire after the entrance animation
-  // completes and after TransformComponent has finished layout — not before.
-  useEffect(() => {
-    const handleSidebar = () => {
-      // Delay slightly for sidebar CSS width transition to settle
-      setTimeout(() => {
+  // ResizeObserver callback ref attached to the focus container.
+  // Triggers centering whenever the measured container size changes or settles.
+  const focusContainerRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+
+    if (node) {
+      const observer = new ResizeObserver(() => {
         if (transformRef.current) {
           transformRef.current.centerView(1, 0);
         }
-      }, 300);
-    };
+      });
+      observer.observe(node);
+      observerRef.current = observer;
 
-    window.addEventListener("sidebar-toggle", handleSidebar);
-    window.addEventListener("resize", handleSidebar);
-
-    if (focusMode) {
-      // Double rAF ensures at least two paint frames have occurred before we
-      // measure, then the 350ms timeout waits for the CSS enter animation.
+      // Trigger centering immediately and shortly after layout paints
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          setTimeout(() => {
-            if (transformRef.current) {
-              transformRef.current.centerView(1, 0);
-            }
-          }, 350);
+          if (transformRef.current) {
+            transformRef.current.centerView(1, 0);
+          }
         });
       });
     }
-
-    return () => {
-      window.removeEventListener("sidebar-toggle", handleSidebar);
-      window.removeEventListener("resize", handleSidebar);
-    };
-  }, [focusMode]);
+  }, []);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -856,193 +852,186 @@ export default function MapDetails() {
         </div>
 
         {/* Attachment Log */}
-        <div id="tour-context" className="mt-12 rounded-[16px] border border-border bg-card/75 p-6 bg-parchment-lines relative overflow-hidden">
-          {/* Ambient background decoration */}
-          <div className="absolute top-0 right-0 h-40 w-40 rounded-full bg-primary/2 blur-[80px] pointer-events-none" />
-          
-          <div className="relative z-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs font-mono uppercase tracking-widest text-primary flex items-center gap-1.5">
-                  <Paperclip className="h-3.5 w-3.5" /> Attachment Log
+        {!isAttachmentLogOpen ? (
+          <div id="tour-context" className="mt-12">
+            <button
+              onClick={() => setIsAttachmentLogOpen(true)}
+              className="w-full flex items-center justify-between rounded-xl border border-border bg-card/50 hover:bg-card/85 px-5 py-4 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2.5">
+                <Paperclip className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Attachment Log</span>
+                  <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded-full">
+                    {manualNotesList.length} item{manualNotesList.length === 1 ? "" : "s"}
+                  </span>
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Provide qualitative context or screenshots to refine the strategy diagnosis.
-                </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAttachForm(!showAttachForm)}
-                className="gap-1.5 font-mono text-xs border-primary/20 hover:bg-primary/5 text-primary"
-              >
-                {showAttachForm ? (
-                  <>
-                    <X className="h-3.5 w-3.5" /> Cancel
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-3.5 w-3.5" /> Attach Context
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {/* Note & Upload Form */}
-            {showAttachForm && (
-              <div className="mt-5 border border-border/80 bg-background/60 rounded-xl p-5 space-y-4 animate-in fade-in slide-in-from-top-3 duration-200">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                    Context Note
-                  </label>
-                  <textarea
-                    value={note}
-                    onChange={e => setNote(e.target.value)}
-                    rows={3}
-                    placeholder="e.g., We paused GitHub commits this week to focus on outbound marketing."
-                    className="w-full resize-none rounded-lg border border-border bg-background/80 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                    Image / Screenshot
-                  </label>
-                  
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="file"
-                      id="attachment-file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setSelectedFile(file);
-                      }}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => document.getElementById("attachment-file")?.click()}
-                      className="gap-1.5 h-9 text-xs font-mono"
-                      disabled={savingNote}
-                    >
-                      <Plus className="h-3.5 w-3.5" /> Choose Image
-                    </Button>
-                    
-                    {selectedFile ? (
-                      <div className="flex items-center gap-2 text-xs text-foreground bg-muted/65 border border-border px-3 py-1.5 rounded-md max-w-xs truncate">
-                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span className="truncate">{selectedFile.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedFile(null)}
-                          className="text-muted-foreground hover:text-destructive shrink-0 ml-1"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground font-mono">No screenshot selected</span>
-                    )}
+              <span className="text-xs text-muted-foreground font-mono hover:text-foreground transition-colors flex items-center gap-1">
+                Open log <ArrowRight className="h-3.5 w-3.5" />
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div id="tour-context" className="mt-12 rounded-[16px] border border-border bg-card/75 p-6 bg-parchment-lines relative overflow-hidden animate-in fade-in duration-200">
+            {/* Ambient background decoration */}
+            <div className="absolute top-0 right-0 h-40 w-40 rounded-full bg-primary/2 blur-[80px] pointer-events-none" />
+            
+            <div className="relative z-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-mono uppercase tracking-widest text-primary flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5" /> Attachment Log
                   </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Provide qualitative context or screenshots to refine the strategy diagnosis.
+                  </p>
                 </div>
-
-                <div className="flex justify-end pt-2">
+                <div className="flex items-center gap-2">
                   <Button
+                    variant="outline"
                     size="sm"
-                    onClick={handleAddAttachment}
-                    disabled={savingNote || (!note.trim() && !selectedFile)}
-                    className="gap-1.5"
+                    onClick={() => setShowAttachForm(!showAttachForm)}
+                    className="gap-1.5 font-mono text-xs border-primary/20 hover:bg-primary/5 text-primary"
                   >
-                    {savingNote ? (
+                    {showAttachForm ? (
                       <>
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                        <span>{uploadingFile ? "Uploading..." : "Saving..."}</span>
+                        <X className="h-3.5 w-3.5" /> Cancel
                       </>
                     ) : (
                       <>
-                        <Sparkles className="h-3.5 w-3.5" />
-                        <span>Save to Log & Re-diagnose</span>
+                        <Plus className="h-3.5 w-3.5" /> Attach Context
                       </>
                     )}
                   </Button>
+                  <button
+                    onClick={() => setIsAttachmentLogOpen(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 font-mono ml-2.5"
+                  >
+                    Collapse
+                  </button>
                 </div>
               </div>
-            )}
 
-            {/* Log Feed */}
-            <div className="mt-6 space-y-3">
-              {manualNotesList.length > 0 ? (
-                manualNotesList.map((item) => {
-                  const payload = item.payload || {};
-                  const dateStr = item.created_at
-                    ? new Date(item.created_at).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : "";
-                  const timeStr = item.created_at
-                    ? new Date(item.created_at).toLocaleTimeString(undefined, {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "";
+              {/* Note & Upload Form */}
+              {showAttachForm && (
+                <div className="mt-5 border border-border/80 bg-background/60 rounded-xl p-5 space-y-4 animate-in fade-in slide-in-from-top-3 duration-200">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                      Context Note
+                    </label>
+                    <textarea
+                      value={note}
+                      onChange={e => setNote(e.target.value)}
+                      rows={3}
+                      placeholder="e.g., We paused GitHub commits this week to focus on outbound marketing."
+                      className="w-full resize-none rounded-lg border border-border bg-background/80 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
 
-                  const isImage = payload.file_type?.startsWith("image/") || payload.file_url;
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="border border-border/60 bg-card/40 rounded-xl p-4 flex flex-col md:flex-row md:items-start justify-between gap-4 transition-all hover:border-border/80 bg-parchment-lines"
-                    >
-                      <div className="space-y-2 flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
-                          <span className="text-primary font-medium">{dateStr}</span>
-                          <span>•</span>
-                          <span>{timeStr}</span>
-                        </div>
-                        {payload.note && (
-                          <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
-                            {payload.note}
-                          </p>
-                        )}
-                        
-                        {payload.file_url && isImage && (
-                          <div className="mt-3">
-                            <button
-                              type="button"
-                              onClick={() => setLightboxUrl(payload.file_url)}
-                              className="inline-block relative rounded-lg border border-border overflow-hidden hover:border-primary/40 group max-w-xs transition-colors text-left"
-                            >
-                              <img
-                                src={payload.file_url}
-                                alt={payload.file_name || "Attachment"}
-                                className="max-h-[160px] object-cover rounded-lg group-hover:scale-[1.02] transition-transform duration-200"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
-                                <span className="text-[10px] font-mono bg-background/90 text-foreground px-2 py-1 rounded border border-border">
-                                  Expand
-                                </span>
-                              </div>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteNote(item.id, payload.file_url)}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 self-end md:self-start"
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                      Image / Screenshot
+                    </label>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                        className="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 text-muted-foreground cursor-pointer"
+                      />
+                      {selectedFile && (
+                        <span className="text-xs text-muted-foreground font-mono truncate max-w-xs">
+                          {selectedFile.name}
+                        </span>
+                      )}
                     </div>
-                  );
-                })
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      onClick={handleAddAttachment}
+                      disabled={savingNote || (!note.trim() && !selectedFile)}
+                      className="gap-1 text-xs"
+                    >
+                      {savingNote ? "Saving..." : "Submit Context"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Timeline feed of notes */}
+              <div className="mt-6 space-y-3">
+                {manualNotesList.length > 0 ? (
+                  manualNotesList.map((item) => {
+                    const payload = item.payload || {};
+                    const dateStr = item.created_at
+                      ? new Date(item.created_at).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "";
+                    const timeStr = item.created_at
+                      ? new Date(item.created_at).toLocaleTimeString(undefined, {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "";
+
+                    const isImage = payload.file_type?.startsWith("image/") || payload.file_url;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="border border-border/60 bg-card/40 rounded-xl p-4 flex flex-col md:flex-row md:items-start justify-between gap-4 transition-all hover:border-border/80 bg-parchment-lines"
+                      >
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+                            <span className="text-primary font-medium">{dateStr}</span>
+                            <span>•</span>
+                            <span>{timeStr}</span>
+                          </div>
+                          {payload.note && (
+                            <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                              {payload.note}
+                            </p>
+                          )}
+                          
+                          {payload.file_url && isImage && (
+                            <div className="mt-3">
+                              <button
+                                type="button"
+                                onClick={() => setLightboxUrl(payload.file_url)}
+                                className="inline-block relative rounded-lg border border-border overflow-hidden hover:border-primary/40 group max-w-xs transition-colors text-left"
+                              >
+                                <img
+                                  src={payload.file_url}
+                                  alt={payload.file_name || "Attachment"}
+                                  className="max-h-[160px] object-cover rounded-lg group-hover:scale-[1.02] transition-transform duration-200"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
+                                  <span className="text-[10px] font-mono bg-background/90 text-foreground px-2 py-1 rounded border border-border">
+                                    Expand
+                                  </span>
+                                </div>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteNote(item.id, payload.file_url)}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 self-end md:self-start"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })
               ) : (
                 <div className="text-center py-8 border border-dashed border-border rounded-xl">
                   <FileText className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
@@ -1054,6 +1043,7 @@ export default function MapDetails() {
             </div>
           </div>
         </div>
+      )}
 
         {/* GitHub Connector */}
         <div id="tour-github" className="mt-6 rounded-[16px] border border-border bg-card p-6">
@@ -1193,7 +1183,7 @@ export default function MapDetails() {
       )}
 
       {focusMode && (
-        <div className="fixed inset-0 z-50 bg-background grain select-none overflow-hidden">
+        <div ref={focusContainerRef} className="fixed inset-0 z-50 bg-background grain select-none overflow-hidden">
           {/* Immersive Background: Grid Dots with Parallax */}
           <div
             className="absolute inset-0 bg-grid-dots transition-transform duration-200 pointer-events-none"
@@ -1299,113 +1289,117 @@ export default function MapDetails() {
         </div>
       )}
 
-      {tourStep !== null && (
-        <div className="fixed top-6 right-6 left-6 md:left-auto md:w-96 z-50 bg-card border-2 border-primary rounded-xl shadow-2xl p-5 page-fade select-none">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-primary font-bold">
-              <Compass className="h-4 w-4 animate-spin" style={{ animationDuration: '6s' }} /> Map Guide ({tourStep + 1}/{TOUR_STEPS.length})
+      {tourStep !== null && typeof document !== "undefined" && createPortal(
+        <>
+          {/* Guide Modal Box */}
+          <div className="fixed top-6 right-6 left-6 md:left-auto md:w-96 z-50 bg-card border-2 border-primary rounded-xl shadow-2xl p-5 page-fade select-none">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-primary font-bold">
+                <Compass className="h-4 w-4 animate-spin" style={{ animationDuration: '6s' }} /> Map Guide ({tourStep + 1}/{TOUR_STEPS.length})
+              </div>
+              <button 
+                onClick={() => {
+                  setTourStep(null);
+                  localStorage.setItem("atlas.tour.seen", "true");
+                }} 
+                className="text-xs text-muted-foreground hover:text-foreground underline font-mono"
+              >
+                Skip tour
+              </button>
             </div>
-            <button 
-              onClick={() => {
-                setTourStep(null);
-                localStorage.setItem("atlas.tour.seen", "true");
-              }} 
-              className="text-xs text-muted-foreground hover:text-foreground underline font-mono"
-            >
-              Skip tour
-            </button>
-          </div>
-          <h4 className="font-display text-lg font-semibold text-foreground mb-1">
-            {TOUR_STEPS[tourStep].title}
-          </h4>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {TOUR_STEPS[tourStep].description}
-          </p>
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex gap-1">
-              {TOUR_STEPS.map((_, idx) => (
-                <div 
-                  key={idx} 
-                  className={`h-1.5 w-1.5 rounded-full transition-all duration-200 ${idx === tourStep ? "bg-primary w-3" : "bg-muted-foreground/30"}`} 
-                />
-              ))}
-            </div>
-            <div className="flex gap-2">
-              {tourStep > 0 && (
+            <h4 className="font-display text-lg font-semibold text-foreground mb-1">
+              {TOUR_STEPS[tourStep].title}
+            </h4>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {TOUR_STEPS[tourStep].description}
+            </p>
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex gap-1">
+                {TOUR_STEPS.map((_, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`h-1.5 w-1.5 rounded-full transition-all duration-200 ${idx === tourStep ? "bg-primary w-3" : "bg-muted-foreground/30"}`} 
+                  />
+                ))}
+              </div>
+              <div className="flex gap-2">
+                {tourStep > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setTourStep(prev => prev! - 1)}
+                    className="h-8 text-xs font-mono"
+                  >
+                    Back
+                  </Button>
+                )}
                 <Button 
-                  variant="ghost" 
                   size="sm" 
-                  onClick={() => setTourStep(prev => prev! - 1)}
+                  onClick={() => {
+                    if (tourStep < TOUR_STEPS.length - 1) {
+                      setTourStep(prev => prev! + 1);
+                    } else {
+                      setTourStep(null);
+                      localStorage.setItem("atlas.tour.seen", "true");
+                      toast.success("Tour completed! You are ready to navigate your maps.");
+                    }
+                  }}
                   className="h-8 text-xs font-mono"
                 >
-                  Back
+                  {tourStep === TOUR_STEPS.length - 1 ? "Got it" : "Next"}
                 </Button>
-              )}
-              <Button 
-                size="sm" 
-                onClick={() => {
-                  if (tourStep < TOUR_STEPS.length - 1) {
-                    setTourStep(prev => prev! + 1);
-                  } else {
-                    setTourStep(null);
-                    localStorage.setItem("atlas.tour.seen", "true");
-                    toast.success("Tour completed! You are ready to navigate your maps.");
-                  }
-                }}
-                className="h-8 text-xs font-mono"
-              >
-                {tourStep === TOUR_STEPS.length - 1 ? "Got it" : "Next"}
-              </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Spotlight Tour Mask Overlay — uses exact pixel dimensions for accurate masking */}
-      {spotlightRect && (
-        <svg
-          className="fixed inset-0 pointer-events-none z-45 transition-all duration-300"
-          style={{ left: 0, top: 0 }}
-          width={vpSize.w}
-          height={vpSize.h}
-        >
-          <defs>
-            <mask id="tour-spotlight-mask">
-              <rect x="0" y="0" width={vpSize.w} height={vpSize.h} fill="white" />
+          {/* Spotlight Tour Mask Overlay — z-[9998] to stack above AppShell sidebar */}
+          {spotlightRect && (
+            <svg
+              className="fixed inset-0 pointer-events-none z-[9998] transition-all duration-300"
+              style={{ left: 0, top: 0 }}
+              width={vpSize.w}
+              height={vpSize.h}
+            >
+              <defs>
+                <mask id="tour-spotlight-mask">
+                  <rect x="0" y="0" width={vpSize.w} height={vpSize.h} fill="white" />
+                  <rect
+                    x={spotlightRect.x - 10}
+                    y={spotlightRect.y - 10}
+                    width={spotlightRect.width + 20}
+                    height={spotlightRect.height + 20}
+                    rx={10}
+                    fill="black"
+                  />
+                </mask>
+              </defs>
               <rect
-                x={spotlightRect.x - 10}
-                y={spotlightRect.y - 10}
-                width={spotlightRect.width + 20}
-                height={spotlightRect.height + 20}
-                rx={10}
-                fill="black"
+                x="0"
+                y="0"
+                width={vpSize.w}
+                height={vpSize.h}
+                fill="rgba(0, 0, 0, 0.5)"
+                mask="url(#tour-spotlight-mask)"
               />
-            </mask>
-          </defs>
-          <rect
-            x="0"
-            y="0"
-            width={vpSize.w}
-            height={vpSize.h}
-            fill="rgba(0, 0, 0, 0.5)"
-            mask="url(#tour-spotlight-mask)"
-          />
-        </svg>
-      )}
+            </svg>
+          )}
 
-      {/* Spotlight Glowing Border */}
-      {spotlightRect && (
-        <div
-          className="fixed pointer-events-none z-46 rounded-[10px] transition-all duration-300"
-          style={{
-            left: spotlightRect.x - 10,
-            top: spotlightRect.y - 10,
-            width: spotlightRect.width + 20,
-            height: spotlightRect.height + 20,
-            border: "2px solid hsl(var(--primary))",
-            boxShadow: "0 0 0 2px hsl(var(--primary) / 0.2), 0 0 30px 8px hsl(var(--primary) / 0.3)",
-          }}
-        />
+          {/* Spotlight Glowing Border — z-[9999] */}
+          {spotlightRect && (
+            <div
+              className="fixed pointer-events-none z-[9999] rounded-[10px] transition-all duration-300"
+              style={{
+                left: spotlightRect.x - 10,
+                top: spotlightRect.y - 10,
+                width: spotlightRect.width + 20,
+                height: spotlightRect.height + 20,
+                border: "2px solid hsl(var(--primary))",
+                boxShadow: "0 0 0 2px hsl(var(--primary) / 0.2), 0 0 30px 8px hsl(var(--primary) / 0.3)",
+              }}
+            />
+          )}
+        </>,
+        document.body
       )}
     </>
   );
