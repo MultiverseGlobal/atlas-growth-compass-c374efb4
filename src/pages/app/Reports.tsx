@@ -101,10 +101,10 @@ export default function Reports() {
   const printReport = () => window.print();
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 md:px-8">
+    <div className="relative page-hero mx-auto max-w-4xl px-4 py-10 md:px-8">
       {/* Header */}
-      <div className="text-xs font-mono uppercase tracking-widest text-primary">Reports</div>
-      <div className="mt-2 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div className="eyebrow text-primary">Reports</div>
+      <div className="mt-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-semibold leading-tight md:text-5xl">
             Structured outputs
@@ -133,19 +133,19 @@ export default function Reports() {
         )}
       </div>
 
-      {/* Format tabs */}
-      <div className="mt-8 flex gap-1 border-b border-border">
+      {/* Format tabs — pill segmented control */}
+      <div className="mt-8 flex gap-1 p-1 rounded-xl bg-muted/60 border border-border/60 w-fit">
         {(["constraint", "progress", "investor"] as const).map((fmt) => (
           <button
             key={fmt}
             onClick={() => setActiveFormat(fmt)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${
               activeFormat === fmt
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "bg-card shadow-sm border border-border text-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {fmt === "constraint" ? "Constraint Summary" : fmt === "progress" ? "Progress Report" : "Investor Digest"}
+            {fmt === "constraint" ? "Constraint" : fmt === "progress" ? "Progress" : "Investor"}
           </button>
         ))}
       </div>
@@ -253,11 +253,11 @@ function ConstraintSummary({
       </div>
 
       {/* Report card */}
-      <div className="rounded-[18px] border border-border bg-card overflow-hidden print:shadow-none">
+      <div className="rounded-[20px] border border-border bg-card overflow-hidden print:shadow-none">
         {/* Report header band */}
-        <div className="bg-primary/5 border-b border-border px-6 py-5 flex items-start justify-between gap-4">
+        <div className="bg-primary/8 border-b border-border px-6 py-5 flex items-start justify-between gap-4">
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-primary mb-1.5">Constraint Summary</div>
+            <div className="eyebrow text-primary mb-2">Constraint Summary</div>
             <p className="font-display text-xl font-semibold leading-snug max-w-lg">{report.map.goal_statement}</p>
           </div>
           <div className="text-right shrink-0">

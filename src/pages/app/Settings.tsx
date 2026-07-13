@@ -105,15 +105,15 @@ export default function Settings() {
   };
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="rounded-[16px] border border-border bg-card px-6 py-6 space-y-5">
-      <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">{title}</div>
+    <div className="card-warm px-6 py-6 space-y-5">
+      <div className="eyebrow text-primary/80">{title}</div>
       {children}
     </div>
   );
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10 md:px-8 space-y-5">
-      <div className="text-xs font-mono uppercase tracking-widest text-primary">Account</div>
+    <div className="relative page-hero mx-auto max-w-2xl px-4 py-10 md:px-8 space-y-5">
+      <div className="eyebrow text-primary">Account</div>
       <h1 className="font-display text-4xl font-semibold leading-tight">Settings</h1>
 
       {/* Profile */}

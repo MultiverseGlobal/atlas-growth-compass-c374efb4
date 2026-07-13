@@ -310,3 +310,44 @@ aside, header, nav.fixed {
 @media (prefers-reduced-motion: reduce) {
   .marquee-track { animation: none; }
 }
+
+/* ── Page-level warm-hero glow ────────────────────────────────────────────── */
+/* Drop this on the outer wrapper of any page to get the amber radial halo     */
+.page-hero {
+  position: relative;
+}
+.page-hero::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(700px, 120%);
+  height: 380px;
+  background: radial-gradient(ellipse at 50% 0%, hsl(37 72% 60% / 0.13) 0%, transparent 70%);
+  z-index: 0;
+}
+.page-hero > * { position: relative; z-index: 1; }
+
+/* ── Warm card ────────────────────────────────────────────────────────────── */
+.card-warm {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1.25rem;
+  transition: transform 180ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+.card-warm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -12px hsl(var(--foreground) / 0.12);
+  border-color: hsl(var(--primary) / 0.35);
+}
+
+/* ── Focus-mode: expand main to full width and center content ─────────────── */
+.focus-mode-active main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw !important;
+}
+

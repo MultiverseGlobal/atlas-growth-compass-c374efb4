@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Plus, Target, Sparkles } from "lucide-react";
+import { ArrowRight, Plus, Target, Sparkles, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMaps } from "@/hooks/useMaps";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,13 +19,13 @@ const confidenceMeta = {
   emerging: {
     label: "Emerging",
     dot: "bg-amber-400",
-    badge: "text-amber-500 border-amber-500/30",
+    badge: "text-amber-600 border-amber-400/40 bg-amber-400/10",
     bar: "w-2/5",
   },
   established: {
     label: "Established",
-    dot: "bg-emerald-400",
-    badge: "text-emerald-500 border-emerald-500/30",
+    dot: "bg-emerald-500",
+    badge: "text-emerald-600 border-emerald-400/40 bg-emerald-400/10",
     bar: "w-full",
   },
 } as const;
@@ -55,17 +55,22 @@ export default function Home() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
+    <div className="relative page-hero mx-auto max-w-3xl px-4 py-10 md:px-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary">
+        <div className="flex items-center gap-2 eyebrow text-primary">
           <Target className="h-3.5 w-3.5" /> Your maps
         </div>
-        <Button onClick={handleNewMap} size="sm" className="gap-1.5">
+        <Button
+          onClick={handleNewMap}
+          size="sm"
+          className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+        >
           <Plus className="h-3.5 w-3.5" /> New map
         </Button>
       </div>
-      <h1 className="mt-3 font-display text-4xl font-semibold leading-tight md:text-5xl">
+
+      <h1 className="mt-4 font-display text-4xl font-semibold leading-tight md:text-5xl">
         Where are you<br className="hidden sm:block" /> trying to get?
       </h1>
       <p className="mt-3 text-[15px] text-muted-foreground">
@@ -77,7 +82,7 @@ export default function Home() {
         {!hasClaimedStarter && starterMap && (
           <div className="flex items-center justify-between gap-4 rounded-[16px] border border-dashed border-primary/40 bg-primary/5 px-5 py-5">
             <div className="min-w-0 flex-1">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-primary">
+              <span className="eyebrow text-primary">
                 Unsaved map
               </span>
               <p className="mt-1.5 font-medium leading-snug truncate">
@@ -102,7 +107,7 @@ export default function Home() {
               <Link
                 key={map.id}
                 to={`/app/map/${map.id}`}
-                className="group block rounded-[16px] border border-border bg-card px-5 py-5 transition-all duration-200 hover:border-primary/30 hover:shadow-sm relative overflow-hidden"
+                className="group card-warm block px-5 py-5 relative overflow-hidden"
               >
                 {/* Cartographic grid background on hover */}
                 <div className="absolute inset-0 bg-grid-dots opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -146,14 +151,15 @@ export default function Home() {
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <div className="rounded-[20px] border border-dashed border-border bg-card/40 px-8 py-16 text-center">
-      <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card">
-        <Sparkles className="h-5 w-5 text-primary" />
+      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-primary/20 bg-primary/5 text-primary">
+        <Sparkles className="h-6 w-6" />
       </div>
       <h3 className="font-display text-xl font-semibold">No maps yet</h3>
       <p className="mt-2 text-sm text-muted-foreground max-w-xs mx-auto">
         State a goal in one sentence. Atlas maps the constraint blocking it.
       </p>
-      <Button onClick={onNew} className="mt-6">
+      <Button onClick={onNew} className="mt-6 gap-2 bg-primary hover:bg-primary/90">
+        <Compass className="h-4 w-4" />
         Draw your first map
       </Button>
     </div>

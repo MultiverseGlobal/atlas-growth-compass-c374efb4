@@ -119,10 +119,10 @@ export default function PublicPagePreview() {
   const hasPublishedMaps = maps.some(m => m.is_published);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
+    <div className="relative page-hero mx-auto max-w-3xl px-4 py-10 md:px-8">
       {/* Header */}
-      <div className="text-xs font-mono uppercase tracking-widest text-primary">Preview</div>
-      <h1 className="mt-2 font-display text-4xl font-semibold leading-tight md:text-5xl">
+      <div className="eyebrow text-primary">Preview</div>
+      <h1 className="mt-3 font-display text-4xl font-semibold leading-tight md:text-5xl">
         Public page
       </h1>
       <p className="mt-3 text-[15px] text-muted-foreground max-w-xl">
@@ -130,7 +130,7 @@ export default function PublicPagePreview() {
       </p>
 
       {/* Main card - Status & URL */}
-      <div className="mt-10 rounded-[20px] border border-border bg-card p-6">
+      <div className="mt-10 card-warm p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${
@@ -161,8 +161,8 @@ export default function PublicPagePreview() {
       </div>
 
       {/* Visibility control */}
-      <div className="mt-6 rounded-[20px] border border-border bg-card p-6 space-y-4">
-        <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+      <div className="mt-6 card-warm p-6 space-y-4">
+        <div className="eyebrow text-primary/80">
           Page visibility
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -193,8 +193,10 @@ export default function PublicPagePreview() {
                 type="button"
                 onClick={() => handleChangeVisibility(opt.v as any)}
                 disabled={savingVisibility}
-                className={`flex flex-col text-left rounded-xl border p-4 transition-colors ${
-                  selected ? "border-primary bg-primary/5" : "border-border hover:bg-surface/50"
+                className={`flex flex-col text-left rounded-xl border p-4 transition-all duration-200 ${
+                  selected
+                    ? "border-primary/40 bg-primary/8 shadow-sm shadow-primary/10"
+                    : "border-border hover:border-primary/20 hover:bg-primary/3"
                 }`}
               >
                 <span className="flex items-center gap-2 font-medium text-sm">
@@ -211,9 +213,9 @@ export default function PublicPagePreview() {
       </div>
 
       {/* Published maps list */}
-      <div className="mt-6 rounded-[20px] border border-border bg-card p-6 space-y-5">
+      <div className="mt-6 card-warm p-6 space-y-5">
         <div>
-          <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+          <div className="eyebrow text-primary/80">
             Published Maps
           </div>
           <p className="mt-1 text-xs text-muted-foreground">

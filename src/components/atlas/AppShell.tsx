@@ -130,7 +130,7 @@ export default function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-background grain md:flex">
+    <div className={`min-h-screen bg-background grain md:flex${isFocusMode ? " focus-mode-active" : ""}`}>
       {!isFocusMode && (
         <aside
           className={`hidden shrink-0 border-r border-border/60 bg-sidebar md:flex md:flex-col transition-[width] duration-200 ease-out ${
@@ -186,7 +186,7 @@ export default function AppShell() {
         </header>
       )}
 
-      <main key={location.pathname} className={`min-w-0 flex-1 page-fade ${isFocusMode ? "" : "pb-20 md:pb-0"}`}>
+      <main key={location.pathname} className={`min-w-0 flex-1 page-fade transition-all duration-300 ${isFocusMode ? "flex items-center justify-center" : "pb-20 md:pb-0"}`}>
         <Outlet />
       </main>
 
@@ -263,10 +263,12 @@ function SidebarNav({ collapsed, unreadCount }: { collapsed: boolean; unreadCoun
             end={n.end}
             data-to={n.to}
             className={({ isActive }) =>
-              `relative z-[1] flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+              `relative z-[1] flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150 ${
                 collapsed ? "justify-center" : ""
               } ${
-                isActive ? "text-foreground" : "text-sidebar-foreground hover:text-foreground"
+                isActive
+                  ? "text-foreground font-medium bg-sidebar-accent/50 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-r-full before:bg-amber-500"
+                  : "text-sidebar-foreground hover:text-foreground"
               }`
             }
           >

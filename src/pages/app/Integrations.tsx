@@ -127,14 +127,14 @@ export default function Integrations() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
-      <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary">
-        <Plug className="h-3.5 w-3.5" /> Integrations
+    <div className="relative page-hero mx-auto max-w-3xl px-4 py-10 md:px-8">
+      <div className="flex items-center gap-2 eyebrow text-primary">
+        <Plug className="h-3.5 w-3.5" /> Data sources
       </div>
       <h1 className="mt-4 font-display text-4xl font-semibold leading-tight">
         Connect your sources.
       </h1>
-      <p className="mt-2 text-sm text-muted-foreground max-w-xl">
+      <p className="mt-2 text-[15px] text-muted-foreground max-w-xl">
         Atlas reads signals from these tools to diagnose your dominant constraint. The more you connect, the sharper the intelligence.
       </p>
 
@@ -203,23 +203,27 @@ function ConnectorCard({
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-[16px] border border-border bg-card p-5 transition-all hover:shadow-sm">
+    <div className={`card-warm flex flex-col gap-4 p-5 transition-all ${
+      connected ? "border-primary/30 bg-primary/5" : ""
+    }`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-foreground">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${
+          connected ? "bg-primary/10 text-primary" : "bg-muted/80 text-foreground"
+        }`}>
           {connector.icon}
         </div>
         <div className="flex items-center gap-1.5">
           {isRecommended && !connected && (
-            <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-tight text-primary font-medium">
+            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-amber-700 font-medium">
               Recommended
             </span>
           )}
           {connected ? (
-            <span className="flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-2.5 py-1 text-xs font-mono text-success">
+            <span className="flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-xs font-mono text-emerald-700">
               <CheckCircle2 className="h-3 w-3" /> Connected
             </span>
           ) : !connector.available ? (
-            <span className="flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-mono text-muted-foreground">
+            <span className="flex items-center gap-1 rounded-full border border-border bg-muted/80 px-2.5 py-1 text-xs font-mono text-muted-foreground">
               <Clock className="h-3 w-3" /> Coming soon
             </span>
           ) : null}
