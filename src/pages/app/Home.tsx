@@ -8,6 +8,7 @@ import { canCreateMap } from "@/lib/planGate";
 import { UpgradeModal } from "@/components/atlas/UpgradeModal";
 import { loadStarterMap } from "@/lib/starterMap";
 import { formatDistanceToNow } from "date-fns";
+import { NewMapModal } from "@/components/atlas/NewMapModal";
 
 const confidenceMeta = {
   starter: {
@@ -33,6 +34,7 @@ const confidenceMeta = {
 export default function Home() {
   const { user } = useAuth();
   const { data: maps = [], isLoading, claimStarterMap } = useMaps();
+  const [showNewMapModal, setShowNewMapModal] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const navigate = useNavigate();
@@ -44,7 +46,7 @@ export default function Home() {
     if (!user) return;
     const allowed = await canCreateMap(user.id);
     if (!allowed) { setShowUpgrade(true); return; }
-    navigate("/start");
+    setShowNewMapModal(true);
   };
 
   const handleClaim = async () => {
@@ -55,7 +57,7 @@ export default function Home() {
   };
 
   return (
-    <div className="relative page-hero mx-auto max-w-3xl px-4 py-10 md:px-8">
+    <div className="relative page-hero mx-auto max-w-2xl px-4 py-10 md:px-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 eyebrow text-primary">
@@ -70,10 +72,10 @@ export default function Home() {
         </Button>
       </div>
 
-      <h1 className="mt-4 font-display text-4xl font-semibold leading-tight md:text-5xl">
+      <h1 className="mt-4 font-display text-3xl font-semibold leading-tight md:text-4xl">
         Where are you<br className="hidden sm:block" /> trying to get?
       </h1>
-      <p className="mt-3 text-[15px] text-muted-foreground">
+      <p className="mt-3 text-sm text-muted-foreground">
         Each map is a goal. Atlas diagnoses what's blocking it.
       </p>
 
@@ -101,13 +103,14 @@ export default function Home() {
         ) : maps.length === 0 && !starterMap ? (
           <EmptyState onNew={handleNewMap} />
         ) : (
-          maps.map((map) => {
+          maps.map((map, idx) => {
             const meta = confidenceMeta[map.confidence] ?? confidenceMeta.starter;
             return (
               <Link
                 key={map.id}
                 to={`/app/map/${map.id}`}
-                className="group card-warm block px-5 py-5 relative overflow-hidden"
+                className="group card-warm block px-5 py-5 relative overflow-hidden animate-slide-up opacity-0"
+                style={{ animationDelay: `${idx * 80}ms` }}
               >
                 {/* Cartographic grid background on hover */}
                 <div className="absolute inset-0 bg-grid-dots opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -144,6 +147,7 @@ export default function Home() {
       </div>
 
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <NewMapModal open={showNewMapModal} onClose={() => setShowNewMapModal(false)} />
     </div>
   );
 }

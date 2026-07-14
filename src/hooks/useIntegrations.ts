@@ -94,6 +94,8 @@ export function useIntegrations() {
       });
       // Fall back to full OAuth re-auth if linkIdentity is unavailable/fails.
       if (error) {
+        // Re-save destination before the new OAuth flow (linkIdentity may have cleared browser state)
+        try { sessionStorage.setItem("atlas.auth.next", destination); } catch {}
         const { error: oauthErr } = await supabase.auth.signInWithOAuth({
           provider: "github",
           options: { scopes: "read:user repo", redirectTo: callbackUrl },

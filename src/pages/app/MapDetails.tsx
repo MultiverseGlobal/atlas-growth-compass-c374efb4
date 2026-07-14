@@ -512,6 +512,7 @@ export default function MapDetails() {
 
       // Step 2: LLM diagnosis
       let result: { waypoints: Waypoint[] };
+      let source: "llm" | "context-only" | "fallback" = "llm";
       try {
         setDiagnosing(true);
         const { data: fnData, error: fnError } = await supabase.functions.invoke("diagnose-map", {
@@ -520,7 +521,11 @@ export default function MapDetails() {
             manual_notes: manualNote || undefined,
           },
         });
-        if (fnError) throw fnError;
+        
+        // Handle structured error from edge function (no AI key)
+        if (fnError || (fnData && fnData.error === "no_llm_key")) {
+          throw new Error(fnData?.message || "AI key missing");
+        }
 
         const llm = fnData as { constraint: string; evidence: string; move: string; confidence: string; evidence_sources?: Array<{ source: string; detail: string }> };
         const conf = (["emerging", "building", "established"].includes(llm.confidence)
@@ -534,8 +539,10 @@ export default function MapDetails() {
             { kind: "move", title: llm.move, confidence: "established", metadata: llm.evidence_sources ? { evidence: llm.evidence_sources } : undefined },
           ],
         };
-      } catch {
-        // Fallback to deterministic if LLM unavailable
+        source = flags.length > 0 ? "llm" : "context-only";
+      } catch (err: any) {
+        // Fallback to deterministic if LLM unavailable or AI key missing
+        source = "fallback";
         if (stats) {
           result = runGitHubRulesFallback(stats, mapGoal);
         } else {
@@ -576,6 +583,9 @@ export default function MapDetails() {
 
       setLastSyncedAt(new Date());
       setSyncFailed(false);
+      
+      // Update custom source tracking state
+      (window as any)._lastDiagnosisSource = source;
 
     } catch (err: any) {
       toast.error(err.message ?? "Sync failed");
@@ -776,8 +786,15 @@ export default function MapDetails() {
   if (!map) return null;
 
   const isBusy = syncing || diagnosing;
-  // "Not yet diagnosed" = only has the goal waypoint and no data sources have run
-  const isUndiagnosed = waypoints.length <= 1 && !syncing && !diagnosing;
+  // "Not yet diagnosed" = only has the goal waypoint, OR has default starter text constraints
+  const isUndiagnosed = (waypoints.length <= 1 || 
+    waypoints.some(w => w.kind === "constraint" && 
+      (w.title.includes("No data sources connected yet.") || 
+       w.title.includes("Connect a source to generate a constraint.") ||
+       w.title.includes("Connect a source to get a diagnosis.")
+      )
+    )
+  ) && !syncing && !diagnosing;
 
   return (
     <div className="w-full">
@@ -847,7 +864,7 @@ export default function MapDetails() {
               </span>
             )}
           </div>
-          <h1 className="mt-3 font-display text-3xl font-semibold leading-tight md:text-4xl">
+          <h1 className="mt-3 font-display text-2xl font-semibold leading-tight md:text-3xl lg:text-[34px] tracking-tight">
             {map.goal_statement}
           </h1>
         </div>
@@ -867,6 +884,17 @@ export default function MapDetails() {
               >
                 Retry
               </button>
+            </div>
+          )}
+
+          {/* Fallback estimation warning (e.g. no AI key set in Supabase) */}
+          {!isUndiagnosed && (window as any)._lastDiagnosisSource === "fallback" && (
+            <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-600 dark:text-amber-400 flex items-start gap-2.5 animate-in fade-in duration-200">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/10 font-bold font-mono">!</span>
+              <div>
+                <p className="font-semibold">AI key not configured</p>
+                <p className="mt-0.5 text-muted-foreground leading-relaxed">Atlas is currently estimating constraints using built-in deterministic rules. Configure an AI API key in your Supabase project secrets to activate full signal analysis.</p>
+              </div>
             </div>
           )}
 

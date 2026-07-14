@@ -50,7 +50,20 @@ export default function AuthCallback() {
 
       if (error || !data.session) {
         // If code exchange fails, it's likely a link-identity flow returning to an existing session.
-        // In that case, just proceed to the stored destination.
+        // Check if we actually do have a valid session already (linkIdentity succeeds without a code).
+        const { data: existingSession } = await supabase.auth.getSession();
+        if (existingSession?.session) {
+          // We have a live session — route based on stored destination or profile
+          const savedNext = sessionStorage.getItem("atlas.auth.next");
+          sessionStorage.removeItem("atlas.auth.next");
+          if (savedNext) {
+            nav(savedNext, { replace: true });
+            return;
+          }
+          const path = await resolvePostAuthPath(existingSession.session.user.id);
+          nav(path, { replace: true });
+          return;
+        }
         console.warn("[AuthCallback] session exchange failed or no code present", error?.message);
         const savedNext = sessionStorage.getItem("atlas.auth.next");
         sessionStorage.removeItem("atlas.auth.next");

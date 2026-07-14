@@ -58,11 +58,12 @@ function buildUserPrompt(
   goalStatement: string,
   flags: DiagnosticFlag[],
   manualNotes?: string,
-  recentFeedbackNotes?: string[]
+  recentFeedbackNotes?: string[],
+  statedContext?: string
 ): string {
   const flagLines = flags.length > 0
     ? flags.map(f => `- [${f.severity.toUpperCase()}] ${f.flag}: ${f.reason}`).join("\n")
-    : "- No GitHub signals available yet.";
+    : "- No live integration signals available yet.";
 
   const notesSection = manualNotes?.trim()
     ? `\nFounder notes:\n${manualNotes.trim()}`
@@ -72,12 +73,16 @@ function buildUserPrompt(
     ? `\nUser feedback logs from past recommendations (take this learning history into account):\n${recentFeedbackNotes.map(n => `- ${n}`).join("\n")}`
     : "";
 
+  const statedContextSection = statedContext?.trim()
+    ? `\nUser's previously stated context (from onboarding — treat as foundational background):\n${statedContext.trim()}`
+    : "";
+
   return `Founder's stated goal: "${goalStatement}"
 
 Deterministic signals from connected tools:
-${flagLines}${notesSection}${feedbackSection}
+${flagLines}${statedContextSection}${notesSection}${feedbackSection}
 
-Based on the founder's goal, these specific signals, and past feedback history, identify the single constraint most likely blocking progress right now. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
+Based on the founder's goal, these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress right now. If no live signals are available, reason from the stated goal and context to infer the most likely constraint. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
 }
 
 // ─── LLM Providers ───────────────────────────────────────────────────────────
@@ -191,10 +196,11 @@ async function route(
   flags: DiagnosticFlag[],
   manualNotes?: string,
   provider?: string,
-  recentFeedbackNotes?: string[]
+  recentFeedbackNotes?: string[],
+  statedContext?: string
 ): Promise<DiagnoseResponse> {
   const system = buildSystemPrompt();
-  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes);
+  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext);
 
   const selectedProvider = provider ?? "openai";
   const chain: Array<() => Promise<DiagnoseResponse>> = [];
@@ -233,7 +239,11 @@ async function route(
   }
 
   if (chain.length === 0) {
-    throw new Error("No LLM API keys configured. Add at least one key to Supabase Edge Function secrets.");
+    // Return structured error so client can show a specific message instead of silent fallback
+    return new Response(JSON.stringify({ error: "no_llm_key", message: "No AI provider key is configured. Add an API key in Supabase Edge Function secrets to enable diagnosis." }), {
+      status: 503,
+      headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" },
+    }) as unknown as DiagnoseResponse;
   }
 
   let lastError: Error | null = null;
@@ -315,7 +325,25 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 3. Compute Multi-Source Integration flags based on the last 14 days of signals
+    // 3. Fetch existing waypoints for this map to use as stated context
+    const { data: existingWaypoints } = await userClient
+      .from("waypoints")
+      .select("kind, title, confidence")
+      .eq("map_id", body.map_id)
+      .order("position", { ascending: true });
+
+    let statedContext = "";
+    if (existingWaypoints && existingWaypoints.length > 0) {
+      const contextLines = existingWaypoints
+        .filter(w => w.kind !== "goal") // goal is already in the prompt
+        .map(w => `- ${w.kind}: ${w.title}`)
+        .join("\n");
+      if (contextLines) {
+        statedContext = contextLines;
+      }
+    }
+
+    // 4. Compute Multi-Source Integration flags based on the last 14 days of signals
     const flags: DiagnosticFlag[] = [];
     const now = new Date();
     const oneWeekAgo = new Date();
@@ -442,7 +470,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 4. Fetch recent feedback logs for this map
+    const hasSignals = flags.length > 0;
+
+    // 6. Fetch recent feedback logs for this map
     const { data: feedbackLogs } = await userClient
       .from("activity_logs")
       .select("action, meta")
@@ -466,13 +496,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 5. Resolve manual notes: check request body first, otherwise fall back to latest in DB
+    // 7. Resolve manual notes: check request body first, otherwise fall back to latest in DB
     const manualNoteSignal = signals?.find((s) => s.title === "__manual_note");
     const dbManualNote = manualNoteSignal?.payload?.note || "";
     const manualNotes = body.manual_notes ?? dbManualNote;
 
-    // 6. Call the LLM chain
-    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes);
+    // 8. Call the LLM chain
+    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes, statedContext);
+
+    // If route() returned a Response (no_llm_key case), pass it through
+    if (result instanceof Response) return result;
 
     // Build structured evidence_sources from deterministic flags and manual notes
     const evidenceSources = flags.map(f => {

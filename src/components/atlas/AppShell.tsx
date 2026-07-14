@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun, Palette } from "lucide-react";
+import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun, Palette, Menu, X } from "lucide-react";
 import { Logo, LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -27,21 +27,21 @@ export default function AppShell() {
   const { theme, cycleTheme } = useTheme();
   const [profile, setProfile] = useState<{ handle: string | null; display_name: string | null } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Sidebar collapsed state. User's explicit toggle (stored) wins; otherwise auto by viewport.
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "true") return true;
     if (stored === "false") return false;
-    return window.innerWidth < 1024; // tablet-and-below auto-collapse
+    return window.innerWidth < 1280; // auto-collapse at 1366px laptop size & below
   });
 
   // Auto-adjust default only when the user hasn't set an explicit preference.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem(STORAGE_KEY) !== null) return;
-    const mq = window.matchMedia("(max-width: 1023px)");
+    const mq = window.matchMedia("(max-width: 1279px)");
     const onChange = (e: MediaQueryListEvent) => setCollapsed(e.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
@@ -134,11 +134,20 @@ export default function AppShell() {
   return (
     <div className={`min-h-screen bg-background grain md:flex${isFocusMode ? " focus-mode-active" : ""}`}>
       {!isFocusMode && (
-        <aside
-          className={`hidden shrink-0 border-r border-border/60 bg-sidebar md:flex md:flex-col transition-[width] duration-200 ease-out ${
-            collapsed ? "w-16" : "w-60"
-          }`}
-        >
+        <>
+          {/* Mobile backdrop */}
+          {mobileOpen && (
+            <div
+              className="sidebar-backdrop"
+              onClick={() => setMobileOpen(false)}
+              aria-hidden
+            />
+          )}
+          <aside
+            className={`sidebar-panel shrink-0 border-r border-border/60 bg-sidebar flex flex-col transition-[width] duration-200 ease-out ${
+              collapsed ? "md:w-16" : "lg:w-56 md:w-60"
+            } ${mobileOpen ? "sidebar-open" : ""}`}
+          >
           <div className={`h-16 flex items-center border-b border-border/60 ${collapsed ? "justify-center px-2" : "px-5"}`}>
             {collapsed ? <LogoMark size={22} /> : <Logo />}
           </div>
@@ -195,19 +204,33 @@ export default function AppShell() {
             </div>
           </div>
         </aside>
+        </>
       )}
 
       {!isFocusMode && (
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border/60 bg-background/95 px-4 backdrop-blur md:hidden">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border/60 bg-background/95 px-4 backdrop-blur md:hidden safe-x">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="touch-target text-muted-foreground hover:text-foreground"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <Logo />
-          <button onClick={() => signOut().then(() => navigate("/"))} className="text-muted-foreground hover:text-foreground" aria-label="Sign out">
+          <button onClick={() => signOut().then(() => navigate("/"))} className="touch-target text-muted-foreground hover:text-foreground" aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </button>
         </header>
       )}
 
-      <main key={location.pathname} className={`min-w-0 flex-1 page-fade transition-all duration-300 ${isFocusMode ? "flex items-center justify-center" : "pb-20 md:pb-0"}`}>
-        <Outlet />
+      <main key={location.pathname} className={`min-w-0 flex-1 page-fade transition-all duration-300 relative overflow-hidden ${isFocusMode ? "flex items-center justify-center" : "pb-20 md:pb-0"}`}>
+        {/* Subtle interior ambient glow */}
+        {!isFocusMode && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-0 select-none" style={{ background: "radial-gradient(ellipse 55% 45% at 50% 10%, hsla(37,72%,62%,0.07) 0%, transparent 60%)" }} />
+        )}
+        <div className="relative z-10 w-full h-full">
+          <Outlet />
+        </div>
       </main>
 
       {!isFocusMode && (

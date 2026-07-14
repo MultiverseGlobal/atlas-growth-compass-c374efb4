@@ -98,6 +98,7 @@ function getRecommendedSources(goalText: string): string[] {
   const normalized = (goalText || "").toLowerCase();
   const recommended: string[] = [];
 
+  // Only GitHub and Stripe can be recommended — Notion/Slack/Manual never get the badge
   if (
     normalized.includes("customer") ||
     normalized.includes("user") ||
@@ -589,7 +590,7 @@ export default function Onboarding() {
         <div className="hidden text-xs font-mono uppercase tracking-widest text-muted-foreground/60 sm:block">Intake setup</div>
       </header>
 
-      <main className="container relative z-10 max-w-xl py-12 md:py-16 flex-1 flex flex-col justify-center">
+      <main className="container relative z-10 max-w-lg py-12 md:py-16 flex-1 flex flex-col justify-center">
         {/* Minimalist Step indicator */}
         <div className="flex items-center justify-between mb-6 px-1">
           <div className="flex items-center gap-1.5">
