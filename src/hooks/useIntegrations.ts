@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -6,7 +8,7 @@ import { friendlyError } from "@/lib/errors";
 
 export type IntegrationRow = {
   id: string;
-  provider: "github" | "stripe" | "linear" | "posthog";
+  provider: "github" | "stripe" | "notion" | "slack" | "google";
   status: "active" | "error" | "disconnected" | "syncing";
   external_account_label: string | null;
   last_sync_at: string | null;
@@ -15,13 +17,44 @@ export type IntegrationRow = {
 export function useIntegrations() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const location = useLocation();
 
+  // ── Handle OAuth return: ?connected=<provider> or ?oauth_error=<msg> ───────
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const connected = params.get("connected");
+    const oauthError = params.get("oauth_error");
+
+    if (connected) {
+      const name = connected.charAt(0).toUpperCase() + connected.slice(1);
+      toast.success(`${name} connected successfully! 🎉`);
+      qc.invalidateQueries({ queryKey: ["integrations", user?.id] });
+      // Clean up URL params without full reload
+      window.history.replaceState({}, "", location.pathname);
+    }
+
+    if (oauthError) {
+      const friendlyMessages: Record<string, string> = {
+        invalid_state: "OAuth session expired or invalid. Please try again.",
+        state_expired: "OAuth session expired. Please try again.",
+        provider_mismatch: "OAuth provider mismatch. Please try again.",
+        store_failed: "Failed to save the connection. Please try again.",
+        access_denied: "You cancelled the connection.",
+        missing_params: "OAuth flow was incomplete. Please try again.",
+      };
+      const msg = friendlyMessages[oauthError] ?? `OAuth error: ${oauthError}`;
+      toast.error(msg);
+      window.history.replaceState({}, "", location.pathname);
+    }
+  }, [location.search]);
+
+  // ── Fetch integrations ────────────────────────────────────────────────────
   const query = useQuery({
     queryKey: ["integrations", user?.id],
     queryFn: async () => {
       if (!user) return [];
 
-      // Check if user has GitHub identity linked
+      // Auto-register GitHub if the user signed in with GitHub OAuth
       const githubIdentity = user.identities?.find((i) => i.provider === "github");
       if (githubIdentity) {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -55,39 +88,6 @@ export function useIntegrations() {
         }
       }
 
-      // Check if user has Notion identity linked
-      const notionIdentity = user.identities?.find((i) => i.provider === "notion");
-      if (notionIdentity) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const providerToken = sessionData.session?.provider_token;
-        
-        if (providerToken && sessionData.session?.user?.app_metadata?.provider === "notion") {
-          (supabase as any).rpc("upsert_notion_token", {
-            p_token: providerToken,
-          }).catch((err: any) => {
-            console.warn("[integrations] upsert_notion_token failed:", err.message);
-          });
-        }
-
-        const { data: existing } = await supabase
-          .from("integrations")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("provider", "notion")
-          .maybeSingle();
-
-        if (!existing) {
-          const label = user.user_metadata?.user_name || user.user_metadata?.full_name || "Connected Notion";
-          await supabase.from("integrations").insert({
-            user_id: user.id,
-            provider: "notion",
-            status: "active",
-            external_account_label: label,
-            external_account_id: notionIdentity.id,
-          });
-        }
-      }
-
       const { data, error } = await supabase
         .from("integrations")
         .select("id, provider, status, external_account_label, last_sync_at")
@@ -98,6 +98,7 @@ export function useIntegrations() {
     enabled: !!user,
   });
 
+  // ── GitHub OAuth (uses Supabase built-in) ────────────────────────────────
   const connectGitHub = async (redirectPath?: string) => {
     const destination = redirectPath ?? "/app/integrations";
     const callbackUrl = `${window.location.origin}/auth/callback`;
@@ -128,34 +129,47 @@ export function useIntegrations() {
     }
   };
 
-  const connectNotion = async (redirectPath?: string) => {
-    const destination = redirectPath ?? "/app/integrations";
-    const callbackUrl = `${window.location.origin}/auth/callback`;
+  // ── Generic OAuth via Edge Function ──────────────────────────────────────
+  const connectViaEdgeFunction = async (provider: "notion" | "slack" | "google") => {
     try {
-      sessionStorage.setItem("atlas.auth.next", destination);
-    } catch (e) {
-      console.warn("[integrations] failed to set sessionStorage", e);
-    }
-    try {
-      const { error } = await supabase.auth.linkIdentity({
-        provider: "notion",
-        options: {
-          redirectTo: callbackUrl,
-        },
-      });
-      if (error) {
-        try { sessionStorage.setItem("atlas.auth.next", destination); } catch {}
-        const { error: oauthErr } = await supabase.auth.signInWithOAuth({
-          provider: "notion",
-          options: { redirectTo: callbackUrl },
-        });
-        if (oauthErr) throw oauthErr;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        toast.error("Please sign in again to connect integrations.");
+        return;
       }
+
+      const supabaseUrl = (supabase as any).supabaseUrl as string;
+      const res = await fetch(
+        `${supabaseUrl}/functions/v1/oauth-initiate?provider=${provider}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(body.error ?? `Failed to initiate ${provider} OAuth`);
+      }
+
+      const { url } = await res.json();
+      if (!url) throw new Error("No OAuth URL returned from server.");
+
+      // Redirect the user to the provider's OAuth page
+      window.location.href = url;
     } catch (err: unknown) {
       toast.error(friendlyError(err));
     }
   };
 
+  const connectNotion = () => connectViaEdgeFunction("notion");
+  const connectSlack = () => connectViaEdgeFunction("slack");
+  const connectGoogle = () => connectViaEdgeFunction("google");
+
+  // ── Disconnect ────────────────────────────────────────────────────────────
   const disconnect = useMutation({
     mutationFn: async (integrationId: string) => {
       const { error } = await supabase
@@ -171,5 +185,5 @@ export function useIntegrations() {
     onError: (err: Error) => toast.error(friendlyError(err)),
   });
 
-  return { ...query, connectGitHub, connectNotion, disconnect };
+  return { ...query, connectGitHub, connectNotion, connectSlack, connectGoogle, disconnect };
 }
