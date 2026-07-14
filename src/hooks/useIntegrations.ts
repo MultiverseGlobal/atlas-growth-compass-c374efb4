@@ -59,7 +59,7 @@ export function useIntegrations() {
       if (githubIdentity) {
         const { data: sessionData } = await supabase.auth.getSession();
         const providerToken = sessionData.session?.provider_token;
-        if (providerToken && sessionData.session?.user?.app_metadata?.provider === "github") {
+        if (providerToken) {
           (supabase as any).rpc("upsert_github_token", {
             p_token: providerToken,
             p_scopes: "read:user repo",
@@ -172,6 +172,22 @@ export function useIntegrations() {
   // ── Disconnect ────────────────────────────────────────────────────────────
   const disconnect = useMutation({
     mutationFn: async (integrationId: string) => {
+      const { data: integration } = await supabase
+        .from("integrations")
+        .select("provider")
+        .eq("id", integrationId)
+        .maybeSingle();
+
+      if (integration?.provider === "github" && user) {
+        const githubIdentity = user.identities?.find((i) => i.provider === "github");
+        if (githubIdentity) {
+          const { error: unlinkError } = await supabase.auth.unlinkIdentity(githubIdentity as any);
+          if (unlinkError) {
+            console.warn("Failed to unlink GitHub identity:", unlinkError.message);
+          }
+        }
+      }
+
       const { error } = await supabase
         .from("integrations")
         .delete()

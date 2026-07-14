@@ -438,6 +438,18 @@ export default function MapDetails() {
     try {
       const token = await getGitHubToken();
       setGitHubToken(token);
+
+      if (token) {
+        const { error: rpcErr } = await supabase.rpc("upsert_github_token" as any, {
+          p_token: token,
+          p_scopes: "read:user repo",
+          p_expires_at: null,
+        });
+        if (rpcErr) {
+          console.warn("[loadRepoList] upsert_github_token RPC failed:", rpcErr.message);
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("sync-github", {
         body: { action: "list_repos", github_token: token || undefined },
       });
