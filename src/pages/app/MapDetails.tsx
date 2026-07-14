@@ -55,11 +55,14 @@ type Waypoint = {
   completed_at?: string | null;
 };
 
+import { useQueryClient } from "@tanstack/react-query";
+
 export default function MapDetails() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const qc = useQueryClient();
   const shouldAutoFocus = searchParams.get("focus") === "1";
   const shouldAutoTour = searchParams.get("tour") === "1";
 
@@ -123,7 +126,7 @@ export default function MapDetails() {
           popover: {
             title: "Your Atlas map is ready",
             description: "Let's walk through it in 60 seconds so you know exactly what you're looking at.",
-            side: "over" as const,
+            side: "over" as any,
             align: "center" as const,
           },
         },
@@ -364,7 +367,7 @@ export default function MapDetails() {
         .order("position", { ascending: true });
 
       if (wpData && wpData.length > 0) {
-        setWaypoints(wpData as Waypoint[]);
+        setWaypoints((wpData as any) as Waypoint[]);
       } else {
         // No saved waypoints — show just the goal. The undiagnosed state UI handles the rest.
         setWaypoints([
@@ -599,7 +602,7 @@ export default function MapDetails() {
           confidence: w.confidence,
           position: idx,
           metadata: w.metadata || null,
-        }))
+        } as any))
       );
 
       // Re-fetch all waypoints from database (both new active and past completed)
@@ -610,7 +613,7 @@ export default function MapDetails() {
         .order("position", { ascending: true });
       
       if (refreshedWps) {
-        setWaypoints(refreshedWps as Waypoint[]);
+        setWaypoints((refreshedWps as any) as Waypoint[]);
       } else {
         setWaypoints(result.waypoints);
       }
@@ -989,7 +992,7 @@ export default function MapDetails() {
                 };
                 const rpc = rpcMap[provider];
                 if (!rpc) return;
-                const { error } = await supabase.rpc(rpc, { p_token: token });
+                const { error } = await supabase.rpc(rpc as any, { p_token: token });
                 if (error) throw error;
                 qc.invalidateQueries({ queryKey: ["integrations", user?.id] });
               }}
