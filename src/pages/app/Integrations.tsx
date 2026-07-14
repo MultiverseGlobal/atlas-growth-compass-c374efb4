@@ -283,9 +283,9 @@ function ConnectorCard({
               size="sm"
               className="w-full"
               onClick={() => {
-                if (onConnect) {
-                  onConnect();
-                } else if (isTokenBased) {
+                if (connector.id === "github") {
+                  onConnect?.();
+                } else {
                   setShowKeyInput(true);
                 }
               }}
@@ -293,13 +293,13 @@ function ConnectorCard({
             >
               Connect
             </Button>
-            {onConnect && isTokenBased && (
+            {connector.id === "notion" && onConnect && (
               <button
                 type="button"
-                onClick={() => setShowKeyInput(true)}
+                onClick={() => onConnect()}
                 className="w-full text-center text-[10px] font-mono text-muted-foreground/60 hover:text-foreground transition-colors underline decoration-dotted"
               >
-                Or connect manually with token
+                Or connect via OAuth (requires Supabase config)
               </button>
             )}
           </div>
