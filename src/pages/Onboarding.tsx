@@ -424,13 +424,32 @@ export default function Onboarding() {
     if (!user) return null;
     setSaving(true);
     try {
-      // Save profile
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        id: user.id,
-        handle: cleanH,
-        display_name: dispName || cleanH,
-        onboarded_at: new Date().toISOString(),
-      }, { onConflict: "id" });
+      // Save profile: retry with a random suffix if the unique handle constraint fails
+      let profileError = null;
+      let finalHandle = cleanH;
+      
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { error } = await supabase.from("profiles").upsert({
+          id: user.id,
+          handle: finalHandle,
+          display_name: dispName || finalHandle,
+          onboarded_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+
+        if (!error) {
+          profileError = null;
+          break;
+        }
+
+        profileError = error;
+        const msg = error.message?.toLowerCase() || "";
+        if (msg.includes("handle") || msg.includes("unique") || msg.includes("duplicate")) {
+          const suffix = Math.floor(100 + Math.random() * 900);
+          finalHandle = `${cleanH.slice(0, 16)}_${suffix}`;
+        } else {
+          break;
+        }
+      }
 
       if (profileError) {
         toast.error(friendlyError(profileError));
@@ -503,12 +522,14 @@ export default function Onboarding() {
           nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
         }, 2800);
       } else {
-        // Fallback: if something went wrong, go to dashboard
-        nav("/app", { replace: true });
+        // Fallback: if something went wrong, stop auto-completing and let user complete onboarding manually
+        setAutoCompleting(false);
+        setStep(0);
       }
     } catch (err: any) {
       console.error("[finishWithSetup] error:", err);
-      nav("/app", { replace: true });
+      setAutoCompleting(false);
+      setStep(0);
     }
   };
 
