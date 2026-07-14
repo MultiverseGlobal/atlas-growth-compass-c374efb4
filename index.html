@@ -13,6 +13,20 @@
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function() {
+        try {
+          const stored = localStorage.getItem("atlas.theme");
+          if (stored === "dark") {
+            document.documentElement.classList.add("dark");
+          } else if (stored === "paper") {
+            document.documentElement.classList.add("theme-paper");
+          } else {
+            document.documentElement.classList.add("theme-clean");
+          }
+        } catch (_) {}
+      })();
+    </script>
   </head>
 
   <body>
