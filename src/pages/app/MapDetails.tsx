@@ -1704,9 +1704,19 @@ function UndiagnosedState({
                     </Button>
                   </div>
                   {repos.length === 0 && (
-                    <p className="text-[10px] text-muted-foreground/60 italic">
-                      No repositories found. Ensure your GitHub account has public and private repo permissions.
-                    </p>
+                    <div className="space-y-2 pt-1 animate-in fade-in duration-200">
+                      <p className="text-[10px] text-muted-foreground/60 italic leading-normal">
+                        No repositories found. Your connection might be expired or missing API access.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onConnectSource}
+                        className="h-8 px-3 text-[10px] font-mono gap-1.5 hover:bg-muted/30"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" /> Re-authenticate GitHub
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
