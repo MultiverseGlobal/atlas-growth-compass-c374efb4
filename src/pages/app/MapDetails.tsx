@@ -15,7 +15,7 @@ import {
   type GitHubRepo,
   type GitHubStats,
 } from "@/lib/github";
-import { ArrowLeft, ArrowRight, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { CompassLoader } from "./Home";
 import { useIntegrations } from "@/hooks/useIntegrations";
@@ -68,6 +68,7 @@ export default function MapDetails() {
   const [deleting, setDeleting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnosisError, setDiagnosisError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncFailed, setSyncFailed] = useState(false);
 
@@ -448,6 +449,7 @@ export default function MapDetails() {
     if (!user || !id) return;
     try {
       setSyncing(true);
+      setDiagnosisError(null);
 
       let stats: GitHubStats | null = null;
       const syncPromises: Promise<any>[] = [];
@@ -554,6 +556,12 @@ export default function MapDetails() {
         };
         source = flags.length > 0 ? "llm" : "context-only";
       } catch (err: any) {
+        // Save the error so we can display a detailed message to the user
+        const errorMsg = err.code === "no_llm_key"
+          ? "No AI key configured. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to your Supabase Edge Function secrets."
+          : (err.message || "An unexpected error occurred during diagnosis. Check your network or keys.");
+        setDiagnosisError(errorMsg);
+
         // Show the user why diagnosis failed instead of silently reverting
         if (err.code === "no_llm_key") {
           toast.error("No AI key configured. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to your Supabase Edge Function secrets.");
@@ -958,7 +966,9 @@ export default function MapDetails() {
             </div>
           )}
 
-          {isUndiagnosed ? (
+          {diagnosing ? (
+            <DiagnoseLoader goalStatement={map.goal_statement} integrations={liveIntegrations} />
+          ) : isUndiagnosed ? (
             <UndiagnosedState
               goalStatement={map.goal_statement}
               integrations={liveIntegrations}
@@ -968,6 +978,7 @@ export default function MapDetails() {
               diagnosing={diagnosing}
               syncing={syncing}
               hasNotes={manualNotesList.length > 0}
+              diagnosisError={diagnosisError}
               onDiagnose={() => fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
               onConnectSource={handleReconnectGitHub}
               onConnectNotion={connectNotion}
@@ -1261,6 +1272,7 @@ function UndiagnosedState({
   diagnosing,
   syncing,
   hasNotes,
+  diagnosisError,
   onDiagnose,
   onConnectSource,
   onConnectNotion,
@@ -1276,6 +1288,7 @@ function UndiagnosedState({
   diagnosing: boolean;
   syncing: boolean;
   hasNotes?: boolean;
+  diagnosisError?: string | null;
   onDiagnose: () => void;
   onConnectSource: () => void;
   onConnectNotion?: () => void;
@@ -1415,6 +1428,17 @@ function UndiagnosedState({
               Connect a recommended data source or add a context note to map your dominant constraint.
             </p>
           </div>
+
+          {/* Diagnosis Failure Warning */}
+          {diagnosisError && (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3.5 text-xs text-destructive flex items-start gap-2.5 animate-in fade-in duration-200">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Diagnosis Failed</p>
+                <p className="mt-0.5 text-muted-foreground/80 leading-relaxed">{diagnosisError}</p>
+              </div>
+            </div>
+          )}
 
           {/* Recommended integrations row */}
           {visibleSources.length > 0 || !hasNotes ? (
@@ -1623,6 +1647,100 @@ function UndiagnosedState({
               </p>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiagnoseLoader({
+  goalStatement,
+  integrations
+}: {
+  goalStatement: string;
+  integrations: Array<{ provider: string; status: string }>;
+}) {
+  const [stepIndex, setStepIndex] = useState(0);
+
+  const hasGitHub = integrations.some(i => i.provider === "github" && i.status === "active");
+  const hasStripe = integrations.some(i => i.provider === "stripe" && i.status === "active");
+  const hasNotion = integrations.some(i => i.provider === "notion" && i.status === "active");
+
+  const steps = [
+    "Reading goal context...",
+    ...(hasGitHub ? ["Retrieving GitHub pull requests and commit cadence...", "Calculating shipping velocity trends..."] : []),
+    ...(hasStripe ? ["Fetching Stripe charges and customer subscriptions...", "Estimating revenue growth milestones..."] : []),
+    ...(hasNotion ? ["Reading Notion specs and document updates...", "Parsing workspace documentation context..."] : []),
+    "Resolving team communication signals...",
+    "Synthesizing primary bottlenecks using AI...",
+    "Drafting next move options...",
+    "Drawing your updated map..."
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setStepIndex((prev) => (prev < steps.length - 1 ? prev + 1 : prev));
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [steps.length]);
+
+  return (
+    <div className="relative pl-8">
+      {/* Dashed line to match map style */}
+      <svg className="absolute left-[9px] top-3 h-[450px] w-[4px] pointer-events-none" aria-hidden="true">
+        <line x1="2" y1="0" x2="2" y2="450" stroke="hsl(var(--primary) / 0.4)" strokeWidth="2.5" strokeDasharray="4 4" />
+      </svg>
+      <div className="absolute -left-[0.5px] top-1">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" className="shrink-0">
+          <circle cx="11" cy="11" r="8" fill="hsl(var(--background))" stroke="hsl(var(--primary))" strokeWidth="1.75" />
+          <circle cx="11" cy="11" r="4.5" fill="hsl(var(--primary))" />
+        </svg>
+      </div>
+
+      <div className="eyebrow text-primary mb-2">Analyzing</div>
+      
+      <div className="rounded-[20px] border border-border bg-card/40 p-8 text-center space-y-6 relative overflow-hidden animate-slide-up">
+        {/* Radar grid backdrop */}
+        <div className="absolute inset-0 bg-grid-dots opacity-40 animate-pulse duration-1000 pointer-events-none" />
+
+        {/* Floating, spinning/scanning compass rose */}
+        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-primary/20 bg-primary/5 relative">
+          <div className="absolute inset-0 rounded-full border border-dashed border-primary/30 animate-[spin_10s_linear_infinite]" />
+          <div className="absolute inset-2 rounded-full border border-primary/10 animate-ping duration-[3s]" />
+          
+          <svg className="h-10 w-10 text-primary animate-[spin_4s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" fill="currentColor" fillOpacity="0.2" />
+            <line x1="12" y1="2" x2="12" y2="6" />
+            <line x1="12" y1="18" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="6" y2="12" />
+            <line x1="18" y1="12" x2="22" y2="12" />
+          </svg>
+        </div>
+
+        <div className="space-y-2 relative z-10 max-w-sm mx-auto">
+          <h3 className="font-display text-lg font-semibold tracking-tight text-foreground">
+            Atlas is orienting your map
+          </h3>
+          <p className="text-xs text-muted-foreground/80 min-h-[36px] flex items-center justify-center italic">
+            "{steps[stepIndex]}"
+          </p>
+        </div>
+
+        {/* Small step indicators */}
+        <div className="flex justify-center items-center gap-1.5 pt-2">
+          {steps.map((_, idx) => (
+            <span 
+              key={idx} 
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                idx === stepIndex 
+                  ? "w-4 bg-primary" 
+                  : idx < stepIndex 
+                    ? "w-1.5 bg-primary/40" 
+                    : "w-1.5 bg-border"
+              }`} 
+            />
+          ))}
         </div>
       </div>
     </div>
