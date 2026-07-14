@@ -423,80 +423,91 @@ export default function Onboarding() {
   const finishCore = async (finalGoal: string, cleanH: string, dispName: string, repo: string) => {
     if (!user) return null;
     setSaving(true);
+    try {
+      // Save profile
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: user.id,
+        handle: cleanH,
+        display_name: dispName || cleanH,
+        onboarded_at: new Date().toISOString(),
+      }, { onConflict: "id" });
 
-    // Save profile
-    const { error: profileError } = await supabase.from("profiles").upsert({
-      id: user.id,
-      handle: cleanH,
-      display_name: dispName || cleanH,
-      onboarded_at: new Date().toISOString(),
-    }, { onConflict: "id" });
+      if (profileError) {
+        toast.error(friendlyError(profileError));
+        if (profileError.message?.includes("handle")) setStep(0);
+        setSaving(false);
+        return null;
+      }
 
-    if (profileError) {
-      toast.error(friendlyError(profileError));
-      if (profileError.message?.includes("handle")) setStep(0);
-      setSaving(false);
-      return null;
-    }
+      // Insert the map
+      const { data: mapData, error: mapError } = await supabase
+        .from("maps")
+        .insert({
+          user_id: user.id,
+          goal_statement: finalGoal,
+          confidence: "starter",
+          is_published: false,
+        })
+        .select("id")
+        .single();
 
-    // Insert the map
-    const { data: mapData, error: mapError } = await supabase
-      .from("maps")
-      .insert({
-        user_id: user.id,
-        goal_statement: finalGoal,
-        confidence: "starter",
-        is_published: false,
-      })
-      .select("id")
-      .single();
+      if (mapError) {
+        toast.error(friendlyError(mapError));
+        setSaving(false);
+        return null;
+      }
 
-    if (mapError) {
-      toast.error(friendlyError(mapError));
-      setSaving(false);
-      return null;
-    }
+      if (mapData?.id) {
+        const starterWaypoints = generateStarterWaypoints(
+          mapData.id, user.id, finalGoal, operatingArea, primaryConstraint
+        );
+        const { error: wpError } = await supabase.from("waypoints").insert(starterWaypoints);
+        if (wpError) console.warn("[Onboarding] waypoint insert failed:", wpError.message);
 
-    if (mapData?.id) {
-      const starterWaypoints = generateStarterWaypoints(
-        mapData.id, user.id, finalGoal, operatingArea, primaryConstraint
-      );
-      const { error: wpError } = await supabase.from("waypoints").insert(starterWaypoints);
-      if (wpError) console.warn("[Onboarding] waypoint insert failed:", wpError.message);
-
-      if (isGitHubConnected && repo) {
-        const { error: srcError } = await supabase.from("sources").insert({
-          map_id: mapData.id, user_id: user.id, provider: "github", label: repo,
-        });
-        if (!srcError) {
-          supabase.functions.invoke("sync-github", {
-            body: { action: "sync", map_id: mapData.id, repo_full_name: repo },
-          }).catch(() => {});
+        if (isGitHubConnected && repo) {
+          const { error: srcError } = await supabase.from("sources").insert({
+            map_id: mapData.id, user_id: user.id, provider: "github", label: repo,
+          });
+          if (!srcError) {
+            supabase.functions.invoke("sync-github", {
+              body: { action: "sync", map_id: mapData.id, repo_full_name: repo },
+            }).catch(() => {});
+          }
         }
       }
+
+      try {
+        localStorage.removeItem("atlas.starter");
+        sessionStorage.removeItem("atlas.setup");
+      } catch { /* non-critical */ }
+
+      setSaving(false);
+      return mapData?.id ?? null;
+    } catch (err: any) {
+      console.error("[finishCore] error during setup:", err);
+      toast.error(err.message || "An unexpected error occurred during map initialization.");
+      setSaving(false);
+      return null;
     }
-
-    try {
-      localStorage.removeItem("atlas.starter");
-      sessionStorage.removeItem("atlas.setup");
-    } catch { /* non-critical */ }
-
-    setSaving(false);
-    return mapData?.id ?? null;
   };
 
   // ── Wizard fast-track: called automatically when atlas.setup exists ────────
   const finishWithSetup = async (setup: AtlasSetup, dispName: string, cleanH: string) => {
-    const finalGoal = setup.goal || "Grow my business";
-    const mapId = await finishCore(finalGoal, cleanH, dispName, "");
-    if (mapId) {
-      setAutoCompleteMapId(mapId);
-      // Brief pause to let the "Building" screen render, then go to the map with tour
-      setTimeout(() => {
-        nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
-      }, 2800);
-    } else {
-      // Fallback: if something went wrong, go to dashboard
+    try {
+      const finalGoal = setup.goal || "Grow my business";
+      const mapId = await finishCore(finalGoal, cleanH, dispName, "");
+      if (mapId) {
+        setAutoCompleteMapId(mapId);
+        // Brief pause to let the "Building" screen render, then go to the map with tour
+        setTimeout(() => {
+          nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
+        }, 2800);
+      } else {
+        // Fallback: if something went wrong, go to dashboard
+        nav("/app", { replace: true });
+      }
+    } catch (err: any) {
+      console.error("[finishWithSetup] error:", err);
       nav("/app", { replace: true });
     }
   };
@@ -517,7 +528,7 @@ export default function Onboarding() {
   if (wizardSetup && autoCompleting) {
     const steps = [
       { text: "Creating your profile", done: true },
-      { text: `Goal set: "${wizardSetup.goal.slice(0, 50)}${wizardSetup.goal.length > 50 ? "…" : ""}"`, done: true },
+      { text: `Goal set: "${(wizardSetup.goal || "").slice(0, 50)}${(wizardSetup.goal || "").length > 50 ? "…" : ""}"`, done: true },
       { text: "Initialising map waypoints", done: !!autoCompleteMapId },
       { text: "Launching your map…", done: false },
     ];
