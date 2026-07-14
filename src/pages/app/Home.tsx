@@ -63,7 +63,10 @@ export default function Home() {
   const handleClaim = async () => {
     if (!starterMap) return;
     setClaiming(true);
-    await claimStarterMap.mutateAsync(starterMap.goalStatement);
+    await claimStarterMap.mutateAsync({
+      name: starterMap.goalStatement.slice(0, 60),
+      goalStatement: starterMap.goalStatement,
+    });
     setClaiming(false);
   };
 
@@ -141,10 +144,15 @@ export default function Home() {
                     <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                   </div>
 
-                  {/* Goal */}
-                  <p className="mt-3 font-medium leading-snug text-foreground">
-                    {map.goal_statement}
+                  {/* Name + Goal */}
+                  <p className="mt-3 font-semibold leading-snug text-foreground">
+                    {map.name || map.goal_statement}
                   </p>
+                  {map.name && (
+                    <p className="mt-1 text-xs text-muted-foreground leading-snug truncate">
+                      {map.goal_statement}
+                    </p>
+                  )}
 
                   {/* Confidence bar */}
                   <div className="mt-4 h-[2px] w-full rounded-full bg-border/60">

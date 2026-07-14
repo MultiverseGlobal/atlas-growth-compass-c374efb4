@@ -15,7 +15,7 @@ import {
   type GitHubRepo,
   type GitHubStats,
 } from "@/lib/github";
-import { ArrowLeft, ArrowRight, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus, CheckCircle2, AlertCircle, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 import { CompassLoader } from "./Home";
 import { useIntegrations } from "@/hooks/useIntegrations";
@@ -41,6 +41,7 @@ import "driver.js/dist/driver.css";
 
 type MapData = {
   id: string;
+  name: string;
   goal_statement: string;
   confidence: "starter" | "emerging" | "established";
   is_published: boolean;
@@ -99,6 +100,12 @@ export default function MapDetails() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showDeleteMapDialog, setShowDeleteMapDialog] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<{ id: string; fileUrl?: string } | null>(null);
+
+  // Inline goal editing
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalDraft, setGoalDraft] = useState("");
+  const [savingGoal, setSavingGoal] = useState(false);
+  const goalInputRef = useRef<HTMLTextAreaElement>(null);
 
   // First-move highlight state
   const [firstMoveHighlighted, setFirstMoveHighlighted] = useState(false);
@@ -337,6 +344,44 @@ export default function MapDetails() {
     }
   }, [hasGitHubIntegration, user]);
 
+  // ─── Inline goal editing ──────────────────────────────────────────────────
+
+  const startEditingGoal = () => {
+    if (!map) return;
+    setGoalDraft(map.name || map.goal_statement);
+    setEditingGoal(true);
+    setTimeout(() => goalInputRef.current?.focus(), 50);
+  };
+
+  const cancelEditingGoal = () => {
+    setEditingGoal(false);
+    setGoalDraft("");
+  };
+
+  const saveMapName = async () => {
+    if (!map || !goalDraft.trim() || goalDraft.trim() === map.name) {
+      cancelEditingGoal();
+      return;
+    }
+    setSavingGoal(true);
+    try {
+      const trimmed = goalDraft.trim();
+      const { error } = await supabase
+        .from("maps")
+        .update({ name: trimmed })
+        .eq("id", map.id);
+      if (error) throw error;
+
+      setMap({ ...map, name: trimmed });
+      toast.success("Map name updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setSavingGoal(false);
+      setEditingGoal(false);
+    }
+  };
+
   // ─── Data Loading ─────────────────────────────────────────────────────────
 
   const loadMap = async () => {
@@ -345,7 +390,7 @@ export default function MapDetails() {
 
       const { data: mapData, error: mapError } = await supabase
         .from("maps")
-        .select("id, goal_statement, confidence, is_published")
+        .select("id, name, goal_statement, confidence, is_published")
         .eq("id", id)
         .maybeSingle();
 
@@ -1043,9 +1088,56 @@ export default function MapDetails() {
               </span>
             )}
           </div>
-          <h1 className="mt-3 font-display text-2xl font-semibold leading-tight md:text-3xl lg:text-[34px] tracking-tight text-foreground">
-            {map.goal_statement}
-          </h1>
+          {editingGoal ? (
+            <div className="mt-3 flex items-start gap-2">
+              <textarea
+                ref={goalInputRef}
+                value={goalDraft}
+                onChange={e => setGoalDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveMapName(); }
+                  if (e.key === "Escape") cancelEditingGoal();
+                }}
+                rows={2}
+                className="flex-1 resize-none rounded-xl border border-primary/40 bg-background/60 px-4 py-2 font-display text-2xl font-semibold leading-tight md:text-3xl lg:text-[34px] tracking-tight text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+              />
+              <div className="flex flex-col gap-1.5 pt-1">
+                <button
+                  onClick={saveMapName}
+                  disabled={savingGoal}
+                  className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  title="Save (Enter)"
+                >
+                  {savingGoal ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                </button>
+                <button
+                  onClick={cancelEditingGoal}
+                  className="flex items-center justify-center h-8 w-8 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                  title="Cancel (Esc)"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 group flex items-start gap-2">
+              <h1 className="font-display text-2xl font-semibold leading-tight md:text-3xl lg:text-[34px] tracking-tight text-foreground">
+                {map.name || map.goal_statement}
+              </h1>
+              <button
+                onClick={startEditingGoal}
+                className="mt-1 shrink-0 opacity-0 group-hover:opacity-100 flex items-center justify-center h-7 w-7 rounded-lg border border-border/50 bg-background/60 text-muted-foreground hover:text-foreground hover:border-border transition-all duration-150"
+                title="Rename map"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+          {/* Goal statement sub-field */}
+          <div className="mt-2 flex items-start gap-1.5">
+            <span className="mt-0.5 shrink-0 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">Goal</span>
+            <p className="text-sm text-muted-foreground leading-relaxed">{map.goal_statement}</p>
+          </div>
         </div>
 
         {/* Trail OR Undiagnosed State */}

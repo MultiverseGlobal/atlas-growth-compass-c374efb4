@@ -259,6 +259,7 @@ export type Database = {
         Row: {
           id: string
           user_id: string
+          name: string
           goal_statement: string
           confidence: Database["public"]["Enums"]["map_confidence"]
           is_published: boolean
@@ -268,6 +269,7 @@ export type Database = {
         Insert: {
           id?: string
           user_id: string
+          name?: string
           goal_statement: string
           confidence?: Database["public"]["Enums"]["map_confidence"]
           is_published?: boolean
@@ -277,6 +279,7 @@ export type Database = {
         Update: {
           id?: string
           user_id?: string
+          name?: string
           goal_statement?: string
           confidence?: Database["public"]["Enums"]["map_confidence"]
           is_published?: boolean

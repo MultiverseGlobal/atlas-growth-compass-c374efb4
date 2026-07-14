@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Logo } from "@/components/atlas/Logo";
@@ -14,6 +14,7 @@ type Profile = {
 
 type PublishedMap = {
   id: string;
+  name: string;
   goal_statement: string;
   confidence: "starter" | "emerging" | "established";
   updated_at: string;
@@ -46,7 +47,7 @@ function MapCard({ map }: { map: PublishedMap }) {
           </span>
         </div>
         <h3 className="font-display text-xl font-semibold leading-snug text-foreground">
-          {goal?.title ?? map.goal_statement}
+          {map.name || goal?.title || map.goal_statement}
         </h3>
         {/* Confidence bar */}
         <div className="mt-3 h-1 w-full rounded-full bg-border/60 overflow-hidden">
@@ -104,7 +105,7 @@ export default function PublicProfile() {
 
       const { data: mapsData } = await supabase
         .from("maps")
-        .select("id, goal_statement, confidence, updated_at")
+        .select("id, name, goal_statement, confidence, updated_at")
         .eq("user_id", profileUser.id)
         .eq("is_published", true)
         .order("updated_at", { ascending: false })

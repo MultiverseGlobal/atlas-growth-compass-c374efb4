@@ -7,6 +7,7 @@ import { clearStarterMap } from "@/lib/starterMap";
 
 export type MapRow = {
   id: string;
+  name: string;
   goal_statement: string;
   confidence: "starter" | "emerging" | "established";
   is_published: boolean;
@@ -24,7 +25,7 @@ export function useMaps() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("maps")
-        .select("id, goal_statement, confidence, is_published, created_at, updated_at")
+        .select("id, name, goal_statement, confidence, is_published, created_at, updated_at")
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
       if (error) throw error;
@@ -34,12 +35,13 @@ export function useMaps() {
   });
 
   const createMap = useMutation({
-    mutationFn: async (goalStatement: string) => {
+    mutationFn: async ({ name, goalStatement }: { name: string; goalStatement: string }) => {
       if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("maps")
         .insert({
           user_id: user.id,
+          name: name || goalStatement.slice(0, 80),
           goal_statement: goalStatement,
           confidence: "starter",
           is_published: false,
@@ -57,12 +59,13 @@ export function useMaps() {
   });
 
   const claimStarterMap = useMutation({
-    mutationFn: async (goalStatement: string) => {
+    mutationFn: async ({ name, goalStatement }: { name: string; goalStatement: string }) => {
       if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("maps")
         .insert({
           user_id: user.id,
+          name: name || goalStatement.slice(0, 80),
           goal_statement: goalStatement,
           confidence: "starter",
           is_published: false,

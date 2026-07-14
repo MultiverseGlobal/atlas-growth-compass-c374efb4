@@ -75,6 +75,7 @@ export function NewMapModal({ open, onClose }: NewMapModalProps) {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [goal, setGoal] = useState("");
+  const [mapName, setMapName] = useState("");
   const [operatingArea, setOperatingArea] = useState("engineering");
   const [primaryConstraint, setPrimaryConstraint] = useState("velocity");
   const [submitting, setSubmitting] = useState(false);
@@ -98,6 +99,7 @@ export function NewMapModal({ open, onClose }: NewMapModalProps) {
         .from("maps")
         .insert({
           user_id: user.id,
+          name: mapName.trim() || goal.trim().slice(0, 60),
           goal_statement: goal.trim(),
           confidence: "starter",
           is_published: false,
@@ -135,6 +137,7 @@ export function NewMapModal({ open, onClose }: NewMapModalProps) {
   const handleReset = () => {
     setStep(1);
     setGoal("");
+    setMapName("");
     setOperatingArea("engineering");
     setPrimaryConstraint("velocity");
   };
@@ -157,14 +160,30 @@ export function NewMapModal({ open, onClose }: NewMapModalProps) {
             </DialogHeader>
 
             <div className="space-y-3 pt-2">
-              <textarea
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                placeholder="e.g. Get my first 10 customers for Calrio"
-                rows={3}
-                className="w-full resize-none rounded-xl border border-border/80 bg-background/50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/60"
-                autoFocus
-              />
+              <div>
+                <label className="text-xs font-semibold text-foreground/80 mb-1.5 block">Goal statement</label>
+                <textarea
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  placeholder="e.g. Get my first 10 customers for Calrio"
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-border/80 bg-background/50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/60"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-foreground/80 mb-1.5 block">
+                  Map name <span className="font-normal text-muted-foreground">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={mapName}
+                  onChange={(e) => setMapName(e.target.value)}
+                  placeholder={goal.trim() ? goal.trim().slice(0, 40) + (goal.trim().length > 40 ? "…" : "") : "e.g. Q3 Sprint"}
+                  className="w-full rounded-xl border border-border/80 bg-background/50 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/40"
+                />
+                <p className="mt-1 text-[10px] text-muted-foreground/60">A short label for this map. Defaults to your goal if left blank.</p>
+              </div>
 
               <div className="space-y-1.5">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60">Examples:</div>

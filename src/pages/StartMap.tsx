@@ -99,6 +99,7 @@ export default function StartMap() {
 
   // Step 2 — Goal
   const [goal, setGoal] = useState("");
+  const [mapName, setMapName] = useState("");
   const [selectedExample, setSelectedExample] = useState<string | null>(null);
   const { example, visible } = useTypingExample(GOAL_EXAMPLES);
 
@@ -140,6 +141,7 @@ export default function StartMap() {
       const setup = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        mapName: mapName.trim(),
         goal: goal.trim(),
         goalCategory: category,
         integrationIntents: selectedIntegrations,
@@ -270,6 +272,21 @@ export default function StartMap() {
                   transition: "opacity 300ms ease",
                 }}
               />
+
+              {/* Map name */}
+              <div className="mt-4">
+                <label className="text-sm font-medium text-foreground mb-1.5 block">
+                  Map name <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={mapName}
+                  onChange={(e) => setMapName(e.target.value)}
+                  placeholder={goal.trim() ? goal.trim().slice(0, 40) + (goal.trim().length > 40 ? "…" : "") : "e.g. Q3 Sprint, Fundraising Run…"}
+                  className="w-full rounded-[12px] border border-border bg-card px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-primary focus:ring-4 focus:ring-primary/15 placeholder:text-muted-foreground/50"
+                />
+                <p className="mt-1 text-xs text-muted-foreground/60">A short label for this map. Defaults to your goal if left blank.</p>
+              </div>
 
               {/* Example chips */}
               <div className="mt-4 flex flex-wrap gap-2">

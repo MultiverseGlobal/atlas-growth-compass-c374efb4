@@ -22,7 +22,7 @@ type Waypoint = {
 };
 
 type ReportData = {
-  map: { id: string; goal_statement: string; confidence: string; updated_at: string };
+  map: { id: string; name: string; goal_statement: string; confidence: string; updated_at: string };
   waypoints: Waypoint[];
   source: string | null;
   signalCount: number;
@@ -72,7 +72,7 @@ export default function Reports() {
         { data: sourceData },
         { data: signalsData },
       ] = await Promise.all([
-        supabase.from("maps").select("id, goal_statement, confidence, updated_at").eq("id", mapId).maybeSingle(),
+        supabase.from("maps").select("id, name, goal_statement, confidence, updated_at").eq("id", mapId).maybeSingle(),
         supabase.from("waypoints").select("id, kind, title, confidence, metadata").eq("map_id", mapId).order("position", { ascending: true }),
         supabase.from("sources").select("label").eq("map_id", mapId).eq("provider", "github").maybeSingle(),
         supabase.from("signals").select("id").eq("map_id", mapId),
@@ -124,7 +124,7 @@ export default function Reports() {
               <SelectContent>
                 {maps.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
-                    <span className="truncate max-w-[220px] block">{m.goal_statement}</span>
+                    <span className="truncate max-w-[220px] block">{m.name || m.goal_statement}</span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -258,7 +258,10 @@ function ConstraintSummary({
         <div className="bg-primary/8 border-b border-border px-6 py-5 flex items-start justify-between gap-4">
           <div>
             <div className="eyebrow text-primary mb-2">Constraint Summary</div>
-            <p className="font-display text-xl font-semibold leading-snug max-w-lg">{report.map.goal_statement}</p>
+            <p className="font-display text-xl font-semibold leading-snug max-w-lg">{report.map.name || report.map.goal_statement}</p>
+            {report.map.name && (
+              <p className="mt-1 text-xs text-muted-foreground">{report.map.goal_statement}</p>
+            )}
           </div>
           <div className="text-right shrink-0">
             <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Generated</div>

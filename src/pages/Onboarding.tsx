@@ -199,6 +199,7 @@ function generateStarterWaypoints(
 type AtlasSetup = {
   firstName: string;
   lastName: string;
+  mapName?: string;
   goal: string;
   goalCategory: string;
   integrationIntents: string[];
@@ -471,6 +472,7 @@ export default function Onboarding() {
         .from("maps")
         .insert({
           user_id: user.id,
+          name: wizardSetup?.mapName?.trim() || finalGoal.slice(0, 80),
           goal_statement: finalGoal,
           confidence: "starter",
           is_published: false,

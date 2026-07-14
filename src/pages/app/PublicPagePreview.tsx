@@ -14,6 +14,7 @@ type Profile = {
 
 type MapItem = {
   id: string;
+  name: string;
   goal_statement: string;
   confidence: string;
   is_published: boolean;
@@ -49,7 +50,7 @@ export default function PublicPagePreview() {
       // Load all maps
       const { data: mapsData } = await supabase
         .from("maps")
-        .select("id, goal_statement, confidence, is_published")
+        .select("id, name, goal_statement, confidence, is_published")
         .eq("user_id", user?.id)
         .order("updated_at", { ascending: false });
 
@@ -238,7 +239,7 @@ export default function PublicPagePreview() {
                     </span>
                   </div>
                   <p className="mt-1 text-sm font-medium leading-snug truncate">
-                    {m.goal_statement}
+                    {m.name || m.goal_statement}
                   </p>
                 </div>
 

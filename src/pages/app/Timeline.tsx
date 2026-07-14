@@ -11,7 +11,7 @@ type SignalRow = {
   score: number | null;
   occurred_at: string;
   payload: Record<string, any> | null;
-  maps: { goal_statement: string; id: string } | null;
+  maps: { name: string; goal_statement: string; id: string } | null;
 };
 
 type WaypointRow = {
@@ -20,7 +20,7 @@ type WaypointRow = {
   title: string;
   confidence: string;
   created_at: string;
-  maps: { goal_statement: string; id: string } | null;
+  maps: { name: string; goal_statement: string; id: string } | null;
 };
 
 type FeedItem =
@@ -49,7 +49,7 @@ function SignalItem({ data }: { data: SignalRow }) {
       </p>
       {data.maps && (
         <Link to={`/app/map/${data.maps.id}`} className="mt-0.5 inline-block text-xs text-muted-foreground hover:text-primary transition-colors">
-          ↳ {data.maps.goal_statement.slice(0, 60)}{data.maps.goal_statement.length > 60 ? "…" : ""}
+          {(() => { const label = data.maps.name || data.maps.goal_statement; return `↳ ${label.slice(0, 60)}${label.length > 60 ? "…" : ""}`; })()}
         </Link>
       )}
     </div>
@@ -70,7 +70,7 @@ function DiagnosisItem({ data }: { data: WaypointRow }) {
       <p className="mt-1 text-sm font-medium text-foreground/90">{data.title}</p>
       {data.maps && (
         <Link to={`/app/map/${data.maps.id}`} className="mt-0.5 inline-block text-xs text-muted-foreground hover:text-primary transition-colors">
-          ↳ {data.maps.goal_statement.slice(0, 60)}{data.maps.goal_statement.length > 60 ? "…" : ""}
+          {(() => { const label = data.maps.name || data.maps.goal_statement; return `↳ ${label.slice(0, 60)}${label.length > 60 ? "…" : ""}`; })()}
         </Link>
       )}
     </div>
@@ -88,13 +88,13 @@ export default function Timeline() {
       const [signalsRes, waypointsRes] = await Promise.all([
         supabase
           .from("signals")
-          .select("id, title, score, occurred_at, payload, maps(id, goal_statement)")
+          .select("id, title, score, occurred_at, payload, maps(id, name, goal_statement)")
           .eq("user_id", user.id)
           .order("occurred_at", { ascending: false })
           .limit(60),
         supabase
           .from("waypoints")
-          .select("id, kind, title, confidence, created_at, maps(id, goal_statement)")
+          .select("id, kind, title, confidence, created_at, maps(id, name, goal_statement)")
           .eq("user_id", user.id)
           .eq("kind", "constraint")
           .order("created_at", { ascending: false })
