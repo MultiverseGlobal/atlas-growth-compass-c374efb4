@@ -61,6 +61,21 @@ export default function AuthCallback() {
         }
       }
 
+      // Check if we already have a valid session (identity link flow)
+      const { data: existingSession } = await supabase.auth.getSession();
+      if (existingSession?.session) {
+        // Already logged in, just redirect back
+        const savedNext = sessionStorage.getItem("atlas.auth.next");
+        sessionStorage.removeItem("atlas.auth.next");
+        if (savedNext) {
+          nav(savedNext, { replace: true });
+          return;
+        }
+        const path = await resolvePostAuthPath(existingSession.session.user.id);
+        nav(path, { replace: true });
+        return;
+      }
+
       // exchangeCodeForSession handles both PKCE (?code=) and implicit (#access_token=) flows.
       const { data, error } = await supabase.auth.exchangeCodeForSession(
         window.location.href
