@@ -324,6 +324,12 @@ export default function MapDetails() {
     checkGitHub();
   }, [id, user]);
 
+  useEffect(() => {
+    if (hasGitHubIntegration && user) {
+      loadRepoList();
+    }
+  }, [hasGitHubIntegration, user]);
+
   // ─── Data Loading ─────────────────────────────────────────────────────────
 
   const loadMap = async () => {
@@ -640,12 +646,21 @@ export default function MapDetails() {
   };
 
   const handleLinkRepo = async (repo: string) => {
-    if (!repo || !user || !map) return;
+    if (!user || !map) return;
     setSelectedRepo(repo);
-    await supabase.from("sources").delete().eq("map_id", id);
-    await supabase.from("sources").insert({ map_id: id, user_id: user.id, provider: "github", label: repo });
-    await fullSync(repo, map.goal_statement, note);
-    toast.success("Repository linked");
+    await supabase.from("sources").delete().eq("map_id", id).eq("provider", "github");
+    
+    if (repo) {
+      await supabase.from("sources").insert({ map_id: id, user_id: user.id, provider: "github", label: repo });
+      await fullSync(repo, map.goal_statement, manualNotesList[0]?.payload?.note || "");
+      toast.success("Repository linked");
+    } else {
+      await supabase.from("waypoints").delete().eq("map_id", id).is("completed_at", null);
+      setWaypoints([
+        { kind: "goal", title: map.goal_statement, confidence: "starter" },
+      ]);
+      toast.success("Repository disconnected");
+    }
   };
 
   // ─── Manual Note & Attachments Log ─────────────────────────────────────────
@@ -925,9 +940,19 @@ export default function MapDetails() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {selectedRepo && (
-              <span className="flex items-center gap-1 rounded-md border border-border/60 bg-card px-2.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                <Github className="h-3 w-3" /> {selectedRepo}
-              </span>
+              <div className="flex items-center gap-1.5 animate-in fade-in duration-200">
+                <span className="flex items-center gap-1 rounded-md border border-border/60 bg-card px-2.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  <Github className="h-3 w-3" /> {selectedRepo}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleLinkRepo("")}
+                  className="font-mono text-[10px] text-muted-foreground hover:text-foreground underline select-none"
+                  title="Disconnect repository"
+                >
+                  change
+                </button>
+              </div>
             )}
             {isBusy && (
               <span className="font-mono text-[10px] text-muted-foreground animate-pulse">
@@ -982,6 +1007,9 @@ export default function MapDetails() {
               syncing={syncing}
               hasNotes={manualNotesList.length > 0}
               diagnosisError={diagnosisError}
+              repos={repos}
+              selectedRepo={selectedRepo}
+              onLinkRepo={handleLinkRepo}
               onDiagnose={() => fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
               onConnectSource={handleReconnectGitHub}
               onConnectNotion={connectNotion}
@@ -1276,6 +1304,9 @@ function UndiagnosedState({
   syncing,
   hasNotes,
   diagnosisError,
+  repos,
+  selectedRepo,
+  onLinkRepo,
   onDiagnose,
   onConnectSource,
   onConnectNotion,
@@ -1292,6 +1323,9 @@ function UndiagnosedState({
   syncing: boolean;
   hasNotes?: boolean;
   diagnosisError?: string | null;
+  repos: GitHubRepo[];
+  selectedRepo: string;
+  onLinkRepo: (repo: string) => void;
   onDiagnose: () => void;
   onConnectSource: () => void;
   onConnectNotion?: () => void;
@@ -1302,6 +1336,7 @@ function UndiagnosedState({
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [hoveredSource, setHoveredSource] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState("");
+  const [repoSelect, setRepoSelect] = useState("");
   const [noteInput, setNoteInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -1618,6 +1653,63 @@ function UndiagnosedState({
                   )}
                 </div>
               ) : null}
+            </div>
+          )}
+
+          {/* GitHub Repository Selector (if GitHub connected) */}
+          {hasGitHub && (
+            <div className="space-y-3 pt-3 border-t border-border/40 animate-in fade-in duration-200">
+              <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/80 font-semibold block">
+                Active GitHub Repository
+              </label>
+              {hasRepo ? (
+                <div className="flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Github className="h-4 w-4 text-foreground/80" />
+                    <span className="font-mono text-xs font-medium text-foreground">{selectedRepo}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onLinkRepo("")}
+                    className="text-[10px] font-mono text-muted-foreground hover:text-foreground underline select-none"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Select a repository to monitor commit velocity and issue signals.
+                  </p>
+                  <div className="flex gap-2">
+                    <select
+                      value={repoSelect}
+                      onChange={(e) => setRepoSelect(e.target.value)}
+                      className="flex-1 h-9 rounded-lg border border-border bg-background px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary font-mono text-foreground"
+                    >
+                      <option value="">-- Select Repository --</option>
+                      {repos.map((r) => (
+                        <option key={r.id} value={r.full_name}>
+                          {r.full_name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      onClick={() => onLinkRepo(repoSelect)}
+                      disabled={!repoSelect || submitting}
+                      className="h-9 px-4 text-[11px] font-mono"
+                    >
+                      Link
+                    </Button>
+                  </div>
+                  {repos.length === 0 && (
+                    <p className="text-[10px] text-muted-foreground/60 italic">
+                      No repositories found. Ensure your GitHub account has public and private repo permissions.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
