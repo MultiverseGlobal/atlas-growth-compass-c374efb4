@@ -272,7 +272,7 @@ export default function MapDetails() {
   const [isAttachmentLogOpen, setIsAttachmentLogOpen] = useState(false);
 
   // Reactively sync GitHub integration status from global integrations query
-  const { data: liveIntegrations = [] } = useIntegrations();
+  const { data: liveIntegrations = [], connectNotion, connectSlack } = useIntegrations();
   const liveGitHubConnected = liveIntegrations.some(i => i.provider === "github" && i.status === "active");
 
   useEffect(() => {
@@ -961,11 +961,11 @@ export default function MapDetails() {
               hasNotes={manualNotesList.length > 0}
               onDiagnose={() => fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
               onConnectSource={handleReconnectGitHub}
+              onConnectNotion={connectNotion}
+              onConnectSlack={connectSlack}
               onConnectToken={async (provider, token) => {
                 const rpcMap: Record<string, string> = {
                   stripe: "upsert_stripe_token",
-                  notion: "upsert_notion_token",
-                  slack: "upsert_slack_token",
                 };
                 const rpc = rpcMap[provider];
                 if (!rpc) return;
@@ -1254,6 +1254,8 @@ function UndiagnosedState({
   hasNotes,
   onDiagnose,
   onConnectSource,
+  onConnectNotion,
+  onConnectSlack,
   onConnectToken,
   onSaveNote,
 }: {
@@ -1267,6 +1269,8 @@ function UndiagnosedState({
   hasNotes?: boolean;
   onDiagnose: () => void;
   onConnectSource: () => void;
+  onConnectNotion?: () => void;
+  onConnectSlack?: () => void;
   onConnectToken?: (provider: string, token: string) => Promise<void>;
   onSaveNote?: (text: string, file: File | null) => Promise<void>;
 }) {
@@ -1310,9 +1314,7 @@ function UndiagnosedState({
         </svg>
       ),
       tagline: "Sync internal workspace updates, wiki pages, and tasks.",
-      type: "token",
-      placeholder: "secret_...",
-      rpc: "upsert_notion_token"
+      type: "oauth"
     },
     {
       id: "slack",
@@ -1324,9 +1326,7 @@ function UndiagnosedState({
         </svg>
       ),
       tagline: "Sync communication velocity and channel activity.",
-      type: "token",
-      placeholder: "xoxb-...",
-      rpc: "upsert_slack_token"
+      type: "oauth"
     }
   ];
 
@@ -1549,11 +1549,13 @@ function UndiagnosedState({
                       size="sm"
                       className="w-full h-9 text-xs font-mono gap-1.5"
                       onClick={() => {
-                        onConnectSource();
+                        if (selectedSource.id === "notion") onConnectNotion?.();
+                        else if (selectedSource.id === "slack") onConnectSlack?.();
+                        else onConnectSource();
                         setActiveDropdown(null);
                       }}
                     >
-                      <Plug className="h-3.5 w-3.5" /> Link {selectedSource.name} account
+                      <Plug className="h-3.5 w-3.5" /> Connect with {selectedSource.name}
                     </Button>
                   ) : (
                     <div className="space-y-2.5">
