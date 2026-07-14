@@ -24,13 +24,9 @@ export function useIntegrations() {
       // Check if user has GitHub identity linked
       const githubIdentity = user.identities?.find((i) => i.provider === "github");
       if (githubIdentity) {
-        // Persist the provider_token now — it's only available in the live session.
-        // We use a security-definer RPC so the token is stored server-side without
-        // exposing it to other authenticated reads.
         const { data: sessionData } = await supabase.auth.getSession();
         const providerToken = sessionData.session?.provider_token;
-        if (providerToken) {
-          // Fire-and-forget — don't block the UI on this
+        if (providerToken && sessionData.session?.user?.app_metadata?.provider === "github") {
           (supabase as any).rpc("upsert_github_token", {
             p_token: providerToken,
             p_scopes: "read:user repo",
@@ -40,7 +36,6 @@ export function useIntegrations() {
           });
         }
 
-        // Ensure the integrations row exists (without the token column, just the label)
         const { data: existing } = await supabase
           .from("integrations")
           .select("id")
@@ -60,6 +55,39 @@ export function useIntegrations() {
         }
       }
 
+      // Check if user has Notion identity linked
+      const notionIdentity = user.identities?.find((i) => i.provider === "notion");
+      if (notionIdentity) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const providerToken = sessionData.session?.provider_token;
+        
+        if (providerToken && sessionData.session?.user?.app_metadata?.provider === "notion") {
+          (supabase as any).rpc("upsert_notion_token", {
+            p_token: providerToken,
+          }).catch((err: any) => {
+            console.warn("[integrations] upsert_notion_token failed:", err.message);
+          });
+        }
+
+        const { data: existing } = await supabase
+          .from("integrations")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("provider", "notion")
+          .maybeSingle();
+
+        if (!existing) {
+          const label = user.user_metadata?.user_name || user.user_metadata?.full_name || "Connected Notion";
+          await supabase.from("integrations").insert({
+            user_id: user.id,
+            provider: "notion",
+            status: "active",
+            external_account_label: label,
+            external_account_id: notionIdentity.id,
+          });
+        }
+      }
+
       const { data, error } = await supabase
         .from("integrations")
         .select("id, provider, status, external_account_label, last_sync_at")
@@ -72,10 +100,6 @@ export function useIntegrations() {
 
   const connectGitHub = async (redirectPath?: string) => {
     const destination = redirectPath ?? "/app/integrations";
-    // Store destination BEFORE triggering the OAuth flow.
-    // The redirectTo must be a clean, whitelisted URL — Supabase rejects URLs with
-    // query params that aren't explicitly listed. We pass ONLY /auth/callback and
-    // recover the target from sessionStorage in AuthCallback.
     const callbackUrl = `${window.location.origin}/auth/callback`;
     try {
       sessionStorage.setItem("atlas.auth.next", destination);
@@ -83,7 +107,6 @@ export function useIntegrations() {
       console.warn("[integrations] failed to set sessionStorage", e);
     }
     try {
-      // Try linkIdentity first (requires "Enable Manual Linking" in Supabase dashboard).
       const { error } = await supabase.auth.linkIdentity({
         provider: "github",
         options: {
@@ -92,13 +115,39 @@ export function useIntegrations() {
           queryParams: { prompt: "consent" },
         },
       });
-      // Fall back to full OAuth re-auth if linkIdentity is unavailable/fails.
       if (error) {
-        // Re-save destination before the new OAuth flow (linkIdentity may have cleared browser state)
         try { sessionStorage.setItem("atlas.auth.next", destination); } catch {}
         const { error: oauthErr } = await supabase.auth.signInWithOAuth({
           provider: "github",
           options: { scopes: "read:user repo", redirectTo: callbackUrl },
+        });
+        if (oauthErr) throw oauthErr;
+      }
+    } catch (err: unknown) {
+      toast.error(friendlyError(err));
+    }
+  };
+
+  const connectNotion = async (redirectPath?: string) => {
+    const destination = redirectPath ?? "/app/integrations";
+    const callbackUrl = `${window.location.origin}/auth/callback`;
+    try {
+      sessionStorage.setItem("atlas.auth.next", destination);
+    } catch (e) {
+      console.warn("[integrations] failed to set sessionStorage", e);
+    }
+    try {
+      const { error } = await supabase.auth.linkIdentity({
+        provider: "notion",
+        options: {
+          redirectTo: callbackUrl,
+        },
+      });
+      if (error) {
+        try { sessionStorage.setItem("atlas.auth.next", destination); } catch {}
+        const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+          provider: "notion",
+          options: { redirectTo: callbackUrl },
         });
         if (oauthErr) throw oauthErr;
       }
@@ -122,5 +171,5 @@ export function useIntegrations() {
     onError: (err: Error) => toast.error(friendlyError(err)),
   });
 
-  return { ...query, connectGitHub, disconnect };
+  return { ...query, connectGitHub, connectNotion, disconnect };
 }

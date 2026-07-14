@@ -101,7 +101,7 @@ const TOKEN_RPC_MAP: Record<string, string> = {
 
 export default function Integrations() {
   const { user } = useAuth();
-  const { data: integrations = [], isLoading, connectGitHub, disconnect } = useIntegrations();
+  const { data: integrations = [], isLoading, connectGitHub, connectNotion, disconnect } = useIntegrations();
   const { data: maps = [] } = useMaps();
   const qc = useQueryClient();
 
@@ -149,7 +149,10 @@ export default function Integrations() {
               connectedLabel={connected?.external_account_label ?? undefined}
               loading={isLoading}
               isRecommended={recommended.includes(connector.id) && ["github", "stripe"].includes(connector.id)}
-              onConnect={connector.id === "github" ? connectGitHub : undefined}
+              onConnect={
+                connector.id === "github" ? connectGitHub :
+                connector.id === "notion" ? connectNotion : undefined
+              }
               onConnectToken={TOKEN_RPC_MAP[connector.id] ? (key) => handleConnectToken(connector.id, key) : undefined}
               onDisconnect={
                 connected
@@ -275,20 +278,31 @@ function ConnectorCard({
             Disconnect
           </Button>
         ) : !showKeyInput ? (
-          <Button
-            size="sm"
-            className="w-full"
-            onClick={() => {
-              if (isTokenBased) {
-                setShowKeyInput(true);
-              } else {
-                onConnect?.();
-              }
-            }}
-            disabled={loading}
-          >
-            Connect
-          </Button>
+          <div className="space-y-2">
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                if (onConnect) {
+                  onConnect();
+                } else if (isTokenBased) {
+                  setShowKeyInput(true);
+                }
+              }}
+              disabled={loading}
+            >
+              Connect
+            </Button>
+            {onConnect && isTokenBased && (
+              <button
+                type="button"
+                onClick={() => setShowKeyInput(true)}
+                className="w-full text-center text-[10px] font-mono text-muted-foreground/60 hover:text-foreground transition-colors underline decoration-dotted"
+              >
+                Or connect manually with token
+              </button>
+            )}
+          </div>
         ) : null
       )}
     </div>
