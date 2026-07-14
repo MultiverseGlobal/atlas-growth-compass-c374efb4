@@ -276,7 +276,7 @@ export default function MapDetails() {
   const [isAttachmentLogOpen, setIsAttachmentLogOpen] = useState(false);
 
   // Reactively sync GitHub integration status from global integrations query
-  const { data: liveIntegrations = [], connectNotion, connectSlack } = useIntegrations();
+  const { data: liveIntegrations = [], connectNotion, connectSlack, connectGitHub } = useIntegrations();
   const liveGitHubConnected = liveIntegrations.some(i => i.provider === "github" && i.status === "active");
 
   useEffect(() => {
@@ -453,13 +453,30 @@ export default function MapDetails() {
       const { data, error } = await supabase.functions.invoke("sync-github", {
         body: { action: "list_repos", github_token: token || undefined },
       });
-      if (!error && data?.repos) {
+      
+      if (error) {
+        console.error("[loadRepoList] Edge Function invoke error:", error);
+        toast.error("Failed to fetch repositories: " + (error.message || "Network error"));
+        setGitHubSessionExpired(true);
+        return;
+      }
+
+      if (data?.error) {
+        console.error("[loadRepoList] Edge Function returned error:", data.error);
+        toast.error("GitHub integration error: " + data.error);
+        setGitHubSessionExpired(true);
+        return;
+      }
+
+      if (data?.repos) {
         setRepos(data.repos);
         setGitHubSessionExpired(false);
       } else {
         setGitHubSessionExpired(true);
       }
-    } catch {
+    } catch (e: any) {
+      console.error("[loadRepoList] catch error:", e);
+      toast.error("Error loading repositories: " + (e.message || "Unknown error"));
       setGitHubSessionExpired(true);
     }
   };
@@ -794,14 +811,7 @@ export default function MapDetails() {
   };
 
   const handleReconnectGitHub = () => {
-    supabase.auth.linkIdentity({
-      provider: "github",
-      options: {
-        scopes: "read:user repo",
-        redirectTo: window.location.href,
-        queryParams: { prompt: "consent" },
-      },
-    });
+    connectGitHub(window.location.pathname);
   };
 
   // ─── Feedback ─────────────────────────────────────────────────────────────
