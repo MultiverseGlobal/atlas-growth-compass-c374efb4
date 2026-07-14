@@ -587,16 +587,39 @@ export default function MapDetails() {
           throw new Error(fnError.message || "Diagnosis failed");
         }
 
-        const llm = fnData as { constraint: string; evidence: string; move: string; confidence: string; evidence_sources?: Array<{ source: string; detail: string }> };
+        const llm = fnData as {
+          constraint: string;
+          evidence: string;
+          move: string;
+          confidence: string;
+          evidence_sources?: Array<{ source: string; detail: string }>;
+          trajectory_summary?: string;
+          metrics?: Array<{ metric: string; current: string; target: string; gap_analysis: string }>;
+          alternative_paths?: Array<{ name: string; description: string; workload: string }>;
+        };
         const conf = (["emerging", "building", "established"].includes(llm.confidence)
           ? llm.confidence : "emerging") as "emerging" | "established";
 
         result = {
           waypoints: [
             { kind: "goal", title: mapGoal, confidence: conf },
-            { kind: "constraint", title: llm.constraint, confidence: conf },
+            {
+              kind: "constraint",
+              title: llm.constraint,
+              confidence: conf,
+              metadata: {
+                trajectory_summary: llm.trajectory_summary || null,
+                metrics: llm.metrics || [],
+                alternative_paths: llm.alternative_paths || [],
+              }
+            },
             { kind: "evidence", title: llm.evidence, confidence: conf },
-            { kind: "move", title: llm.move, confidence: "established", metadata: llm.evidence_sources ? { evidence: llm.evidence_sources } : undefined },
+            {
+              kind: "move",
+              title: llm.move,
+              confidence: "established",
+              metadata: llm.evidence_sources ? { evidence: llm.evidence_sources } : undefined
+            },
           ],
         };
         source = (llm.evidence_sources && llm.evidence_sources.length > 0) ? "llm" : "context-only";
@@ -983,6 +1006,37 @@ export default function MapDetails() {
                 </button>
               </div>
             )}
+            {liveIntegrations.map((integration) => {
+              if (integration.status !== "active") return null;
+              if (integration.provider === "github") return null;
+              
+              const providerLabels: Record<string, string> = {
+                notion: "Notion",
+                stripe: "Stripe",
+                slack: "Slack",
+                google: "Google Workspace",
+              };
+              
+              return (
+                <span key={integration.id} className="flex items-center gap-1 rounded-md border border-border/60 bg-card px-2.5 py-0.5 font-mono text-[10px] text-muted-foreground animate-in fade-in duration-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  {providerLabels[integration.provider] || integration.provider}
+                </span>
+              );
+            })}
+
+            {!isUndiagnosed && !isBusy && (
+              <button
+                type="button"
+                onClick={() => map && fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
+                className="flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-0.5 font-mono text-[10px] text-primary hover:bg-primary/10 transition-colors"
+                title="Sync integrations and re-run diagnosis"
+              >
+                <RefreshCw className="h-2.5 w-2.5 animate-hover-spin" />
+                <span>Sync & Diagnose</span>
+              </button>
+            )}
+
             {isBusy && (
               <span className="font-mono text-[10px] text-muted-foreground animate-pulse">
                 {diagnosing ? "Atlas is reading your signals…" : "Syncing…"}

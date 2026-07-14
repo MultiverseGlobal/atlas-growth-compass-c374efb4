@@ -246,8 +246,73 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                   <h3 className="font-display text-2xl md:text-[26px] leading-snug text-foreground">
                     {w.title}
                   </h3>
-                  {descriptionText && isExpanded && (
-                    <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground page-fade">{descriptionText}</p>
+                  {isExpanded && (
+                    <div className="mt-4 space-y-5 border-t border-destructive/15 pt-4 text-left page-fade">
+                      {/* Description */}
+                      {descriptionText && (
+                        <p className="text-[14px] leading-relaxed text-muted-foreground">{descriptionText}</p>
+                      )}
+
+                      {/* Trajectory Summary (brutal strategic audit) */}
+                      {w.metadata?.trajectory_summary && (
+                        <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3.5">
+                          <div className="text-[10px] font-mono uppercase tracking-wider text-destructive font-bold mb-1">Atlas Diagnostic Audit</div>
+                          <p className="text-xs leading-relaxed text-foreground/90 font-display italic">
+                            "{w.metadata.trajectory_summary}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Metrics Table */}
+                      {w.metadata?.metrics && Array.isArray(w.metadata.metrics) && w.metadata.metrics.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/75">Quantified Goal Gap Analysis</div>
+                          <div className="overflow-hidden rounded-lg border border-border bg-card/60">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="border-b border-border bg-muted/40 font-mono text-[10px] text-muted-foreground">
+                                  <th className="p-2 font-medium">Metric</th>
+                                  <th className="p-2 font-medium">Current</th>
+                                  <th className="p-2 font-medium">Target</th>
+                                  <th className="p-2 font-medium">Deficit / Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/60">
+                                {w.metadata.metrics.map((m: any, idx: number) => (
+                                  <tr key={idx} className="hover:bg-muted/10 transition-colors">
+                                    <td className="p-2 font-semibold text-foreground/90">{m.metric}</td>
+                                    <td className="p-2 font-mono text-muted-foreground">{m.current}</td>
+                                    <td className="p-2 font-mono text-primary font-semibold">{m.target}</td>
+                                    <td className="p-2 text-foreground/80">{m.gap_analysis}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Alternative Paths */}
+                      {w.metadata?.alternative_paths && Array.isArray(w.metadata.alternative_paths) && w.metadata.alternative_paths.length > 0 && (
+                        <div className="space-y-2.5">
+                          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/75">Strategic Alternatives (v1 Paths)</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {w.metadata.alternative_paths.map((p: any, idx: number) => (
+                              <div key={idx} className="rounded-lg border border-border bg-card/30 p-3 hover:border-primary/20 transition-all flex flex-col justify-between">
+                                <div>
+                                  <div className="font-display font-semibold text-foreground text-xs mb-1">{p.name}</div>
+                                  <p className="text-[11px] text-muted-foreground leading-relaxed">{p.description}</p>
+                                </div>
+                                <div className="mt-2.5 pt-2 border-t border-border/40 flex justify-between items-center text-[9px] font-mono uppercase text-primary/80 tracking-wider">
+                                  <span>Load</span>
+                                  <span className="font-semibold">{p.workload}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                   {onFeedback && (
                     <button
