@@ -59,7 +59,8 @@ function buildUserPrompt(
   flags: DiagnosticFlag[],
   manualNotes?: string,
   recentFeedbackNotes?: string[],
-  statedContext?: string
+  statedContext?: string,
+  completedMoves?: string[]
 ): string {
   const flagLines = flags.length > 0
     ? flags.map(f => `- [${f.severity.toUpperCase()}] ${f.flag}: ${f.reason}`).join("\n")
@@ -77,10 +78,14 @@ function buildUserPrompt(
     ? `\nUser's previously stated context (from onboarding — treat as foundational background):\n${statedContext.trim()}`
     : "";
 
+  const completedMovesSection = completedMoves && completedMoves.length > 0
+    ? `\nCompleted Next Moves (DO NOT repeat these actions under any circumstances as the user has already successfully accomplished them):\n${completedMoves.map(m => `- ${m}`).join("\n")}`
+    : "";
+
   return `Founder's stated goal: "${goalStatement}"
 
 Deterministic signals from connected tools:
-${flagLines}${statedContextSection}${notesSection}${feedbackSection}
+${flagLines}${statedContextSection}${notesSection}${feedbackSection}${completedMovesSection}
 
 Based on the founder's goal, these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress right now. If no live signals are available, reason from the stated goal and context to infer the most likely constraint. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
 }
@@ -197,10 +202,11 @@ async function route(
   manualNotes?: string,
   provider?: string,
   recentFeedbackNotes?: string[],
-  statedContext?: string
+  statedContext?: string,
+  completedMoves?: string[]
 ): Promise<DiagnoseResponse> {
   const system = buildSystemPrompt();
-  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext);
+  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext, completedMoves);
 
   const selectedProvider = provider ?? "openai";
   const chain: Array<() => Promise<DiagnoseResponse>> = [];
@@ -328,15 +334,21 @@ Deno.serve(async (req: Request) => {
     // 3. Fetch existing waypoints for this map to use as stated context
     const { data: existingWaypoints } = await userClient
       .from("waypoints")
-      .select("kind, title, confidence")
+      .select("kind, title, confidence, completed_at")
       .eq("map_id", body.map_id)
       .order("position", { ascending: true });
 
     let statedContext = "";
+    const completedMoves: string[] = [];
     if (existingWaypoints && existingWaypoints.length > 0) {
       const contextLines = existingWaypoints
         .filter(w => w.kind !== "goal") // goal is already in the prompt
-        .map(w => `- ${w.kind}: ${w.title}`)
+        .map(w => {
+          if (w.kind === "move" && w.completed_at) {
+            completedMoves.push(w.title);
+          }
+          return `- ${w.kind}${w.completed_at ? " (Completed)" : ""}: ${w.title}`;
+        })
         .join("\n");
       if (contextLines) {
         statedContext = contextLines;
@@ -502,7 +514,7 @@ Deno.serve(async (req: Request) => {
     const manualNotes = body.manual_notes ?? dbManualNote;
 
     // 8. Call the LLM chain
-    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes, statedContext);
+    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes, statedContext, completedMoves);
 
     // If route() returned a Response (no_llm_key case), pass it through
     if (result instanceof Response) return result;

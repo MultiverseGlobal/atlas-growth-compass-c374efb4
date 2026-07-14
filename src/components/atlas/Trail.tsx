@@ -225,6 +225,9 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                 {kind === "constraint" && (
                   <div className="absolute left-[-2px] top-[-2px] h-[26px] w-[26px] pointer-events-none rounded-full border border-destructive/60 sonar-ring" />
                 )}
+                {kind === "move" && (
+                  <div className="absolute left-[-2px] top-[-2px] h-[26px] w-[26px] pointer-events-none rounded-full border border-primary/60 sonar-ring" />
+                )}
                 <Pin kind={kind} confidence={confidence} />
               </div>
 

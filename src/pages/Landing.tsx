@@ -163,7 +163,7 @@ export default function Landing() {
                 See how it works
               </a>
             </div>
-            <p style={{ marginTop: 12, fontSize: 13, color: "#bbb", fontWeight: 500 }}>One sentence. No credit card.</p>
+            <p style={{ marginTop: 12, fontSize: 13, color: "#bbb", fontWeight: 500 }}>One sentence. No credit card. Your first move in minutes.</p>
           </Reveal>
 
           {/* Hero card */}

@@ -194,10 +194,34 @@ function generateStarterWaypoints(
   ];
 }
 
+// ── Atlas Setup type (from StartMap wizard) ─────────────────────────────────
+type AtlasSetup = {
+  firstName: string;
+  lastName: string;
+  goal: string;
+  goalCategory: string;
+  integrationIntents: string[];
+};
+
+function readAtlasSetup(): AtlasSetup | null {
+  try {
+    const raw = sessionStorage.getItem("atlas.setup");
+    if (!raw) return null;
+    return JSON.parse(raw) as AtlasSetup;
+  } catch {
+    return null;
+  }
+}
+
 export default function Onboarding() {
   const { user, loading } = useAuth();
   const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Detect if user came through the StartMap wizard ──────────────────────
+  const [wizardSetup] = useState<AtlasSetup | null>(() => readAtlasSetup());
+  const [autoCompleting, setAutoCompleting] = useState(false);
+  const [autoCompleteMapId, setAutoCompleteMapId] = useState<string | null>(null);
 
   const getInitialStep = () => {
     const urlStep = searchParams.get("step");
@@ -226,11 +250,19 @@ export default function Onboarding() {
   const [selectedSources, setSelectedSources] = useState<string[]>(["github"]);
   const [saving, setSaving] = useState(false);
 
-  // Guided context states
+  // Guided context states — pre-filled from wizard if available
   const starterMap = loadStarterMap();
-  const [goal, setGoal] = useState(starterMap?.goalStatement ?? "");
-  const [operatingArea, setOperatingArea] = useState("engineering");
-  const [primaryConstraint, setPrimaryConstraint] = useState("velocity");
+  const [goal, setGoal] = useState(wizardSetup?.goal ?? starterMap?.goalStatement ?? "");
+  const [operatingArea, setOperatingArea] = useState(
+    wizardSetup?.goalCategory === "growth" ? "marketing" :
+    wizardSetup?.goalCategory === "fundraising" ? "operations" :
+    wizardSetup?.goalCategory === "engineering" ? "engineering" : "engineering"
+  );
+  const [primaryConstraint, setPrimaryConstraint] = useState(
+    wizardSetup?.goalCategory === "growth" ? "acquisition" :
+    wizardSetup?.goalCategory === "fundraising" ? "fundraising" :
+    wizardSetup?.goalCategory === "engineering" ? "velocity" : "velocity"
+  );
   const [desiredOutcome, setDesiredOutcome] = useState("weekly");
 
   const { data: integrations = [], connectGitHub } = useIntegrations();
@@ -294,6 +326,23 @@ export default function Onboarding() {
   useEffect(() => {
     if (!loading && !user) nav("/auth");
   }, [user, loading, nav]);
+
+  // ── Auto-complete: if wizard setup exists, run finish() immediately ────────
+  useEffect(() => {
+    if (loading || !user || !wizardSetup || autoCompleting) return;
+    // Pre-fill display name from wizard
+    const fullName = [wizardSetup.firstName, wizardSetup.lastName].filter(Boolean).join(" ");
+    const derivedHandle = wizardSetup.firstName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20);
+    setDisplayName(fullName || derivedHandle);
+    setHandle(derivedHandle);
+    setAutoCompleting(true);
+    // Small delay so state updates flush before finish() reads them
+    const timer = setTimeout(() => {
+      finishWithSetup(wizardSetup, fullName || derivedHandle, derivedHandle);
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user, wizardSetup]);
 
   useEffect(() => {
     if (!user) return;
@@ -370,17 +419,16 @@ export default function Onboarding() {
     connectGitHub("/onboarding?step=2");
   };
 
-  const finish = async () => {
-    if (!user) return;
-    if (!validHandle) { toast.error("Choose a valid public handle first."); setStep(0); return; }
-
+  // ── Core finish logic extracted so wizard auto-complete can call it ────────
+  const finishCore = async (finalGoal: string, cleanH: string, dispName: string, repo: string) => {
+    if (!user) return null;
     setSaving(true);
 
     // Save profile
     const { error: profileError } = await supabase.from("profiles").upsert({
       id: user.id,
-      handle: cleanHandle,
-      display_name: displayName.trim() || cleanHandle,
+      handle: cleanH,
+      display_name: dispName || cleanH,
       onboarded_at: new Date().toISOString(),
     }, { onConflict: "id" });
 
@@ -388,10 +436,8 @@ export default function Onboarding() {
       toast.error(friendlyError(profileError));
       if (profileError.message?.includes("handle")) setStep(0);
       setSaving(false);
-      return;
+      return null;
     }
-
-    const finalGoal = goal.trim() || (starterMap ? starterMap.goalStatement : "Grow my business");
 
     // Insert the map
     const { data: mapData, error: mapError } = await supabase
@@ -408,64 +454,127 @@ export default function Onboarding() {
     if (mapError) {
       toast.error(friendlyError(mapError));
       setSaving(false);
-      return;
+      return null;
     }
 
     if (mapData?.id) {
-      // Generate and insert waypoints
       const starterWaypoints = generateStarterWaypoints(
-        mapData.id,
-        user.id,
-        finalGoal,
-        operatingArea,
-        primaryConstraint
+        mapData.id, user.id, finalGoal, operatingArea, primaryConstraint
       );
-      const { error: wpError } = await supabase
-        .from("waypoints")
-        .insert(starterWaypoints);
-      
-      if (wpError) {
-        toast.error("Failed to initialize map waypoints: " + wpError.message);
-      }
+      const { error: wpError } = await supabase.from("waypoints").insert(starterWaypoints);
+      if (wpError) console.warn("[Onboarding] waypoint insert failed:", wpError.message);
 
-      // Link repository if selected during onboarding step 2
-      if (isGitHubConnected && selectedRepo) {
-        const { error: srcError } = await supabase
-          .from("sources")
-          .insert({
-            map_id: mapData.id,
-            user_id: user.id,
-            provider: "github",
-            label: selectedRepo,
-          });
-        
-        if (srcError) {
-          console.warn("[Onboarding] Failed to auto-link repository source:", srcError.message);
-        } else {
-          // Proactively trigger a background sync of commit signals for the newly linked repo
+      if (isGitHubConnected && repo) {
+        const { error: srcError } = await supabase.from("sources").insert({
+          map_id: mapData.id, user_id: user.id, provider: "github", label: repo,
+        });
+        if (!srcError) {
           supabase.functions.invoke("sync-github", {
-            body: { action: "sync", map_id: mapData.id, repo_full_name: selectedRepo },
-          }).catch((err) => {
-            console.warn("[Onboarding] Failed to trigger initial GitHub sync:", err);
-          });
+            body: { action: "sync", map_id: mapData.id, repo_full_name: repo },
+          }).catch(() => {});
         }
       }
     }
 
-    // Clean up local storage
     try {
       localStorage.removeItem("atlas.starter");
-      localStorage.removeItem("atlas.setup");
+      sessionStorage.removeItem("atlas.setup");
     } catch { /* non-critical */ }
 
     setSaving(false);
-    // Go to celebration step instead of immediately navigating
-    goToStep(CELEBRATE_STEP);
+    return mapData?.id ?? null;
+  };
+
+  // ── Wizard fast-track: called automatically when atlas.setup exists ────────
+  const finishWithSetup = async (setup: AtlasSetup, dispName: string, cleanH: string) => {
+    const finalGoal = setup.goal || "Grow my business";
+    const mapId = await finishCore(finalGoal, cleanH, dispName, "");
+    if (mapId) {
+      setAutoCompleteMapId(mapId);
+      // Brief pause to let the "Building" screen render, then go to the map with tour
+      setTimeout(() => {
+        nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
+      }, 2800);
+    } else {
+      // Fallback: if something went wrong, go to dashboard
+      nav("/app", { replace: true });
+    }
+  };
+
+  const finish = async () => {
+    if (!user) return;
+    if (!validHandle) { toast.error("Choose a valid public handle first."); setStep(0); return; }
+    const finalGoal = goal.trim() || (starterMap ? starterMap.goalStatement : "Grow my business");
+    const mapId = await finishCore(finalGoal, cleanHandle, displayName.trim() || cleanHandle, selectedRepo);
+    if (mapId) {
+      goToStep(CELEBRATE_STEP);
+    }
   };
 
   if (loading || !user) return <div className="min-h-screen bg-background" />;
 
+  // ─── Wizard fast-track screen (from StartMap wizard) ──────────────────────────
+  if (wizardSetup && autoCompleting) {
+    const steps = [
+      { text: "Creating your profile", done: true },
+      { text: `Goal set: "${wizardSetup.goal.slice(0, 50)}${wizardSetup.goal.length > 50 ? "…" : ""}"`, done: true },
+      { text: "Initialising map waypoints", done: !!autoCompleteMapId },
+      { text: "Launching your map…", done: false },
+    ];
+    return (
+      <div className="min-h-screen bg-background grain flex flex-col items-center justify-center px-6 py-16 relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-[500px] w-[500px] rounded-full bg-primary/8 blur-[120px]" />
+          <div className="absolute bottom-0 right-0 h-[300px] w-[300px] rounded-full bg-primary/5 blur-[100px]" />
+        </div>
+        <div className="relative z-10 flex flex-col items-center text-center max-w-md w-full">
+          {/* Compass */}
+          <div className="relative mb-8">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-24 w-24 rounded-full border border-primary/20 sonar-ring" style={{ animationDelay: "0s" }} />
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-24 w-24 rounded-full border border-primary/15 sonar-ring" style={{ animationDelay: "0.7s" }} />
+            </div>
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 border border-primary/30">
+              <svg className="h-9 w-9 text-primary compass-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" fill="currentColor" fillOpacity="0.25" />
+                <line x1="12" y1="2" x2="12" y2="4" strokeLinecap="round" />
+                <line x1="12" y1="20" x2="12" y2="22" strokeLinecap="round" />
+                <line x1="2" y1="12" x2="4" y2="12" strokeLinecap="round" />
+                <line x1="20" y1="12" x2="22" y2="12" strokeLinecap="round" />
+              </svg>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-widest text-primary mb-4">
+            <Sparkles className="h-3.5 w-3.5" /> Building your map
+          </div>
+          <h1 className="font-display text-4xl font-semibold leading-tight md:text-5xl">
+            Welcome, {wizardSetup.firstName}.
+          </h1>
+          <p className="mt-4 text-sm text-muted-foreground max-w-xs">
+            Your Atlas map is being assembled. You'll land right on it.
+          </p>
+          <div className="mt-8 grid grid-cols-1 gap-2 w-full text-left">
+            {steps.map((item, i) => (
+              <div key={i} className="flex items-center gap-2.5 rounded-lg border border-border/50 bg-card/60 px-3 py-2.5">
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                  item.done ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground/40"
+                }`}>
+                  {item.done ? <Check className="h-3 w-3" /> : <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30 animate-pulse" />}
+                </div>
+                <span className={`text-xs ${item.done ? "text-foreground/80" : "text-muted-foreground/60"}`}>{item.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ─── Celebration screen (step 4) ──────────────────────────────────────────────
+
   if (step === CELEBRATE_STEP) {
     const firstOutcomeLabel = outcomes.find(o => o.id === desiredOutcome)?.label ?? "your first report";
     const finalGoal = goal.trim() || (starterMap?.goalStatement ?? "Grow my business");

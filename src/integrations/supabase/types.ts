@@ -427,6 +427,7 @@ export type Database = {
           confidence: Database["public"]["Enums"]["map_confidence"]
           position: number
           created_at: string
+          completed_at: string | null
         }
         Insert: {
           id?: string
@@ -437,6 +438,7 @@ export type Database = {
           confidence?: Database["public"]["Enums"]["map_confidence"]
           position?: number
           created_at?: string
+          completed_at?: string | null
         }
         Update: {
           id?: string
@@ -447,6 +449,7 @@ export type Database = {
           confidence?: Database["public"]["Enums"]["map_confidence"]
           position?: number
           created_at?: string
+          completed_at?: string | null
         }
         Relationships: []
       }

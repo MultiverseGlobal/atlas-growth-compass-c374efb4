@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { createPortal } from "react-dom";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import {
   type GitHubRepo,
   type GitHubStats,
 } from "@/lib/github";
-import { ArrowLeft, ArrowRight, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Github, Plug, Trash, Globe, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, Compass, Paperclip, FileText, X, Plus, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { CompassLoader } from "./Home";
 import { useIntegrations } from "@/hooks/useIntegrations";
@@ -26,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { driver } from "driver.js";
+import "driver.js/dist/driver.css";
 
 type MapData = {
   id: string;
@@ -40,50 +41,16 @@ type Waypoint = {
   title: string;
   confidence: "starter" | "emerging" | "established";
   metadata?: any;
+  completed_at?: string | null;
 };
-
-const TOUR_STEPS = [
-  {
-    title: "1. The Goal",
-    description: "This is your active goal. Everything on this map serves to align your focus toward achieving this statement.",
-    target: "#tour-wp-goal",
-  },
-  {
-    title: "2. The Constraint",
-    description: "This is the core bottleneck slowing you down. Atlas analyzes your tools to identify what is actually blocking your progress.",
-    target: "#tour-wp-constraint",
-  },
-  {
-    title: "3. The Evidence",
-    description: "Why is this the constraint? Atlas lists the evidence gathered from your connected development channels here.",
-    target: "#tour-wp-evidence",
-  },
-  {
-    title: "4. The Next Move",
-    description: "Your single immediate priority. Ignore the noise and focus entirely on executing this move next.",
-    target: "#tour-wp-move",
-  },
-  {
-    title: "5. Add Context",
-    description: "Connected tools don't know everything. Add manual context notes about your plans or blockers, and Atlas will re-diagnose your map.",
-    target: "#tour-context",
-  },
-  {
-    title: "6. Connect GitHub",
-    description: "Link a GitHub repository to feed active development velocity and commit signals directly into Atlas's constraint engine.",
-    target: "#tour-github",
-  },
-  {
-    title: "7. Immersive Focus",
-    description: "Click 'Focus Mode' for a distraction-free, cartographic canvas. Perfect for zooming, panning, and reviewing your strategy.",
-    target: "#tour-focus",
-  }
-];
 
 export default function MapDetails() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const shouldAutoFocus = searchParams.get("focus") === "1";
+  const shouldAutoTour = searchParams.get("tour") === "1";
 
   const [map, setMap] = useState<MapData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,74 +74,100 @@ export default function MapDetails() {
   // Waypoints
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
 
-  // Focus Mode states
-  const [focusMode, setFocusMode] = useState(false);
+  // Focus Mode states — auto-launch if ?focus=1
+  const [focusMode, setFocusMode] = useState(shouldAutoFocus);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [expandedWaypoint, setExpandedWaypoint] = useState<number | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
-  // Lightbox: stores the URL of the image currently expanded in the overlay
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-  // Tour state
-  const [tourStep, setTourStep] = useState<number | null>(null);
-  const [spotlightRect, setSpotlightRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [vpSize, setVpSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  // First-move highlight state
+  const [firstMoveHighlighted, setFirstMoveHighlighted] = useState(false);
+  const driverRef = useRef<ReturnType<typeof driver> | null>(null);
 
-  // Track viewport size for accurate SVG mask dimensions
-  useEffect(() => {
-    const handleResize = () => setVpSize({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  // Track viewport size (still needed for focus mode parallax)
+  const [vpSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
-  // Start tour automatically on first visit
+  // Launch driver.js tour after map + waypoints are ready
   useEffect(() => {
-    if (loading || !map) return;
+    if (loading || !map || !shouldAutoTour) return;
     const hasSeenTour = localStorage.getItem("atlas.tour.seen");
-    if (!hasSeenTour) {
-      const timer = setTimeout(() => {
-        setTourStep(0);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, map]);
+    if (hasSeenTour) return;
 
-  // Apply tour highlights and scroll to active elements after layout completes
-  useEffect(() => {
-    if (loading || tourStep === null) {
-      setSpotlightRect(null);
-      return;
-    }
-    const step = TOUR_STEPS[tourStep];
-    const el = document.querySelector(step.target);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Give the DOM a moment to settle after waypoints render
+    const timer = setTimeout(() => {
+      const driverInstance = driver({
+        showProgress: true,
+        animate: true,
+        overlayColor: "rgba(0,0,0,0.55)",
+        smoothScroll: true,
+        allowClose: true,
+        onDestroyStarted: () => {
+          localStorage.setItem("atlas.tour.seen", "1");
+          driverInstance.destroy();
+          // After tour — auto-diagnose if not yet done
+          const moveWp = document.getElementById("tour-wp-move");
+          if (moveWp) setFirstMoveHighlighted(true);
+        },
+        steps: [
+          {
+            popover: {
+              title: "Your Atlas map is ready",
+              description: "Let's walk through it in 60 seconds so you know exactly what you're looking at.",
+              side: "over" as const,
+              align: "center" as const,
+            },
+          },
+          {
+            element: "#tour-wp-goal",
+            popover: {
+              title: "Your Goal",
+              description: "This is what you're working toward. Everything on this map exists to get you here.",
+              side: "right" as const,
+            },
+          },
+          {
+            element: "#tour-wp-constraint",
+            popover: {
+              title: "The Constraint",
+              description: "This is the biggest thing blocking your goal right now. Atlas identifies this from your connected tools.",
+              side: "right" as const,
+            },
+          },
+          {
+            element: "#tour-wp-evidence",
+            popover: {
+              title: "The Evidence",
+              description: "Why is this the constraint? These are the signals Atlas pulled from your tools to prove it.",
+              side: "right" as const,
+            },
+          },
+          {
+            element: "#tour-wp-move",
+            popover: {
+              title: "Your Next Move ★",
+              description: "This is your single, immediate, executable step. Ignore everything else — just do this.",
+              side: "right" as const,
+            },
+          },
+          {
+            element: "#tour-sync",
+            popover: {
+              title: "Keep it fresh",
+              description: "Re-diagnose any time to update your map with the latest signals from your tools.",
+              side: "left" as const,
+            },
+          },
+        ],
+      });
+      driverRef.current = driverInstance;
+      driverInstance.drive();
+    }, 1200);
 
-      const updateRect = () => {
-        const r = el.getBoundingClientRect();
-        setVpSize({ w: window.innerWidth, h: window.innerHeight });
-        setSpotlightRect({
-          x: r.left,
-          y: r.top,
-          width: r.width,
-          height: r.height,
-        });
-      };
-
-      // Delay to let smooth scrolling settle
-      const timer = setTimeout(updateRect, 400);
-      window.addEventListener("resize", updateRect);
-      window.addEventListener("scroll", updateRect, true);
-
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener("resize", updateRect);
-        window.removeEventListener("scroll", updateRect, true);
-      };
-    }
-  }, [loading, tourStep]);
+    return () => clearTimeout(timer);
+  }, [loading, map, shouldAutoTour]);
 
   useEffect(() => {
     if (focusMode) {
@@ -348,7 +341,7 @@ export default function MapDetails() {
       // Load saved waypoints
       const { data: wpData } = await supabase
         .from("waypoints")
-        .select("id, kind, title, confidence, metadata")
+        .select("id, kind, title, confidence, metadata, completed_at")
         .eq("map_id", id)
         .order("position", { ascending: true });
 
@@ -561,8 +554,8 @@ export default function MapDetails() {
 
       setWaypoints(result.waypoints);
 
-      // Persist waypoints
-      await supabase.from("waypoints").delete().eq("map_id", id);
+      // Persist waypoints: only delete active ones (keep completed history)
+      await supabase.from("waypoints").delete().eq("map_id", id).is("completed_at", null);
       await supabase.from("waypoints").insert(
         result.waypoints.map((w, idx) => ({
           map_id: id,
@@ -574,6 +567,19 @@ export default function MapDetails() {
           metadata: w.metadata || null,
         }))
       );
+
+      // Re-fetch all waypoints from database (both new active and past completed)
+      const { data: refreshedWps } = await supabase
+        .from("waypoints")
+        .select("id, kind, title, confidence, metadata, completed_at")
+        .eq("map_id", id)
+        .order("position", { ascending: true });
+      
+      if (refreshedWps) {
+        setWaypoints(refreshedWps as Waypoint[]);
+      } else {
+        setWaypoints(result.waypoints);
+      }
 
       // Update map confidence
       const constraintWp = result.waypoints.find(w => w.kind === "constraint");
@@ -742,9 +748,28 @@ export default function MapDetails() {
       target_id: id,
       meta: { waypoint_kind: waypointKind, waypoint_text: waypointTitle },
     } as any);
-    if (action === "constraint_wrong") toast.success("Noted — this helps Atlas improve.");
-    if (action === "move_done") toast.success("Marked done.");
-    if (action === "move_skipped") toast.success("Skipped.");
+    if (action === "constraint_wrong") {
+      toast.success("Noted — this helps Atlas improve.");
+    }
+    if (action === "move_done") {
+      const activeMove = waypoints.find(w => w.kind === "move" && !w.completed_at);
+      if (activeMove && activeMove.id) {
+        const { error } = await supabase
+          .from("waypoints")
+          .update({ completed_at: new Date().toISOString() })
+          .eq("id", activeMove.id);
+        if (error) {
+          toast.error("Failed to mark move as done: " + error.message);
+          return;
+        }
+      }
+      toast.success("Next move completed! Re-diagnosing...");
+      setFirstMoveHighlighted(false);
+      fullSync(selectedRepo, map?.goal_statement || "", manualNotesList[0]?.payload?.note || "");
+    }
+    if (action === "move_skipped") {
+      toast.success("Skipped.");
+    }
   };
 
   // ─── Delete ───────────────────────────────────────────────────────────────
@@ -912,10 +937,34 @@ export default function MapDetails() {
               onConnectSource={() => {}}
             />
           ) : (
-            <Trail
-              waypoints={waypoints}
-              onFeedback={handleFeedback}
-            />
+            <>
+              <Trail
+                waypoints={waypoints.filter(w => !w.completed_at)}
+                onFeedback={handleFeedback}
+              />
+              {(() => {
+                const completedMoves = waypoints.filter(w => w.kind === "move" && w.completed_at);
+                if (completedMoves.length === 0) return null;
+                return (
+                  <div className="mt-12 rounded-[16px] border border-border/50 bg-card/45 p-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-primary mb-4">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      Achievement History ({completedMoves.length})
+                    </div>
+                    <ul className="space-y-3">
+                      {completedMoves.map((wp, idx) => (
+                        <li key={wp.id || idx} className="flex items-start gap-2.5 text-sm text-foreground/80 font-display">
+                          <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]">
+                            ✓
+                          </span>
+                          <span>{wp.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+            </>
           )}
         </div>
 
@@ -1339,7 +1388,7 @@ export default function MapDetails() {
                   >
                     <div className="relative w-[90vw] max-w-5xl p-8 bg-card/75 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl pointer-events-auto select-text mx-4 my-8">
                       <Trail
-                        waypoints={waypoints}
+                        waypoints={waypoints.filter(w => !w.completed_at)}
                         onFeedback={handleFeedback}
                         interactive={true}
                         layout="horizontal"
