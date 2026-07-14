@@ -179,3 +179,11 @@ export function loadStarterMap(): StarterMap | null {
     return null;
   }
 }
+
+export function clearStarterMap() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}

@@ -2,7 +2,7 @@ project_id = "nfhlpihrqrbiaefmopnq"
 
 [auth]
 enable_signup = true
-additional_redirect_urls = ["http://localhost:5173/onboarding", "http://localhost:5173/app/integrations"]
+additional_redirect_urls = ["http://localhost:5173/onboarding", "http://localhost:5173/app/integrations", "https://atlas-scale.vercel.app/app/integrations", "https://atlas-scale.vercel.app/auth/callback"]
 
 [auth.email]
-enable_confirmations = false
+# enable_confirmations is managed via the Supabase Dashboard → Auth settings

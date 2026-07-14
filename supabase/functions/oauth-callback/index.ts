@@ -124,10 +124,15 @@ async function getGoogleUserInfo(accessToken: string): Promise<{ email: string; 
 
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
-  const provider = url.searchParams.get("provider");
+  const rawState = url.searchParams.get("state");
   const code = url.searchParams.get("code");
-  const stateToken = url.searchParams.get("state");
   const errorParam = url.searchParams.get("error");
+
+  // Parse provider from state token (format: "provider:uuid")
+  // This works even when providers like Notion strip query params from redirect_uri.
+  const colonIdx = rawState?.indexOf(":") ?? -1;
+  const provider = colonIdx > 0 ? rawState!.substring(0, colonIdx) : null;
+  const stateToken = rawState ?? null;
 
   // User denied access
   if (errorParam) {

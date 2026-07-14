@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { friendlyError } from "@/lib/errors";
+import { clearStarterMap } from "@/lib/starterMap";
 
 export type MapRow = {
   id: string;
@@ -69,13 +70,8 @@ export function useMaps() {
         .select("id")
         .single();
       if (error) throw error;
-      // Clear the anonymous localStorage starter map
-      try {
-        localStorage.removeItem("atlas.starter");
-        localStorage.removeItem("atlas.setup");
-      } catch {
-        // non-critical
-      }
+      // Clear the anonymous localStorage starter map using the correct key
+      clearStarterMap();
       return data;
     },
     onSuccess: () => {

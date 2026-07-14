@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Plus, Target, Sparkles, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { useMaps } from "@/hooks/useMaps";
 import { useAuth } from "@/hooks/useAuth";
 import { canCreateMap } from "@/lib/planGate";
 import { UpgradeModal } from "@/components/atlas/UpgradeModal";
-import { loadStarterMap } from "@/lib/starterMap";
+import { loadStarterMap, clearStarterMap } from "@/lib/starterMap";
 import { formatDistanceToNow } from "date-fns";
 import { NewMapModal } from "@/components/atlas/NewMapModal";
 
@@ -41,6 +41,17 @@ export default function Home() {
 
   const starterMap = loadStarterMap();
   const hasClaimedStarter = maps.length > 0;
+
+  // If this user already has maps, any localStorage starter map is stale
+  // (left over from a previous user's session on the same browser). Clear it.
+  useEffect(() => {
+    if (hasClaimedStarter) clearStarterMap();
+  }, [hasClaimedStarter]);
+
+  // Also clear when user identity changes (different account logged in)
+  useEffect(() => {
+    if (user?.id) clearStarterMap();
+  }, [user?.id]);
 
   const handleNewMap = async () => {
     if (!user) return;

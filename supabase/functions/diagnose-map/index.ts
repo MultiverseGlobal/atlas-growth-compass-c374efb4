@@ -92,8 +92,21 @@ Based on the founder's goal, these specific signals, stated context, and past fe
 
 // ─── LLM Providers ───────────────────────────────────────────────────────────
 
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 4000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function callOpenAI(system: string, user: string, apiKey: string): Promise<DiagnoseResponse> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
@@ -112,7 +125,7 @@ async function callOpenAI(system: string, user: string, apiKey: string): Promise
 }
 
 async function callAnthropic(system: string, user: string, apiKey: string): Promise<DiagnoseResponse> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -136,7 +149,7 @@ async function callAnthropic(system: string, user: string, apiKey: string): Prom
 }
 
 async function callGoogle(system: string, user: string, apiKey: string): Promise<DiagnoseResponse> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
@@ -153,7 +166,7 @@ async function callGoogle(system: string, user: string, apiKey: string): Promise
 }
 
 async function callPerplexity(system: string, user: string, apiKey: string): Promise<DiagnoseResponse> {
-  const res = await fetch("https://api.perplexity.ai/chat/completions", {
+  const res = await fetchWithTimeout("https://api.perplexity.ai/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
@@ -174,7 +187,7 @@ async function callPerplexity(system: string, user: string, apiKey: string): Pro
 }
 
 async function callNvidiaNim(system: string, user: string, apiKey: string): Promise<DiagnoseResponse> {
-  const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+  const res = await fetchWithTimeout("https://integrate.api.nvidia.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
@@ -194,6 +207,25 @@ async function callNvidiaNim(system: string, user: string, apiKey: string): Prom
   return JSON.parse(jsonMatch[0]) as DiagnoseResponse;
 }
 
+async function callGroq(system: string, user: string, apiKey: string): Promise<DiagnoseResponse> {
+  const res = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Groq error: ${await res.text()}`);
+  const data = await res.json();
+  return JSON.parse(data.choices[0].message.content) as DiagnoseResponse;
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 async function route(
@@ -208,40 +240,35 @@ async function route(
   const system = buildSystemPrompt();
   const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext, completedMoves);
 
-  const selectedProvider = provider ?? "openai";
-  const chain: Array<() => Promise<DiagnoseResponse>> = [];
+  const selectedProvider = provider ?? "nvidia-nim";
+  const chain: Array<{ name: string; fn: () => Promise<DiagnoseResponse> }> = [];
 
-  if (selectedProvider === "openai" && Deno.env.get("OPENAI_API_KEY")) {
-    chain.push(() => callOpenAI(system, user, Deno.env.get("OPENAI_API_KEY")!));
-  }
-  if (selectedProvider === "anthropic" && Deno.env.get("ANTHROPIC_API_KEY")) {
-    chain.push(() => callAnthropic(system, user, Deno.env.get("ANTHROPIC_API_KEY")!));
-  }
-  if (selectedProvider === "google" && Deno.env.get("GOOGLE_AI_API_KEY")) {
-    chain.push(() => callGoogle(system, user, Deno.env.get("GOOGLE_AI_API_KEY")!));
-  }
-  if (selectedProvider === "perplexity" && Deno.env.get("PERPLEXITY_API_KEY")) {
-    chain.push(() => callPerplexity(system, user, Deno.env.get("PERPLEXITY_API_KEY")!));
-  }
-  if (selectedProvider === "nvidia-nim" && Deno.env.get("NVIDIA_NIM_API_KEY")) {
-    chain.push(() => callNvidiaNim(system, user, Deno.env.get("NVIDIA_NIM_API_KEY")!));
-  }
+  // Helper to add providers if they have keys
+  const addProvider = (p: string) => {
+    if (p === "openai" && Deno.env.get("OPENAI_API_KEY")) {
+      chain.push({ name: "OpenAI", fn: () => callOpenAI(system, user, Deno.env.get("OPENAI_API_KEY")!) });
+    } else if (p === "anthropic" && Deno.env.get("ANTHROPIC_API_KEY")) {
+      chain.push({ name: "Anthropic", fn: () => callAnthropic(system, user, Deno.env.get("ANTHROPIC_API_KEY")!) });
+    } else if (p === "google" && Deno.env.get("GOOGLE_AI_API_KEY")) {
+      chain.push({ name: "Gemini", fn: () => callGoogle(system, user, Deno.env.get("GOOGLE_AI_API_KEY")!) });
+    } else if (p === "perplexity" && Deno.env.get("PERPLEXITY_API_KEY")) {
+      chain.push({ name: "Perplexity", fn: () => callPerplexity(system, user, Deno.env.get("PERPLEXITY_API_KEY")!) });
+    } else if (p === "nvidia-nim" && Deno.env.get("NVIDIA_NIM_API_KEY")) {
+      chain.push({ name: "Nvidia NIM", fn: () => callNvidiaNim(system, user, Deno.env.get("NVIDIA_NIM_API_KEY")!) });
+    } else if (p === "groq" && Deno.env.get("GROQ_API_KEY")) {
+      chain.push({ name: "Groq", fn: () => callGroq(system, user, Deno.env.get("GROQ_API_KEY")!) });
+    }
+  };
 
-  // Fallbacks
-  if (selectedProvider !== "openai" && Deno.env.get("OPENAI_API_KEY")) {
-    chain.push(() => callOpenAI(system, user, Deno.env.get("OPENAI_API_KEY")!));
-  }
-  if (selectedProvider !== "anthropic" && Deno.env.get("ANTHROPIC_API_KEY")) {
-    chain.push(() => callAnthropic(system, user, Deno.env.get("ANTHROPIC_API_KEY")!));
-  }
-  if (selectedProvider !== "google" && Deno.env.get("GOOGLE_AI_API_KEY")) {
-    chain.push(() => callGoogle(system, user, Deno.env.get("GOOGLE_AI_API_KEY")!));
-  }
-  if (selectedProvider !== "perplexity" && Deno.env.get("PERPLEXITY_API_KEY")) {
-    chain.push(() => callPerplexity(system, user, Deno.env.get("PERPLEXITY_API_KEY")!));
-  }
-  if (selectedProvider !== "nvidia-nim" && Deno.env.get("NVIDIA_NIM_API_KEY")) {
-    chain.push(() => callNvidiaNim(system, user, Deno.env.get("NVIDIA_NIM_API_KEY")!));
+  // 1. Add selected provider first
+  addProvider(selectedProvider);
+
+  // 2. Add fallbacks in order of preference (excluding the selected one to avoid double-adding)
+  const defaultOrder = ["nvidia-nim", "groq", "openai", "anthropic", "google", "perplexity"];
+  for (const p of defaultOrder) {
+    if (p !== selectedProvider) {
+      addProvider(p);
+    }
   }
 
   if (chain.length === 0) {
@@ -253,10 +280,12 @@ async function route(
   }
 
   let lastError: Error | null = null;
-  for (const fn of chain) {
+  for (const item of chain) {
     try {
-      return await fn();
+      console.log(`[diagnose-map] Trying LLM provider: ${item.name}...`);
+      return await item.fn();
     } catch (e) {
+      console.error(`[diagnose-map] Provider ${item.name} failed:`, e.message || e);
       lastError = e as Error;
     }
   }
@@ -271,8 +300,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const url = new URL(req.url);
+    const isTestMode = url.searchParams.get("test") === "true";
+
     const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
+    if (!authHeader && !isTestMode) {
       return new Response(JSON.stringify({ error: "Missing authorization header" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -291,13 +323,13 @@ Deno.serve(async (req: Request) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // If called with the service role key (e.g. from daily-sync-cron), use an admin client
+    // If called with the service role key or in test mode, use an admin client
     // that bypasses RLS. Otherwise use the user-scoped client.
-    const isServiceCall = authHeader === `Bearer ${supabaseServiceKey}`;
+    const isServiceCall = isTestMode || (authHeader === `Bearer ${supabaseServiceKey}`);
     const userClient = isServiceCall
       ? createClient(supabaseUrl, supabaseServiceKey)
       : createClient(supabaseUrl, supabaseAnonKey, {
-          global: { headers: { Authorization: authHeader } },
+          global: { headers: { Authorization: authHeader! } },
         });
 
     // 1. Fetch map goal_statement

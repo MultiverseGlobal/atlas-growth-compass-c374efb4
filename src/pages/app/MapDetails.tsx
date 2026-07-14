@@ -533,8 +533,11 @@ export default function MapDetails() {
         });
         
         // Handle structured error from edge function (no AI key)
-        if (fnError || (fnData && fnData.error === "no_llm_key")) {
-          throw new Error(fnData?.message || "AI key missing");
+        if (fnData?.error === "no_llm_key") {
+          throw Object.assign(new Error(fnData.message || "No AI provider key configured."), { code: "no_llm_key" });
+        }
+        if (fnError) {
+          throw new Error(fnError.message || "Diagnosis failed");
         }
 
         const llm = fnData as { constraint: string; evidence: string; move: string; confidence: string; evidence_sources?: Array<{ source: string; detail: string }> };
@@ -551,6 +554,12 @@ export default function MapDetails() {
         };
         source = flags.length > 0 ? "llm" : "context-only";
       } catch (err: any) {
+        // Show the user why diagnosis failed instead of silently reverting
+        if (err.code === "no_llm_key") {
+          toast.error("No AI key configured. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to your Supabase Edge Function secrets.");
+        } else {
+          toast.error("Diagnosis failed — " + (err.message || "unexpected error. Try again."));
+        }
         // Fallback to deterministic if LLM unavailable or AI key missing
         source = "fallback";
         if (stats) {

@@ -2,6 +2,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const REDIRECT_BASE = Deno.env.get("SUPABASE_URL")!;
+// Single clean callback URL — no query params, so Notion (and other providers)
+// that strip query strings from redirect_uri don't break the flow.
+// Provider identity is encoded in the state token instead.
 const CALLBACK_URL = `${REDIRECT_BASE}/functions/v1/oauth-callback`;
 
 const PROVIDER_CONFIGS: Record<string, {
@@ -85,8 +88,10 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Generate a CSRF state token and store it
-    const stateToken = crypto.randomUUID();
+    // Generate a CSRF state token that encodes the provider.
+    // Format: "<provider>:<uuid>" — this survives the OAuth round-trip unchanged
+    // even when providers (e.g. Notion) strip query params from redirect_uri.
+    const stateToken = `${provider}:${crypto.randomUUID()}`;
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     const { error: stateError } = await serviceClient
@@ -114,7 +119,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Build the OAuth authorization URL
+    // Build the OAuth authorization URL.
+    // Use a clean redirect_uri (no query params) so providers like Notion
+    // that don't support query params in redirect_uri work correctly.
+    // The provider is recovered from the state token on callback.
     const authParams = new URLSearchParams({
       client_id: clientId,
       redirect_uri: CALLBACK_URL,
