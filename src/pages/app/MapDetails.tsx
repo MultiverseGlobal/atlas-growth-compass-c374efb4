@@ -90,6 +90,75 @@ export default function MapDetails() {
   // Track viewport size (still needed for focus mode parallax)
   const [vpSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
+  const startTour = () => {
+    const driverInstance = driver({
+      showProgress: true,
+      animate: true,
+      overlayColor: "rgba(0,0,0,0.55)",
+      smoothScroll: true,
+      allowClose: true,
+      onDestroyStarted: () => {
+        localStorage.setItem("atlas.tour.seen", "1");
+        driverInstance.destroy();
+        // After tour — auto-diagnose if not yet done
+        const moveWp = document.getElementById("tour-wp-move");
+        if (moveWp) setFirstMoveHighlighted(true);
+      },
+      steps: [
+        {
+          popover: {
+            title: "Your Atlas map is ready",
+            description: "Let's walk through it in 60 seconds so you know exactly what you're looking at.",
+            side: "over" as const,
+            align: "center" as const,
+          },
+        },
+        {
+          element: "#tour-wp-goal",
+          popover: {
+            title: "Your Goal",
+            description: "This is what you're working toward. Everything on this map exists to get you here.",
+            side: "right" as const,
+          },
+        },
+        {
+          element: "#tour-wp-constraint",
+          popover: {
+            title: "The Constraint",
+            description: "This is the biggest thing blocking your goal right now. Atlas identifies this from your connected tools.",
+            side: "right" as const,
+          },
+        },
+        {
+          element: "#tour-wp-evidence",
+          popover: {
+            title: "The Evidence",
+            description: "Why is this the constraint? These are the signals Atlas pulled from your tools to prove it.",
+            side: "right" as const,
+          },
+        },
+        {
+          element: "#tour-wp-move",
+          popover: {
+            title: "Your Next Move ★",
+            description: "This is your single, immediate, executable step. Ignore everything else — just do this.",
+            side: "right" as const,
+          },
+        },
+        {
+          element: "#tour-sync",
+          popover: {
+            title: "Keep it fresh",
+            description: "Re-diagnose any time to update your map with the latest signals from your tools.",
+            side: "left" as const,
+          },
+        },
+      ],
+    });
+    driverRef.current = driverInstance;
+    driverInstance.drive();
+  };
+
   // Launch driver.js tour after map + waypoints are ready
   useEffect(() => {
     if (loading || !map || !shouldAutoTour) return;
@@ -98,72 +167,7 @@ export default function MapDetails() {
 
     // Give the DOM a moment to settle after waypoints render
     const timer = setTimeout(() => {
-      const driverInstance = driver({
-        showProgress: true,
-        animate: true,
-        overlayColor: "rgba(0,0,0,0.55)",
-        smoothScroll: true,
-        allowClose: true,
-        onDestroyStarted: () => {
-          localStorage.setItem("atlas.tour.seen", "1");
-          driverInstance.destroy();
-          // After tour — auto-diagnose if not yet done
-          const moveWp = document.getElementById("tour-wp-move");
-          if (moveWp) setFirstMoveHighlighted(true);
-        },
-        steps: [
-          {
-            popover: {
-              title: "Your Atlas map is ready",
-              description: "Let's walk through it in 60 seconds so you know exactly what you're looking at.",
-              side: "over" as const,
-              align: "center" as const,
-            },
-          },
-          {
-            element: "#tour-wp-goal",
-            popover: {
-              title: "Your Goal",
-              description: "This is what you're working toward. Everything on this map exists to get you here.",
-              side: "right" as const,
-            },
-          },
-          {
-            element: "#tour-wp-constraint",
-            popover: {
-              title: "The Constraint",
-              description: "This is the biggest thing blocking your goal right now. Atlas identifies this from your connected tools.",
-              side: "right" as const,
-            },
-          },
-          {
-            element: "#tour-wp-evidence",
-            popover: {
-              title: "The Evidence",
-              description: "Why is this the constraint? These are the signals Atlas pulled from your tools to prove it.",
-              side: "right" as const,
-            },
-          },
-          {
-            element: "#tour-wp-move",
-            popover: {
-              title: "Your Next Move ★",
-              description: "This is your single, immediate, executable step. Ignore everything else — just do this.",
-              side: "right" as const,
-            },
-          },
-          {
-            element: "#tour-sync",
-            popover: {
-              title: "Keep it fresh",
-              description: "Re-diagnose any time to update your map with the latest signals from your tools.",
-              side: "left" as const,
-            },
-          },
-        ],
-      });
-      driverRef.current = driverInstance;
-      driverInstance.drive();
+      startTour();
     }, 1200);
 
     return () => clearTimeout(timer);
@@ -833,7 +837,7 @@ export default function MapDetails() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setTourStep(0)}
+              onClick={startTour}
               className="text-muted-foreground hover:bg-muted/10 gap-1.5"
             >
               <Sparkles className="h-4 w-4" />
@@ -1406,118 +1410,7 @@ export default function MapDetails() {
         </div>
       )}
 
-      {tourStep !== null && typeof document !== "undefined" && createPortal(
-        <>
-          {/* Guide Modal Box */}
-          <div className="fixed top-6 right-6 left-6 md:left-auto md:w-96 z-50 bg-[#FAFAF8] border border-border/75 rounded-2xl shadow-2xl p-6 page-fade select-none">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-widest text-primary font-semibold">
-                <Compass className="h-4 w-4 animate-spin text-primary/70" style={{ animationDuration: '6s' }} /> Map Guide (0{tourStep + 1} / 0{TOUR_STEPS.length})
-              </div>
-              <button 
-                onClick={() => {
-                  setTourStep(null);
-                  localStorage.setItem("atlas.tour.seen", "true");
-                }} 
-                className="text-[11px] text-muted-foreground/60 hover:text-foreground font-mono transition-colors"
-              >
-                Skip tour
-              </button>
-            </div>
-            <h4 className="font-display text-lg font-semibold text-foreground mb-1.5 leading-tight">
-              {TOUR_STEPS[tourStep].title}
-            </h4>
-            <p className="text-xs text-muted-foreground/80 leading-relaxed">
-              {TOUR_STEPS[tourStep].description}
-            </p>
-            <div className="mt-6 flex items-center justify-between">
-              <div className="flex gap-1.5">
-                {TOUR_STEPS.map((_, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`h-1 rounded-full transition-all duration-200 ${idx === tourStep ? "bg-primary w-4" : "bg-muted-foreground/20 w-1"}`} 
-                  />
-                ))}
-              </div>
-              <div className="flex gap-2">
-                {tourStep > 0 && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setTourStep(prev => prev! - 1)}
-                    className="h-8 rounded-full text-[11px] font-mono font-medium px-3 text-muted-foreground"
-                  >
-                    Back
-                  </Button>
-                )}
-                <Button 
-                  size="sm" 
-                  onClick={() => {
-                    if (tourStep < TOUR_STEPS.length - 1) {
-                      setTourStep(prev => prev! + 1);
-                    } else {
-                      setTourStep(null);
-                      localStorage.setItem("atlas.tour.seen", "true");
-                      toast.success("Tour completed! You are ready to navigate your maps.");
-                    }
-                  }}
-                  className="h-8 rounded-full text-[11px] font-mono font-semibold px-4"
-                >
-                  {tourStep === TOUR_STEPS.length - 1 ? "Got it" : "Next"}
-                </Button>
-              </div>
-            </div>
-          </div>
 
-          {/* Spotlight Tour Mask Overlay — z-[9998] to stack above AppShell sidebar */}
-          {spotlightRect && (
-            <svg
-              className="fixed inset-0 pointer-events-none z-[9998] transition-all duration-300"
-              style={{ left: 0, top: 0 }}
-              width={vpSize.w}
-              height={vpSize.h}
-            >
-              <defs>
-                <mask id="tour-spotlight-mask">
-                  <rect x="0" y="0" width={vpSize.w} height={vpSize.h} fill="white" />
-                  <rect
-                    x={spotlightRect.x - 10}
-                    y={spotlightRect.y - 10}
-                    width={spotlightRect.width + 20}
-                    height={spotlightRect.height + 20}
-                    rx={10}
-                    fill="black"
-                  />
-                </mask>
-              </defs>
-              <rect
-                x="0"
-                y="0"
-                width={vpSize.w}
-                height={vpSize.h}
-                fill="rgba(0, 0, 0, 0.5)"
-                mask="url(#tour-spotlight-mask)"
-              />
-            </svg>
-          )}
-
-          {/* Spotlight Glowing Border — z-[9999] */}
-          {spotlightRect && (
-            <div
-              className="fixed pointer-events-none z-[9999] rounded-[10px] transition-all duration-300"
-              style={{
-                left: spotlightRect.x - 10,
-                top: spotlightRect.y - 10,
-                width: spotlightRect.width + 20,
-                height: spotlightRect.height + 20,
-                border: "2px solid hsl(var(--primary))",
-                boxShadow: "0 0 0 2px hsl(var(--primary) / 0.2), 0 0 30px 8px hsl(var(--primary) / 0.3)",
-              }}
-            />
-          )}
-        </>,
-        document.body
-      )}
     </div>
   );
 }
