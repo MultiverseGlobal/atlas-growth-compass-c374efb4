@@ -60,11 +60,21 @@ function buildUserPrompt(
   manualNotes?: string,
   recentFeedbackNotes?: string[],
   statedContext?: string,
-  completedMoves?: string[]
+  completedMoves?: string[],
+  healthySummaries?: string[]
 ): string {
-  const flagLines = flags.length > 0
+  let flagLines = flags.length > 0
     ? flags.map(f => `- [${f.severity.toUpperCase()}] ${f.flag}: ${f.reason}`).join("\n")
-    : "- No live integration signals available yet.";
+    : "";
+
+  if (healthySummaries && healthySummaries.length > 0) {
+    if (flagLines) flagLines += "\n";
+    flagLines += "Healthy tool signals (no warning flags needed):\n" + healthySummaries.map(s => `- [HEALTHY] ${s}`).join("\n");
+  }
+
+  if (!flagLines) {
+    flagLines = "- No live integration signals available yet.";
+  }
 
   const notesSection = manualNotes?.trim()
     ? `\nFounder notes:\n${manualNotes.trim()}`
@@ -235,10 +245,11 @@ async function route(
   provider?: string,
   recentFeedbackNotes?: string[],
   statedContext?: string,
-  completedMoves?: string[]
+  completedMoves?: string[],
+  healthySummaries?: string[]
 ): Promise<DiagnoseResponse> {
   const system = buildSystemPrompt();
-  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext, completedMoves);
+  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext, completedMoves, healthySummaries);
 
   const selectedProvider = provider ?? "nvidia-nim";
   const chain: Array<{ name: string; fn: () => Promise<DiagnoseResponse> }> = [];
@@ -514,7 +525,33 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const hasSignals = flags.length > 0;
+    // Build healthy summaries to prevent false "no signals connected" LLM logic
+    const healthySummaries: string[] = [];
+    if (commitSignals.length > 0) {
+      if (daysSinceLastCommit <= 7 && commitsThisWeek > 0) {
+        healthySummaries.push(
+          `GitHub active: ${commitsThisWeek} commits this week, last commit was ${daysSinceLastCommit} days ago.`
+        );
+      }
+    }
+    if (notionSignals.length > 0) {
+      if (updatesThisWeek > 0) {
+        healthySummaries.push(
+          `Notion active: ${updatesThisWeek} document updates recorded this week.`
+        );
+      }
+    }
+    if (stripeSignals.length > 0 && chargesThisWeek > 0) {
+      healthySummaries.push(`Stripe active: ${chargesThisWeek} charges recorded this week.`);
+    }
+    if (slackSignals.length > 0 && slackThisWeek > 0) {
+      healthySummaries.push(`Slack active: ${slackThisWeek} team messages sent this week.`);
+    }
+    if (googleSignals.length > 0 && meetingHours <= 15) {
+      healthySummaries.push(`Google Calendar active: ${meetingHours} hours of meetings (healthy load).`);
+    }
+
+    const hasSignals = flags.length > 0 || healthySummaries.length > 0;
 
     // 6. Fetch recent feedback logs for this map
     const { data: feedbackLogs } = await userClient
@@ -546,7 +583,7 @@ Deno.serve(async (req: Request) => {
     const manualNotes = body.manual_notes ?? dbManualNote;
 
     // 8. Call the LLM chain
-    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes, statedContext, completedMoves);
+    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes, statedContext, completedMoves, healthySummaries);
 
     // If route() returned a Response (no_llm_key case), pass it through
     if (result instanceof Response) return result;
