@@ -280,10 +280,17 @@ export default function MapDetails() {
   const liveGitHubConnected = liveIntegrations.some(i => i.provider === "github" && i.status === "active");
 
   useEffect(() => {
-    if (liveGitHubConnected && !hasGitHubIntegration) {
-      // A new connection was just established — refresh github data
-      setHasGitHubIntegration(true);
-      checkGitHub();
+    if (liveGitHubConnected) {
+      if (!hasGitHubIntegration) {
+        setHasGitHubIntegration(true);
+        loadRepoList();
+      }
+    } else {
+      if (hasGitHubIntegration) {
+        setHasGitHubIntegration(false);
+        setRepos([]);
+        setSelectedRepo("");
+      }
     }
   }, [liveGitHubConnected]);
 
