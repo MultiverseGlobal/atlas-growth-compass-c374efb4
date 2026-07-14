@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom"
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Trail } from "@/components/atlas/Trail";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import {
@@ -960,9 +961,69 @@ export default function MapDetails() {
               isBusy={isBusy}
               diagnosing={diagnosing}
               syncing={syncing}
+              hasNotes={manualNotesList.length > 0}
               onDiagnose={() => fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "")}
-              onAddContext={() => setIsAttachmentLogOpen(true)}
-              onConnectSource={() => {}}
+              onConnectSource={handleReconnectGitHub}
+              onConnectToken={async (provider, token) => {
+                const rpcMap: Record<string, string> = {
+                  stripe: "upsert_stripe_token",
+                  notion: "upsert_notion_token",
+                  slack: "upsert_slack_token",
+                };
+                const rpc = rpcMap[provider];
+                if (!rpc) return;
+                const { error } = await supabase.rpc(rpc, { p_token: token });
+                if (error) throw error;
+                qc.invalidateQueries({ queryKey: ["integrations", user?.id] });
+              }}
+              onSaveNote={async (text, file) => {
+                if (!user || !id) return;
+                
+                let fileUrl = null;
+                let fileName = null;
+                let fileType = null;
+                
+                if (file) {
+                  const fileExt = file.name.split(".").pop();
+                  const cleanName = file.name.replace(/[^a-zA-Z0-9]/g, "_");
+                  const filePath = `${user.id}/${Date.now()}_${cleanName}.${fileExt}`;
+                  const { error: uploadErr } = await supabase.storage
+                    .from("attachments")
+                    .upload(filePath, file);
+                  if (uploadErr) throw uploadErr;
+                  const { data: { publicUrl } } = supabase.storage
+                    .from("attachments")
+                    .getPublicUrl(filePath);
+                  fileUrl = publicUrl;
+                  fileName = file.name;
+                  fileType = file.type;
+                }
+                
+                const payload: any = { note: text };
+                if (fileUrl) {
+                  payload.file_url = fileUrl;
+                  payload.file_name = fileName;
+                  payload.file_type = fileType;
+                }
+                
+                const { data: signalData, error: insertError } = await supabase
+                  .from("signals")
+                  .insert({
+                    map_id: id,
+                    user_id: user.id,
+                    title: "__manual_note",
+                    score: 0,
+                    occurred_at: new Date().toISOString(),
+                    payload,
+                  } as any)
+                  .select()
+                  .single();
+                  
+                if (insertError) throw insertError;
+                
+                setManualNotesList(prev => [signalData, ...prev]);
+                await fullSync(selectedRepo, map.goal_statement, text);
+              }}
             />
           ) : (
             <>
@@ -1487,6 +1548,8 @@ export default function MapDetails() {
 
 // ── UndiagnosedState ────────────────────────────────────────────────────────
 
+// ── UndiagnosedState ────────────────────────────────────────────────────────
+
 function UndiagnosedState({
   goalStatement,
   integrations,
@@ -1495,8 +1558,11 @@ function UndiagnosedState({
   isBusy,
   diagnosing,
   syncing,
+  hasNotes,
   onDiagnose,
-  onAddContext,
+  onConnectSource,
+  onConnectToken,
+  onSaveNote,
 }: {
   goalStatement: string;
   integrations: Array<{ provider: string; status: string }>;
@@ -1505,18 +1571,108 @@ function UndiagnosedState({
   isBusy: boolean;
   diagnosing: boolean;
   syncing: boolean;
+  hasNotes?: boolean;
   onDiagnose: () => void;
-  onAddContext: () => void;
   onConnectSource: () => void;
+  onConnectToken?: (provider: string, token: string) => Promise<void>;
+  onSaveNote?: (text: string, file: File | null) => Promise<void>;
 }) {
-  const connected = [
-    { id: "github", label: "GitHub", icon: "GH", active: hasGitHub },
-    { id: "stripe", label: "Stripe", icon: "$", active: integrations.some(i => i.provider === "stripe" && i.status === "active") },
-    { id: "notion", label: "Notion", icon: "N", active: integrations.some(i => i.provider === "notion" && i.status === "active") },
-    { id: "slack", label: "Slack", icon: "#", active: integrations.some(i => i.provider === "slack" && i.status === "active") },
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [tokenInput, setTokenInput] = useState("");
+  const [noteInput, setNoteInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const sources = [
+    {
+      id: "github",
+      name: "GitHub",
+      active: hasGitHub,
+      icon: <Github className="h-5 w-5 shrink-0" />,
+      tagline: "Sync pull requests, commit rates, and issue signals.",
+      type: "oauth"
+    },
+    {
+      id: "stripe",
+      name: "Stripe",
+      active: integrations.some(i => i.provider === "stripe" && i.status === "active"),
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current shrink-0">
+          <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" />
+        </svg>
+      ),
+      tagline: "Import MRR growth metrics and customer count signals.",
+      type: "token",
+      placeholder: "sk_live_...",
+      rpc: "upsert_stripe_token"
+    },
+    {
+      id: "notion",
+      name: "Notion",
+      active: integrations.some(i => i.provider === "notion" && i.status === "active"),
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current shrink-0">
+          <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
+        </svg>
+      ),
+      tagline: "Sync internal workspace updates, wiki pages, and tasks.",
+      type: "token",
+      placeholder: "secret_...",
+      rpc: "upsert_notion_token"
+    },
+    {
+      id: "slack",
+      name: "Slack",
+      active: integrations.some(i => i.provider === "slack" && i.status === "active"),
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current shrink-0">
+          <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
+        </svg>
+      ),
+      tagline: "Sync communication velocity and channel activity.",
+      type: "token",
+      placeholder: "xoxb-...",
+      rpc: "upsert_slack_token"
+    }
   ];
 
-  const anyConnected = hasGitHub || hasRepo || connected.some(c => c.active);
+  const visibleSources = sources.filter(s => !s.active);
+  const anyConnected = hasGitHub || hasRepo || integrations.some(i => i.status === "active");
+  const isReadyToDiagnose = anyConnected || hasNotes;
+
+  const handleConnectToken = async (provider: string) => {
+    if (!tokenInput.trim() || !onConnectToken) return;
+    setSubmitting(true);
+    try {
+      await onConnectToken(provider, tokenInput.trim());
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} connected!`);
+      setActiveDropdown(null);
+      setTokenInput("");
+    } catch (err: any) {
+      toast.error(err.message || `Failed to connect ${provider}.`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveNote = async () => {
+    if (!noteInput.trim() && !selectedFile) return;
+    if (!onSaveNote) return;
+    setSubmitting(true);
+    try {
+      await onSaveNote(noteInput.trim(), selectedFile);
+      toast.success("Context note saved!");
+      setActiveDropdown(null);
+      setNoteInput("");
+      setSelectedFile(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save note.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const selectedSource = sources.find(s => s.id === activeDropdown);
 
   return (
     <div className="relative space-y-4">
@@ -1546,91 +1702,202 @@ function UndiagnosedState({
         </div>
 
         <div className="rounded-[18px] border border-dashed border-border bg-card/50 px-6 py-8 space-y-6">
-          {/* Animated compass waiting state */}
-          <div className="flex items-center gap-4">
-            <div className="relative shrink-0">
-              <div className="absolute inset-0 rounded-full border border-primary/15 scale-[1.5] animate-ping" />
-              <div className="h-12 w-12 rounded-full bg-primary/8 border border-primary/20 flex items-center justify-center">
-                {isBusy ? (
-                  <RefreshCw className="h-5 w-5 text-primary animate-spin" />
-                ) : (
-                  <svg className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" fill="currentColor" fillOpacity="0.3" />
-                  </svg>
-                )}
+          {/* Title */}
+          <div>
+            <div className="eyebrow text-muted-foreground/70 mb-1">Constraint</div>
+            <p className="font-display text-xl font-medium text-muted-foreground">
+              Awaiting first diagnosis
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground/70 leading-relaxed">
+              Connect a recommended data source or add a context note to map your dominant constraint.
+            </p>
+          </div>
+
+          {/* Recommended integrations row */}
+          {visibleSources.length > 0 || !hasNotes ? (
+            <div className="space-y-2.5">
+              <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/80 font-semibold block">
+                Connect Recommended Signals
+              </label>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Integration logos */}
+                {visibleSources.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveDropdown(activeDropdown === s.id ? null : s.id);
+                      setTokenInput("");
+                    }}
+                    className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all ${
+                      activeDropdown === s.id
+                        ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-primary"
+                        : "border-border bg-background/60 hover:bg-background hover:border-primary/45 text-foreground/70 hover:text-foreground"
+                    }`}
+                    title={`Connect ${s.name}`}
+                  >
+                    {s.icon}
+                  </button>
+                ))}
+
+                {/* Attachment paperclip always at the end */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveDropdown(activeDropdown === "note" ? null : "note");
+                    setNoteInput("");
+                    setSelectedFile(null);
+                  }}
+                  className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all ${
+                    activeDropdown === "note"
+                      ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-primary"
+                      : "border-border bg-background/60 hover:bg-background hover:border-primary/45 text-foreground/70 hover:text-foreground"
+                  }`}
+                  title="Add qualitative note context"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </button>
               </div>
             </div>
-            <div>
-              <div className="eyebrow text-muted-foreground/70 mb-1">Constraint</div>
-              <p className="font-display text-xl font-medium text-muted-foreground">
-                {isBusy
-                  ? diagnosing ? "Reading your signals…" : "Syncing data sources…"
-                  : "Awaiting first diagnosis"}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground/70">
-                {anyConnected
-                  ? "You have sources connected. Run a diagnosis to map your constraint."
-                  : "Connect a data source or add context manually to get started."}
-              </p>
+          ) : (
+            <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5 animate-pulse">
+              <CheckCircle2 className="h-4 w-4" /> All recommended tools connected. Ready to run diagnosis!
             </div>
-          </div>
+          )}
 
-          {/* Integration status row */}
-          <div className="flex flex-wrap gap-2">
-            {connected.map(c => (
-              <span
-                key={c.id}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xs transition-colors ${
-                  c.active
-                    ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-700 dark:text-emerald-400"
-                    : "border-border bg-muted/50 text-muted-foreground"
-                }`}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${
-                  c.active ? "bg-emerald-500" : "bg-muted-foreground/30"
-                }`} />
-                {c.label}
-              </span>
-            ))}
-          </div>
+          {/* Inline Connection Panel / Dropdown */}
+          {activeDropdown && (
+            <div className="border border-border bg-background/50 rounded-xl p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              {/* Note attachment form */}
+              {activeDropdown === "note" ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">Add Qualitative Context</span>
+                    <button onClick={() => setActiveDropdown(null)} className="text-[10px] text-muted-foreground hover:text-foreground font-mono">Cancel</button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Provide manual notes or attach images to help Atlas diagnose constraints when integrations aren't active.
+                  </p>
+                  <textarea
+                    value={noteInput}
+                    onChange={e => setNoteInput(e.target.value)}
+                    rows={3}
+                    placeholder="e.g., We paused GitHub commits this week to focus on outbound sales."
+                    className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary font-sans"
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        id="note-file-upload"
+                        accept="image/*"
+                        onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="note-file-upload"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border bg-background text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-muted/30 cursor-pointer"
+                      >
+                        <Paperclip className="h-3 w-3" /> {selectedFile ? "Change file" : "Upload image"}
+                      </label>
+                      {selectedFile && (
+                        <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[120px]">
+                          {selectedFile.name}
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveNote}
+                      disabled={submitting || (!noteInput.trim() && !selectedFile)}
+                      className="h-8 text-xs px-4"
+                    >
+                      {submitting ? "Saving..." : "Submit Context"}
+                    </Button>
+                  </div>
+                </div>
+              ) : selectedSource ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">Connect {selectedSource.name}</span>
+                    <button onClick={() => setActiveDropdown(null)} className="text-[10px] text-muted-foreground hover:text-foreground font-mono">Cancel</button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {selectedSource.tagline}
+                  </p>
+                  
+                  {selectedSource.type === "oauth" ? (
+                    <Button
+                      size="sm"
+                      className="w-full h-9 text-xs font-mono gap-1.5"
+                      onClick={() => {
+                        onConnectSource();
+                        setActiveDropdown(null);
+                      }}
+                    >
+                      <Plug className="h-3.5 w-3.5" /> Link {selectedSource.name} account
+                    </Button>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                        {selectedSource.id === "stripe" ? "Stripe API Key" : selectedSource.id === "slack" ? "Bot User Token" : "Integration Token"}
+                      </label>
+                      <Input
+                        type="password"
+                        placeholder={selectedSource.placeholder}
+                        value={tokenInput}
+                        onChange={e => setTokenInput(e.target.value)}
+                        className="h-9 text-xs bg-background font-mono"
+                        onKeyDown={e => e.key === "Enter" && handleConnectToken(selectedSource.id)}
+                      />
+                      <Button
+                        size="sm"
+                        className="w-full h-9 text-xs"
+                        disabled={submitting || !tokenInput.trim()}
+                        onClick={() => handleConnectToken(selectedSource.id)}
+                      >
+                        {submitting ? "Connecting..." : "Save & Connect"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          )}
 
-          {/* CTA buttons */}
-          <div className="flex flex-col sm:flex-row gap-3">
+          {/* Diagnose Button / State */}
+          <div className="pt-2">
             <button
               onClick={onDiagnose}
-              disabled={isBusy}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-2.5 font-mono text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={isBusy || !isReadyToDiagnose}
+              className={`w-full inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-mono text-sm font-semibold transition-all shadow-sm ${
+                isReadyToDiagnose
+                  ? "bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-md cursor-pointer"
+                  : "bg-muted text-muted-foreground cursor-not-allowed border border-border/80"
+              }`}
             >
               {isBusy ? (
-                <><RefreshCw className="h-4 w-4 animate-spin" /> {diagnosing ? "Diagnosing…" : "Syncing…"}</>
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  {diagnosing ? "Diagnosing signals…" : "Syncing data sources…"}
+                </>
               ) : (
-                <><Compass className="h-4 w-4" /> Diagnose now →</>
+                <>
+                  <Compass className="h-4 w-4" />
+                  Diagnose now →
+                </>
               )}
             </button>
-            <button
-              onClick={onAddContext}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-card/60 px-6 py-2.5 font-mono text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
-            >
-              <PaperclipIcon className="h-4 w-4" /> Add context manually
-            </button>
+            {!isReadyToDiagnose && (
+              <p className="text-[10px] text-center text-muted-foreground/60 mt-2 font-mono">
+                Connect at least one signal or add a context note to activate diagnosis.
+              </p>
+            )}
           </div>
-
-          {/* Hint */}
-          {!anyConnected && (
-            <p className="text-xs text-muted-foreground/60 leading-relaxed border-t border-border/40 pt-4">
-              Tip: Connect GitHub from the{" "}
-              <Link to="/app/integrations" className="underline underline-offset-2 text-primary hover:no-underline">Data Sources</Link>{" "}
-              tab, or add a manual note below describing your current situation.
-            </p>
-          )}
         </div>
       </div>
     </div>
   );
-}
-
-function PaperclipIcon({ className }: { className?: string }) {
-  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
 }
 
