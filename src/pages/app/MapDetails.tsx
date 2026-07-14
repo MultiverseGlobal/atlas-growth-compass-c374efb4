@@ -1578,6 +1578,7 @@ function UndiagnosedState({
   onSaveNote?: (text: string, file: File | null) => Promise<void>;
 }) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [hoveredSource, setHoveredSource] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState("");
   const [noteInput, setNoteInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -1715,7 +1716,7 @@ function UndiagnosedState({
 
           {/* Recommended integrations row */}
           {visibleSources.length > 0 || !hasNotes ? (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/80 font-semibold block">
                 Connect Recommended Signals
               </label>
@@ -1730,6 +1731,8 @@ function UndiagnosedState({
                       setActiveDropdown(activeDropdown === s.id ? null : s.id);
                       setTokenInput("");
                     }}
+                    onMouseEnter={() => setHoveredSource(s.id)}
+                    onMouseLeave={() => setHoveredSource(null)}
                     className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all ${
                       activeDropdown === s.id
                         ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-primary"
@@ -1749,6 +1752,8 @@ function UndiagnosedState({
                     setNoteInput("");
                     setSelectedFile(null);
                   }}
+                  onMouseEnter={() => setHoveredSource("note")}
+                  onMouseLeave={() => setHoveredSource(null)}
                   className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all ${
                     activeDropdown === "note"
                       ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-primary"
@@ -1758,6 +1763,25 @@ function UndiagnosedState({
                 >
                   <Paperclip className="h-5 w-5" />
                 </button>
+              </div>
+
+              {/* Dynamic hover hint detail box */}
+              <div className="rounded-xl bg-muted/20 border border-border/40 px-3.5 py-2.5 min-h-[50px] flex items-center transition-all duration-200">
+                <p className="text-[11px] font-mono text-muted-foreground leading-normal">
+                  {hoveredSource === "github" && "GitHub: Syncs PRs, commit rates, and issue volumes. Recommended for shipping velocity!"}
+                  {hoveredSource === "stripe" && "Stripe: Syncs billing events, subscription MRR, and churn rates. Recommended for revenue goals!"}
+                  {hoveredSource === "notion" && "Notion: Syncs wiki pages, database lists, and workspace notes. Recommended for qualitative context!"}
+                  {hoveredSource === "slack" && "Slack: Syncs message volume and team channel velocity. Recommended for communication signals!"}
+                  {hoveredSource === "note" && "Manual Note: Add qualitative logs, files, or image uploads directly to refine diagnosis."}
+                  {!hoveredSource && (
+                    activeDropdown === "github" ? "GitHub: Syncs PRs, commit rates, and issue volumes. Recommended for shipping velocity!" :
+                    activeDropdown === "stripe" ? "Stripe: Syncs billing events, subscription MRR, and churn rates. Recommended for revenue goals!" :
+                    activeDropdown === "notion" ? "Notion: Syncs wiki pages, database lists, and workspace notes. Recommended for qualitative context!" :
+                    activeDropdown === "slack" ? "Slack: Syncs message volume and team channel velocity. Recommended for communication signals!" :
+                    activeDropdown === "note" ? "Manual Note: Add qualitative logs, files, or image uploads directly to refine diagnosis." :
+                    "Hover over an icon to see what signals it imports."
+                  )}
+                </p>
               </div>
             </div>
           ) : (
