@@ -158,9 +158,24 @@ Deno.serve(async (req: Request) => {
       mapData = data;
     }
 
+    // Fetch Stripe integration ID to satisfy NOT NULL constraint
+    const { data: integration } = await serviceClient
+      .from("integrations")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("provider", "stripe")
+      .maybeSingle();
+
+    const integrationId = integration?.id;
+    if (!integrationId) {
+      return new Response(JSON.stringify({ error: "Stripe integration row not found for sync" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: syncRun } = await serviceClient
       .from("sync_runs")
-      .insert({ user_id: userId, integration_id: null, kind: "stripe_map_sync" })
+      .insert({ user_id: userId, integration_id: integrationId, kind: "stripe_map_sync" })
       .select("id")
       .maybeSingle();
 

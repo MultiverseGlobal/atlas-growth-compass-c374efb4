@@ -41,6 +41,7 @@ async function fetchGitHub(path: string, token: string) {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github.v3+json",
+      "User-Agent": "Atlas-Growth-Compass",
     },
   });
   if (!res.ok) {
@@ -213,10 +214,25 @@ Deno.serve(async (req: Request) => {
 
     const [owner, repo] = body.repo_full_name.split("/");
 
+    // Fetch GitHub integration ID to satisfy NOT NULL constraint
+    const { data: integration } = await serviceClient
+      .from("integrations")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("provider", "github")
+      .maybeSingle();
+
+    const integrationId = integration?.id;
+    if (!integrationId) {
+      return new Response(JSON.stringify({ error: "GitHub integration row not found for sync" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Record sync start
     const { data: syncRun } = await serviceClient
       .from("sync_runs")
-      .insert({ user_id: userId, integration_id: null, kind: "github_map_sync" })
+      .insert({ user_id: userId, integration_id: integrationId, kind: "github_map_sync" })
       .select("id")
       .maybeSingle();
 

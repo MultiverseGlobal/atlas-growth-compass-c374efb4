@@ -1,4 +1,4 @@
-﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -121,9 +121,24 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Fetch Notion integration ID to satisfy NOT NULL constraint
+    const { data: integration } = await serviceClient
+      .from("integrations")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("provider", "notion")
+      .maybeSingle();
+
+    const integrationId = integration?.id;
+    if (!integrationId) {
+      return new Response(JSON.stringify({ error: "Notion integration row not found for sync" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: syncRun } = await serviceClient
       .from("sync_runs")
-      .insert({ user_id: userId, integration_id: null, kind: "notion_map_sync" })
+      .insert({ user_id: userId, integration_id: integrationId, kind: "notion_map_sync" })
       .select("id")
       .maybeSingle();
 
