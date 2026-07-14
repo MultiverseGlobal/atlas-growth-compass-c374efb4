@@ -53,9 +53,11 @@ export function useIntegrations() {
     queryKey: ["integrations", user?.id],
     queryFn: async () => {
       if (!user) return [];
+      const { data: { user: freshUser } } = await supabase.auth.getUser();
+      if (!freshUser) return [];
 
       // Auto-register GitHub if the user signed in with GitHub OAuth
-      const githubIdentity = user.identities?.find((i) => i.provider === "github");
+      const githubIdentity = freshUser.identities?.find((i) => i.provider === "github");
       if (githubIdentity) {
         const { data: sessionData } = await supabase.auth.getSession();
         const providerToken = sessionData.session?.provider_token;
@@ -72,14 +74,14 @@ export function useIntegrations() {
         const { data: existing } = await supabase
           .from("integrations")
           .select("id")
-          .eq("user_id", user.id)
+          .eq("user_id", freshUser.id)
           .eq("provider", "github")
           .maybeSingle();
 
         if (!existing) {
-          const label = user.user_metadata?.user_name || user.user_metadata?.full_name || "Connected GitHub";
+          const label = freshUser.user_metadata?.user_name || freshUser.user_metadata?.full_name || "Connected GitHub";
           await supabase.from("integrations").insert({
-            user_id: user.id,
+            user_id: freshUser.id,
             provider: "github",
             status: "active",
             external_account_label: label,
