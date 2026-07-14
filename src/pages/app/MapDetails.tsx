@@ -895,9 +895,15 @@ export default function MapDetails() {
         </div>
 
         {/* Goal */}
-        <div className="mt-8">
+        <div className="mt-8 relative pl-8 ml-[9px] border-l-[2.5px] border-primary/25 pb-4">
+          <div className="absolute -left-[10.5px] top-1.5">
+            <svg width="18" height="18" viewBox="0 0 22 22" aria-hidden="true" className="shrink-0">
+              <circle cx="11" cy="11" r="8" fill="hsl(var(--background))" stroke="hsl(var(--primary))" strokeWidth="2.5" />
+              <circle cx="11" cy="11" r="4.5" fill="hsl(var(--primary))" />
+            </svg>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-md border border-border bg-card px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">
+            <span className="rounded-md border border-border bg-card px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-primary" id="tour-wp-goal">
               {map.confidence}
             </span>
             {selectedRepo && (
@@ -911,7 +917,7 @@ export default function MapDetails() {
               </span>
             )}
           </div>
-          <h1 className="mt-3 font-display text-2xl font-semibold leading-tight md:text-3xl lg:text-[34px] tracking-tight">
+          <h1 className="mt-3 font-display text-2xl font-semibold leading-tight md:text-3xl lg:text-[34px] tracking-tight text-foreground">
             {map.goal_statement}
           </h1>
         </div>
@@ -961,7 +967,7 @@ export default function MapDetails() {
           ) : (
             <>
               <Trail
-                waypoints={waypoints.filter(w => !w.completed_at)}
+                waypoints={waypoints.filter(w => w.kind !== "goal" && !w.completed_at)}
                 onFeedback={handleFeedback}
               />
               {(() => {
