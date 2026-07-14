@@ -548,13 +548,13 @@ export default function MapDetails() {
 
         result = {
           waypoints: [
-            { kind: "goal", title: mapGoal, confidence: "established" },
+            { kind: "goal", title: mapGoal, confidence: conf },
             { kind: "constraint", title: llm.constraint, confidence: conf },
             { kind: "evidence", title: llm.evidence, confidence: conf },
             { kind: "move", title: llm.move, confidence: "established", metadata: llm.evidence_sources ? { evidence: llm.evidence_sources } : undefined },
           ],
         };
-        source = flags.length > 0 ? "llm" : "context-only";
+        source = (llm.evidence_sources && llm.evidence_sources.length > 0) ? "llm" : "context-only";
       } catch (err: any) {
         // Save the error so we can display a detailed message to the user
         const errorMsg = err.code === "no_llm_key"
