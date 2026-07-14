@@ -25,6 +25,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
@@ -82,6 +92,8 @@ export default function MapDetails() {
   const [expandedWaypoint, setExpandedWaypoint] = useState<number | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [showDeleteMapDialog, setShowDeleteMapDialog] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<{ id: string; fileUrl?: string } | null>(null);
 
   // First-move highlight state
   const [firstMoveHighlighted, setFirstMoveHighlighted] = useState(false);
@@ -694,8 +706,11 @@ export default function MapDetails() {
     }
   };
 
-  const handleDeleteNote = async (signalId: string, fileUrl?: string) => {
-    if (!window.confirm("Are you sure you want to remove this context entry?")) return;
+  const handleDeleteNote = (signalId: string, fileUrl?: string) => {
+    setNoteToDelete({ id: signalId, fileUrl });
+  };
+
+  const handleDeleteNoteConfirm = async (signalId: string, fileUrl?: string) => {
     try {
       const { error: dbError } = await supabase
         .from("signals")
@@ -778,8 +793,11 @@ export default function MapDetails() {
 
   // ─── Delete ───────────────────────────────────────────────────────────────
 
-  const handleDelete = async () => {
-    if (!window.confirm("Delete this map?")) return;
+  const handleDelete = () => {
+    setShowDeleteMapDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
     setDeleting(true);
     const { error } = await supabase.from("maps").delete().eq("id", id);
     if (error) { toast.error(error.message); setDeleting(false); return; }
@@ -1411,6 +1429,52 @@ export default function MapDetails() {
       )}
 
 
+      {/* Confirmation Dialog for Map Deletion */}
+      <AlertDialog open={showDeleteMapDialog} onOpenChange={setShowDeleteMapDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this map?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this map and remove all of its associated signals and waypoints. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmation Dialog for Context Entry Deletion */}
+      <AlertDialog open={!!noteToDelete} onOpenChange={(open) => !open && setNoteToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove context entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this context entry? This will re-diagnose your map signals without this context.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (noteToDelete) {
+                  handleDeleteNoteConfirm(noteToDelete.id, noteToDelete.fileUrl);
+                  setNoteToDelete(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
