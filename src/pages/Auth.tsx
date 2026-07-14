@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Logo } from "@/components/atlas/Logo";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { friendlyError } from "@/lib/errors";
@@ -18,6 +18,7 @@ export default function Auth() {
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -145,7 +146,24 @@ export default function Auth() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-xs font-semibold text-foreground/80">Password</Label>
-              <Input id="password" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 rounded-xl bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20" />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-11 rounded-xl bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <Button type="submit" disabled={loading} className="w-full h-11 rounded-xl font-mono text-xs font-semibold gap-1 bg-foreground text-background hover:bg-foreground/90 mt-2">
               {mode === "signup" ? "Create account" : "Sign in"} <ArrowRight className="h-3.5 w-3.5" />
