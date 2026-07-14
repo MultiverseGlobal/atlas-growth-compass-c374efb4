@@ -102,7 +102,7 @@ Based on the founder's goal, these specific signals, stated context, and past fe
 
 // ─── LLM Providers ───────────────────────────────────────────────────────────
 
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 4000): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 25000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
