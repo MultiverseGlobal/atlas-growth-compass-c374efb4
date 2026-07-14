@@ -43,6 +43,24 @@ export default function AuthCallback() {
         return;
       }
 
+      // Extract provider_token from hash or search parameters if present (implicit / PKCE linked identity fallback)
+      let pToken = params.get("provider_token");
+      if (!pToken && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        pToken = hashParams.get("provider_token");
+      }
+
+      if (pToken) {
+        const { error: rpcError } = await supabase.rpc("upsert_github_token" as any, {
+          p_token: pToken,
+          p_scopes: "read:user repo",
+          p_expires_at: null,
+        });
+        if (rpcError) {
+          console.warn("[AuthCallback] failed to save token via RPC:", rpcError.message);
+        }
+      }
+
       // exchangeCodeForSession handles both PKCE (?code=) and implicit (#access_token=) flows.
       const { data, error } = await supabase.auth.exchangeCodeForSession(
         window.location.href

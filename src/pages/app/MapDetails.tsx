@@ -1039,6 +1039,7 @@ export default function MapDetails() {
               onConnectToken={async (provider, token) => {
                 const rpcMap: Record<string, string> = {
                   stripe: "upsert_stripe_token",
+                  github: "upsert_github_token",
                 };
                 const rpc = rpcMap[provider];
                 if (!rpc) return;
@@ -1637,7 +1638,52 @@ function UndiagnosedState({
                     {selectedSource.tagline}
                   </p>
                   
-                  {selectedSource.type === "oauth" ? (
+                  {selectedSource.id === "github" ? (
+                    <div className="space-y-3">
+                      <Button
+                        size="sm"
+                        className="w-full h-9 text-xs font-mono gap-1.5"
+                        onClick={() => {
+                          onConnectSource();
+                          setActiveDropdown(null);
+                        }}
+                      >
+                        <Plug className="h-3.5 w-3.5" /> Connect via GitHub OAuth
+                      </Button>
+                      
+                      <div className="relative flex py-1 items-center">
+                        <div className="flex-grow border-t border-border/40"></div>
+                        <span className="flex-shrink mx-2 text-[9px] font-mono text-muted-foreground/60 uppercase">or use token</span>
+                        <div className="flex-grow border-t border-border/40"></div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          Personal Access Token
+                        </label>
+                        <Input
+                          type="password"
+                          placeholder="Paste a ghp_... token"
+                          value={tokenInput}
+                          onChange={e => setTokenInput(e.target.value)}
+                          className="h-9 text-xs bg-background font-mono"
+                          onKeyDown={e => e.key === "Enter" && handleConnectToken("github")}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full h-9 text-xs font-mono"
+                          disabled={submitting || !tokenInput.trim()}
+                          onClick={() => handleConnectToken("github")}
+                        >
+                          {submitting ? "Saving..." : "Save GitHub Token"}
+                        </Button>
+                        <p className="text-[9px] text-muted-foreground/50 leading-relaxed font-sans mt-1">
+                          Create a token at github.com/settings/tokens with <strong>repo</strong> &amp; <strong>read:user</strong> scopes.
+                        </p>
+                      </div>
+                    </div>
+                  ) : selectedSource.type === "oauth" ? (
                     <Button
                       size="sm"
                       className="w-full h-9 text-xs font-mono gap-1.5"
