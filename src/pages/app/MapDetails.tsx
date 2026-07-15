@@ -1569,7 +1569,10 @@ export default function MapDetails() {
                                   </div>
                                   <div className="flex flex-col items-end shrink-0">
                                     <span className="font-mono text-[9px] text-muted-foreground/80">
-                                      Est. {m.metadata?.estimate_range || "2–3 weeks"}
+                                      {(() => {
+                                        const range = m.metadata?.estimate_range || "2–3 weeks";
+                                        return range.toLowerCase().startsWith("est") ? range : `Est. ${range}`;
+                                      })()}
                                     </span>
                                     {m.is_reforecast && (
                                       <span className="text-[7px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground font-semibold mt-1">
@@ -1604,7 +1607,10 @@ export default function MapDetails() {
                               <h4 className="font-display font-semibold text-base text-foreground mt-0.5">{activeMilestone.title}</h4>
                             </div>
                             <span className="font-mono text-xs text-muted-foreground shrink-0 bg-background/60 border border-border/40 px-2.5 py-1 rounded">
-                              Est. {activeMilestone.metadata?.estimate_range || "2–3 weeks"}
+                              {(() => {
+                                const range = activeMilestone.metadata?.estimate_range || "2–3 weeks";
+                                return range.toLowerCase().startsWith("est") ? range : `Est. ${range}`;
+                              })()}
                             </span>
                           </div>
                           
@@ -1853,7 +1859,10 @@ export default function MapDetails() {
                                         {m.title}
                                       </h3>
                                       <span className="mt-1.5 inline-flex items-center gap-1 font-mono text-[8px] text-muted-foreground/80">
-                                        Est. {m.metadata?.estimate_range || "2–3 weeks"}
+                                        {(() => {
+                                          const range = m.metadata?.estimate_range || "2–3 weeks";
+                                          return range.toLowerCase().startsWith("est") ? range : `Est. ${range}`;
+                                        })()}
                                         {m.is_reforecast && (
                                           <span className="text-[7px] bg-muted/65 px-1 py-0.25 rounded text-muted-foreground font-semibold">
                                             updated
