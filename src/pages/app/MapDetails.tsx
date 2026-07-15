@@ -45,7 +45,29 @@ type MapData = {
   goal_statement: string;
   confidence: "starter" | "emerging" | "established";
   is_published: boolean;
+  metadata?: any;
 };
+
+interface Milestone {
+  id: string;
+  map_id: string;
+  title: string;
+  description: string | null;
+  sequence: number;
+  status: 'pending' | 'active' | 'complete' | 'skipped';
+  estimated_start: string | null;
+  estimated_complete: string | null;
+  actual_complete_at: string | null;
+  is_reforecast: boolean;
+  metadata?: {
+    estimate_range?: string;
+    min_weeks?: number;
+    max_weeks?: number;
+    original_duration_days?: number;
+    campaign_index?: number;
+  };
+  created_at: string;
+}
 
 type Waypoint = {
   id?: string;
@@ -60,6 +82,7 @@ type Waypoint = {
   check_back_date?: string | null;
   result_status?: string | null;
   result_summary?: string | null;
+  milestone_id?: string | null;
 };
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -95,6 +118,14 @@ export default function MapDetails() {
 
   // Waypoints
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+
+  // Milestones & Zoom
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [zoomedMilestoneId, setZoomedMilestoneId] = useState<string | null>(null);
+  const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
+  const [expandedMilestoneHistoryId, setExpandedMilestoneHistoryId] = useState<string | null>(null);
+  const [newGoalText, setNewGoalText] = useState("");
+  const [startingNewCampaign, setStartingNewCampaign] = useState(false);
 
   // Focus Mode states — auto-launch if ?focus=1
   const [focusMode, setFocusMode] = useState(shouldAutoFocus);
@@ -396,13 +427,21 @@ export default function MapDetails() {
 
       const { data: mapData, error: mapError } = await supabase
         .from("maps")
-        .select("id, name, goal_statement, confidence, is_published")
+        .select("id, name, goal_statement, confidence, is_published, metadata")
         .eq("id", id)
         .maybeSingle();
 
       if (mapError) throw mapError;
       if (!mapData) { toast.error("Map not found"); navigate("/app"); return; }
       setMap(mapData as MapData);
+
+      // Load milestones
+      const { data: milestonesData } = await supabase
+        .from("milestones")
+        .select("*")
+        .eq("map_id", id)
+        .order("sequence", { ascending: true });
+      setMilestones((milestonesData as Milestone[]) || []);
 
       // Load linked repo
       const { data: sourceData } = await supabase
@@ -426,7 +465,7 @@ export default function MapDetails() {
       // Load saved waypoints
       const { data: wpData } = await supabase
         .from("waypoints")
-        .select("id, kind, title, confidence, metadata, completed_at, predicted_signal, predicted_direction, predicted_baseline_value, check_back_date, result_status, result_summary")
+        .select("id, kind, title, confidence, metadata, completed_at, predicted_signal, predicted_direction, predicted_baseline_value, check_back_date, result_status, result_summary, milestone_id")
         .eq("map_id", id)
         .order("position", { ascending: true });
 
@@ -723,6 +762,8 @@ export default function MapDetails() {
 
       setWaypoints(result.waypoints);
 
+      const activeMilestone = milestones.find(m => m.status === "active");
+
       // Persist waypoints: only delete active ones (keep completed history)
       await supabase.from("waypoints").delete().eq("map_id", id).is("completed_at", null);
       await supabase.from("waypoints").insert(
@@ -735,6 +776,7 @@ export default function MapDetails() {
             confidence: w.confidence,
             position: idx,
             metadata: w.metadata || null,
+            milestone_id: activeMilestone?.id || null,
           };
           if (w.kind === "move") {
             wpObj.predicted_signal = (w as any).predicted_signal || null;
@@ -751,7 +793,7 @@ export default function MapDetails() {
       // Re-fetch all waypoints from database (both new active and past completed)
       const { data: refreshedWps } = await supabase
         .from("waypoints")
-        .select("id, kind, title, confidence, metadata, completed_at, predicted_signal, predicted_direction, predicted_baseline_value, check_back_date, result_status, result_summary")
+        .select("id, kind, title, confidence, metadata, completed_at, predicted_signal, predicted_direction, predicted_baseline_value, check_back_date, result_status, result_summary, milestone_id")
         .eq("map_id", id)
         .order("position", { ascending: true });
       
@@ -766,6 +808,28 @@ export default function MapDetails() {
       const newConf = constraintWp?.confidence === "established" ? "established" : "emerging";
       await supabase.from("maps").update({ confidence: newConf }).eq("id", id);
       setMap(prev => prev ? { ...prev, confidence: newConf } : null);
+
+      // Auto-trigger roadmap if map just moved past starter confidence
+      if (map && map.confidence === "starter" && newConf !== "starter" && milestones.length === 0) {
+        toast.info("Goal confidence established. Drafting roadmap campaign...");
+        try {
+          await supabase.functions.invoke("generate-roadmap", { body: { map_id: id } });
+          const { data: msData } = await supabase
+            .from("milestones")
+            .select("*")
+            .eq("map_id", id)
+            .order("sequence", { ascending: true });
+          if (msData && msData.length > 0) {
+            setMilestones(msData as Milestone[]);
+            // Re-run sync to get the first active milestone's waypoints
+            setTimeout(() => {
+              fullSync(repo, mapGoal, manualNote);
+            }, 100);
+          }
+        } catch (roadmapErr) {
+          console.error("Auto roadmap generation failed:", roadmapErr);
+        }
+      }
 
       setLastSyncedAt(new Date());
       setSyncFailed(false);
@@ -984,6 +1048,116 @@ export default function MapDetails() {
     } else {
       setMap(prev => prev ? { ...prev, is_published: nextPublished } : null);
       toast.success(nextPublished ? "Map published to public page" : "Map made private");
+    }
+  };
+
+  // ─── Roadmap & Campaign Handlers ──────────────────────────────────────────
+
+  const handleGenerateRoadmap = async () => {
+    if (!id || !map) return;
+    setGeneratingRoadmap(true);
+    try {
+      const { error } = await supabase.functions.invoke("generate-roadmap", {
+        body: { map_id: id },
+      });
+      if (error) throw error;
+      
+      toast.success("Roadmap generated!");
+      await loadMap();
+      // Run first sync scoped to the newly generated active milestone
+      await fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "");
+    } catch (err: any) {
+      toast.error("Failed to generate roadmap: " + err.message);
+    } finally {
+      setGeneratingRoadmap(false);
+    }
+  };
+
+  const handleCompleteMilestone = async (milestoneId: string) => {
+    if (!map) return;
+    try {
+      // 1. Mark current milestone complete
+      const { error: err1 } = await supabase
+        .from("milestones")
+        .update({
+          status: "complete",
+          actual_complete_at: new Date().toISOString(),
+        })
+        .eq("id", milestoneId);
+      if (err1) throw err1;
+
+      // 2. Activate next milestone
+      const currentMilestone = milestones.find(m => m.id === milestoneId);
+      if (!currentMilestone) return;
+
+      const nextMilestone = milestones.find(
+        m => m.sequence === currentMilestone.sequence + 1 &&
+             (m.metadata?.campaign_index || 1) === (currentMilestone.metadata?.campaign_index || 1)
+      );
+
+      if (nextMilestone) {
+        // Activate next
+        const { error: err2 } = await supabase
+          .from("milestones")
+          .update({
+            status: "active",
+            estimated_start: new Date().toISOString().split("T")[0],
+          })
+          .eq("id", nextMilestone.id);
+        if (err2) throw err2;
+
+        toast.success(`Milestone completed. "${nextMilestone.title}" is now active!`);
+        setZoomedMilestoneId(nextMilestone.id);
+        // Refresh map data and run sync
+        await loadMap();
+        await fullSync(selectedRepo, map.goal_statement, manualNotesList[0]?.payload?.note || "");
+      } else {
+        toast.success(`Milestone completed. Campaign completed!`);
+        setZoomedMilestoneId(null);
+        await loadMap();
+      }
+    } catch (err: any) {
+      toast.error("Failed to complete milestone: " + err.message);
+    }
+  };
+
+  const handleStartNewCampaign = async (newGoal: string) => {
+    if (!id || !map) return;
+    try {
+      const nextCampaignIndex = (map.metadata?.current_campaign_index || 1) + 1;
+      
+      // Update map goal and campaign index
+      const { error: mapErr } = await supabase
+        .from("maps")
+        .update({
+          goal_statement: newGoal,
+          name: newGoal,
+          metadata: {
+            ...map.metadata,
+            current_campaign_index: nextCampaignIndex,
+          }
+        } as any)
+        .eq("id", id);
+      if (mapErr) throw mapErr;
+
+      // Clear any active waypoints (completed ones remain in history)
+      await supabase.from("waypoints").delete().eq("map_id", id).is("completed_at", null);
+
+      toast.success("New campaign started! Generating roadmap...");
+      
+      // We invoke generate-roadmap edge function
+      const { error: genErr } = await supabase.functions.invoke("generate-roadmap", {
+        body: { map_id: id },
+      });
+      if (genErr) throw genErr;
+
+      // Reload map details
+      await loadMap();
+      setZoomedMilestoneId(null);
+      // Run sync to populate first waypoint trail
+      await fullSync(selectedRepo, newGoal, "");
+    } catch (err: any) {
+      toast.error("Failed to start new campaign: " + err.message);
     }
   };
 
@@ -1284,10 +1458,204 @@ export default function MapDetails() {
             />
           ) : (
             <>
-              <Trail
-                waypoints={waypoints.filter(w => w.kind !== "goal" && !w.completed_at)}
-                onFeedback={handleFeedback}
-              />
+              {(() => {
+                const isCampaignComplete = milestones.length > 0 && milestones.every(m => m.status === "complete");
+                if (isCampaignComplete) {
+                  const heldCount = waypoints.filter(w => w.kind === "move" && w.result_status === "held").length;
+                  const missedCount = waypoints.filter(w => w.kind === "move" && w.result_status === "missed").length;
+                  const totalCompleted = milestones.length;
+                  
+                  let estimatedWeeks = 0;
+                  milestones.forEach(m => {
+                    estimatedWeeks += m.metadata?.max_weeks || 2;
+                  });
+
+                  let actualWeeks = 1;
+                  if (milestones.length > 0) {
+                    const start = new Date(milestones[0].created_at).getTime();
+                    const end = new Date(milestones[milestones.length - 1].actual_complete_at || new Date().toISOString()).getTime();
+                    actualWeeks = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24 * 7)));
+                  }
+
+                  return (
+                    <div className="rounded-[16px] border border-emerald-500/20 bg-emerald-500/5 p-6 animate-in fade-in duration-300">
+                      <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-4 font-bold">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        Campaign Completed
+                      </div>
+                      <h3 className="font-display font-semibold text-lg text-foreground">
+                        Goal Achieved: {map.goal_statement}
+                      </h3>
+                      
+                      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-b border-border/40 py-4 font-mono text-xs text-muted-foreground">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground/60 block uppercase">Milestones</span>
+                          <strong className="text-foreground text-sm">{totalCompleted} completed</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground/60 block uppercase">Timeline</span>
+                          <strong className="text-foreground text-sm">Est. {estimatedWeeks}w vs Act. {actualWeeks}w</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground/60 block uppercase">Moves Held</span>
+                          <strong className="text-[hsl(var(--source))] text-sm">{heldCount} verified</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground/60 block uppercase">Moves Missed</span>
+                          <strong className="text-foreground text-sm">{missedCount} missed</strong>
+                        </div>
+                      </div>
+
+                      <div className="mt-6">
+                        <label className="block text-xs font-mono uppercase text-muted-foreground mb-2">What is your next campaign goal?</label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="e.g. Expand to first 50 customers"
+                            value={newGoalText}
+                            onChange={(e) => setNewGoalText(e.target.value)}
+                            className="bg-background/60"
+                          />
+                          <Button
+                            onClick={async () => {
+                              if (!newGoalText.trim()) return;
+                              setStartingNewCampaign(true);
+                              await handleStartNewCampaign(newGoalText.trim());
+                              setNewGoalText("");
+                              setStartingNewCampaign(false);
+                            }}
+                            disabled={startingNewCampaign || !newGoalText.trim()}
+                            className="bg-primary text-primary-foreground shrink-0 rounded-lg"
+                          >
+                            {startingNewCampaign ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : "Launch Campaign"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // If milestones exist but campaign is not yet complete
+                if (milestones.length > 0) {
+                  const activeMilestone = milestones.find(m => m.status === "active");
+                  return (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                      {/* Vertical Roadmap Timeline */}
+                      <div className="rounded-[16px] border border-border bg-card/30 p-5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-primary mb-4 font-bold">
+                          <Compass className="h-3.5 w-3.5" />
+                          Campaign Roadmap
+                        </div>
+                        <ol className="relative pl-4 border-l border-primary/20 space-y-5">
+                          {milestones.map((m, idx) => {
+                            const isActive = m.status === "active";
+                            const isComplete = m.status === "complete";
+                            
+                            return (
+                              <li key={m.id} className="relative">
+                                {/* Indicator circle */}
+                                <span className={`absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full border border-primary bg-background ${isComplete ? "bg-primary" : ""} ${isActive ? "ring-4 ring-primary/15 bg-primary" : ""}`} />
+                                
+                                <div className="flex justify-between items-start gap-4">
+                                  <div className="flex-1 cursor-pointer" onClick={() => isComplete && setExpandedMilestoneHistoryId(expandedMilestoneHistoryId === m.id ? null : m.id)}>
+                                    <h5 className={`font-display text-sm font-semibold leading-tight flex items-center gap-1.5 ${isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground transition-colors"}`}>
+                                      Milestone {idx + 1}: {m.title}
+                                      {isComplete && (
+                                        <span className="text-[9px] font-normal text-muted-foreground/60 select-none">
+                                          ({expandedMilestoneHistoryId === m.id ? "click to collapse" : "click to view proof"})
+                                        </span>
+                                      )}
+                                    </h5>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{m.description}</p>
+                                  </div>
+                                  <div className="flex flex-col items-end shrink-0">
+                                    <span className="font-mono text-[9px] text-muted-foreground/80">
+                                      Est. {m.metadata?.estimate_range || "2–3 weeks"}
+                                    </span>
+                                    {m.is_reforecast && (
+                                      <span className="text-[7px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground font-semibold mt-1">
+                                        updated
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Read-Only Proof layer for completed milestones */}
+                                {isComplete && expandedMilestoneHistoryId === m.id && (
+                                  <div className="mt-4 p-4 rounded-xl border border-border bg-muted/15 max-w-xl animate-in fade-in slide-in-from-top-1 duration-200">
+                                    <div className="text-[9px] font-mono uppercase tracking-wider text-muted-foreground/75 mb-3 font-semibold">Resolved Trail Record (Read-Only)</div>
+                                    <Trail
+                                      waypoints={waypoints.filter(w => w.milestone_id === m.id)}
+                                      interactive={false}
+                                    />
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      </div>
+
+                      {/* Active Milestone Trail */}
+                      {activeMilestone && (
+                        <div className="space-y-4">
+                          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
+                            <div>
+                              <span className="font-mono text-[9px] uppercase tracking-widest text-primary font-bold">Active Milestone</span>
+                              <h4 className="font-display font-semibold text-base text-foreground mt-0.5">{activeMilestone.title}</h4>
+                            </div>
+                            <span className="font-mono text-xs text-muted-foreground shrink-0 bg-background/60 border border-border/40 px-2.5 py-1 rounded">
+                              Est. {activeMilestone.metadata?.estimate_range || "2–3 weeks"}
+                            </span>
+                          </div>
+                          
+                          <Trail
+                            waypoints={waypoints.filter(w => w.milestone_id === activeMilestone.id && w.kind !== "goal" && !w.completed_at)}
+                            onFeedback={handleFeedback}
+                          />
+
+                          <div className="flex justify-end pt-2">
+                            <Button
+                              onClick={() => handleCompleteMilestone(activeMilestone.id)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full gap-1.5 text-xs shadow-sm"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              <span>Mark milestone complete</span>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // If milestones have not been generated (Starter Map phase)
+                return (
+                  <div className="space-y-8 animate-in fade-in duration-300">
+                    <Trail
+                      waypoints={waypoints.filter(w => w.kind !== "goal" && !w.completed_at)}
+                      onFeedback={handleFeedback}
+                    />
+
+                    {map.confidence !== "starter" && (
+                      <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-5 text-center">
+                        <h4 className="font-display font-semibold text-foreground text-sm">Generate Strategic Roadmap</h4>
+                        <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">Atlas will analyze your goal and signals to draft a sequence of range-estimated milestones.</p>
+                        <Button
+                          onClick={handleGenerateRoadmap}
+                          disabled={generatingRoadmap}
+                          size="sm"
+                          className="mt-4 gap-1.5 bg-primary text-primary-foreground"
+                        >
+                          {generatingRoadmap ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Compass className="h-3.5 w-3.5" />}
+                          <span>Generate Roadmap</span>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Achievement History */}
               {(() => {
                 const completedMoves = waypoints.filter(w => w.kind === "move" && w.completed_at);
                 if (completedMoves.length === 0) return null;
@@ -1428,12 +1796,136 @@ export default function MapDetails() {
                     contentClass="cursor-grab active:cursor-grabbing flex items-center justify-center"
                   >
                     <div className="relative w-[90vw] max-w-5xl p-8 bg-card/75 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl pointer-events-auto select-text mx-4 my-8">
-                      <Trail
-                        waypoints={waypoints.filter(w => !w.completed_at)}
-                        onFeedback={handleFeedback}
-                        interactive={true}
-                        layout="horizontal"
-                      />
+                      {milestones.length > 0 && zoomedMilestoneId === null ? (
+                        /* ── Zoomed-out Roadmap view ── */
+                        <div className="flex flex-col items-center w-full">
+                          <div className="mb-6 text-center">
+                            <h2 className="text-xs font-mono uppercase tracking-widest text-primary mb-1">Roadmap</h2>
+                            <p className="text-[11px] text-muted-foreground">Select a milestone pin below to view its strategic detail</p>
+                          </div>
+                          <div className="relative w-full py-10 px-8">
+                            {/* Dotted path line connecting milestone pins */}
+                            <div className="absolute left-16 right-16 top-[54px] h-[2px] pointer-events-none" aria-hidden="true">
+                              <svg className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                <line
+                                  x1="0"
+                                  y1="1"
+                                  x2="100%"
+                                  y2="1"
+                                  stroke="hsl(var(--primary) / 0.4)"
+                                  strokeWidth="2.5"
+                                  strokeDasharray="6 4"
+                                  className="flow-line"
+                                />
+                              </svg>
+                            </div>
+                            
+                            <ol className="relative z-10 flex flex-row justify-between items-center w-full gap-4">
+                              {milestones.map((m, idx) => {
+                                const isActive = m.status === "active";
+                                const isComplete = m.status === "complete";
+                                const pinStroke = "hsl(var(--primary))";
+                                const pinFill = isComplete ? pinStroke : "hsl(var(--background))";
+                                
+                                return (
+                                  <li
+                                    key={m.id}
+                                    onClick={() => setZoomedMilestoneId(m.id)}
+                                    className="group flex flex-col items-center cursor-pointer text-center flex-1 max-w-[180px]"
+                                  >
+                                    <div className="relative mb-4 flex justify-center items-center h-10 w-10 rounded-full hover:scale-105 transition-transform duration-200">
+                                      {isActive && (
+                                        <div className="absolute h-[34px] w-[34px] pointer-events-none rounded-full border border-primary/60 sonar-ring" />
+                                      )}
+                                      <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true" className="shrink-0">
+                                        <circle cx="11" cy="11" r="8" fill={pinFill} stroke={pinStroke} strokeWidth="2" />
+                                        {isActive && <circle cx="11" cy="11" r="4" fill={pinStroke} />}
+                                      </svg>
+                                      {isActive && (
+                                        <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-emerald-500 rounded-full border-2 border-background animate-pulse" />
+                                      )}
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                      <span className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">
+                                        Milestone {idx + 1}
+                                      </span>
+                                      <h3 className="font-display text-xs font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 px-1">
+                                        {m.title}
+                                      </h3>
+                                      <span className="mt-1.5 inline-flex items-center gap-1 font-mono text-[8px] text-muted-foreground/80">
+                                        Est. {m.metadata?.estimate_range || "2–3 weeks"}
+                                        {m.is_reforecast && (
+                                          <span className="text-[7px] bg-muted/65 px-1 py-0.25 rounded text-muted-foreground font-semibold">
+                                            updated
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ol>
+                          </div>
+                        </div>
+                      ) : (
+                        /* ── Zoomed-in Milestone or Starter Map view ── */
+                        <div className="flex flex-col w-full">
+                          {zoomedMilestoneId && (
+                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-border/40">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setZoomedMilestoneId(null)}
+                                className="gap-1.5 rounded-full hover:bg-muted/10 text-muted-foreground hover:text-foreground text-xs"
+                              >
+                                <ArrowLeft className="h-3.5 w-3.5" />
+                                <span>Back to Roadmap</span>
+                              </Button>
+                              
+                              {(() => {
+                                const zm = milestones.find(m => m.id === zoomedMilestoneId);
+                                if (!zm) return null;
+                                return (
+                                  <div className="text-right">
+                                    <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                                      Milestone {zm.sequence + 1} ({zm.status})
+                                    </div>
+                                    <div className="text-sm font-semibold font-display text-foreground">{zm.title}</div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                          
+                          <Trail
+                            waypoints={
+                              zoomedMilestoneId
+                                ? waypoints.filter(w => w.milestone_id === zoomedMilestoneId && (zoomedMilestoneId === milestones.find(m => m.status === 'active')?.id ? !w.completed_at : true))
+                                : waypoints.filter(w => !w.completed_at)
+                            }
+                            onFeedback={handleFeedback}
+                            interactive={
+                              zoomedMilestoneId
+                                ? milestones.find(m => m.id === zoomedMilestoneId)?.status === "active"
+                                : true
+                            }
+                            layout="horizontal"
+                          />
+                          
+                          {/* Mark complete option in focus mode zoomed-in detail */}
+                          {zoomedMilestoneId && milestones.find(m => m.id === zoomedMilestoneId)?.status === "active" && (
+                            <div className="mt-6 pt-4 border-t border-border/40 flex justify-end">
+                              <Button
+                                onClick={() => handleCompleteMilestone(zoomedMilestoneId)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full gap-1.5 text-xs shadow-sm"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                <span>Mark milestone complete</span>
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </TransformComponent>
                 </>

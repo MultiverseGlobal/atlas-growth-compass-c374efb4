@@ -183,7 +183,7 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                   )}
 
                   {/* Feedback actions */}
-                  {onFeedback && kind === "constraint" && (
+                  {interactive !== false && onFeedback && kind === "constraint" && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -195,7 +195,7 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                       This isn't right
                     </button>
                   )}
-                  {onFeedback && kind === "move" && (
+                  {interactive !== false && onFeedback && kind === "move" && (
                     <div className="mt-3 flex items-center justify-center gap-2">
                       <button
                         type="button"
@@ -355,7 +355,7 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                       )}
                     </div>
                   )}
-                  {onFeedback && (
+                  {interactive !== false && onFeedback && (
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); onFeedback(kind, "constraint_wrong", w.title); }}
@@ -423,7 +423,7 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                       </ul>
                     </div>
                   )}
-                  {onFeedback && (
+                  {interactive !== false && onFeedback && (
                     <div className="mt-5 flex items-center gap-3">
                       <button
                         type="button"

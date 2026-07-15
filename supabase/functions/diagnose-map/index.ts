@@ -143,7 +143,8 @@ function buildUserPrompt(
   recentFeedbackNotes?: string[],
   statedContext?: string,
   completedMoves?: string[],
-  healthySummaries?: string[]
+  healthySummaries?: string[],
+  activeMilestone?: { title: string; description: string | null } | null
 ): string {
   let flagLines = flags.length > 0
     ? flags.map(f => `- [${f.severity.toUpperCase()}] ${f.flag}: ${f.reason}`).join("\n")
@@ -174,12 +175,21 @@ function buildUserPrompt(
     ? `\nCompleted Next Moves (DO NOT repeat these actions under any circumstances as the user has already successfully accomplished them):\n${completedMoves.map(m => `- ${m}`).join("\n")}`
     : "";
 
+  const milestoneSection = activeMilestone
+    ? `\nActive milestone: "${activeMilestone.title}" - Description: "${activeMilestone.description || ""}"`
+    : "";
+
+  const instructionText = activeMilestone
+    ? `Based on the active milestone: "${activeMilestone.title}", these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress toward THIS milestone. The overall goal is "${goalStatement}", which serves as the larger frame, but your constraint diagnosis and recommended next move MUST be focused on unblocking this active milestone.`
+    : `Based on the founder's goal, these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress right now. If no live signals are available, reason from the stated goal and context to infer the most likely constraint. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
+
   return `Founder's stated goal: "${goalStatement}"
+${milestoneSection}
 
 Deterministic signals from connected tools:
 ${flagLines}${statedContextSection}${notesSection}${feedbackSection}${completedMovesSection}
 
-Based on the founder's goal, these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress right now. If no live signals are available, reason from the stated goal and context to infer the most likely constraint. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
+${instructionText}`;
 }
 
 // ─── LLM Providers ───────────────────────────────────────────────────────────
@@ -328,10 +338,11 @@ async function route(
   recentFeedbackNotes?: string[],
   statedContext?: string,
   completedMoves?: string[],
-  healthySummaries?: string[]
+  healthySummaries?: string[],
+  activeMilestone?: { title: string; description: string | null } | null
 ): Promise<DiagnoseResponse> {
   const system = buildSystemPrompt();
-  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext, completedMoves, healthySummaries);
+  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext, completedMoves, healthySummaries, activeMilestone);
 
   const selectedProvider = provider ?? "nvidia-nim";
   const chain: Array<{ name: string; fn: () => Promise<DiagnoseResponse> }> = [];
@@ -438,6 +449,14 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // 1b. Fetch active milestone if any
+    const { data: activeMilestone } = await userClient
+      .from("milestones")
+      .select("id, title, description")
+      .eq("map_id", body.map_id)
+      .eq("status", "active")
+      .maybeSingle();
 
     // 2. Fetch signals (last 14 days for activity; manual notes can be older)
     const twoWeeksAgo = new Date();
@@ -665,7 +684,7 @@ Deno.serve(async (req: Request) => {
     const manualNotes = body.manual_notes ?? dbManualNote;
 
     // 8. Call the LLM chain
-    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes, statedContext, completedMoves, healthySummaries);
+    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes, statedContext, completedMoves, healthySummaries, activeMilestone);
 
     // If route() returned a Response (no_llm_key case), pass it through
     if (result instanceof Response) return result;

@@ -92,6 +92,14 @@ Deno.serve(async (req: Request) => {
           },
         ];
 
+        // Step 3.5: Fetch active milestone if any
+        const { data: activeMilestone } = await supabase
+          .from("milestones")
+          .select("id")
+          .eq("map_id", map_id)
+          .eq("status", "active")
+          .maybeSingle();
+
         // Step 4: Persist waypoints in DB - keep completed history, delete active ones only
         await supabase.from("waypoints").delete().eq("map_id", map_id).is("completed_at", null);
         await supabase.from("waypoints").insert(
@@ -104,6 +112,7 @@ Deno.serve(async (req: Request) => {
               confidence: w.confidence === "building" ? "emerging" : w.confidence,
               position: idx,
               metadata: (w as any).metadata || null,
+              milestone_id: activeMilestone?.id || null,
             };
             if (w.kind === "move") {
               wpObj.predicted_signal = (w as any).predicted_signal;
@@ -209,6 +218,85 @@ Deno.serve(async (req: Request) => {
       }
     } catch (err: any) {
       console.error("[daily-sync-cron] Error in prediction check-back phase:", err.message);
+    }
+
+    // Step 7: Milestone Re-planning phase
+    try {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const today = new Date();
+      
+      const { data: activeMilestones } = await supabase
+        .from("milestones")
+        .select("id, map_id, title, estimated_complete, sequence")
+        .eq("status", "active");
+
+      for (const am of activeMilestones ?? []) {
+        const { data: missedMoves } = await supabase
+          .from("waypoints")
+          .select("id")
+          .eq("map_id", am.map_id)
+          .eq("milestone_id", am.id)
+          .eq("kind", "move")
+          .eq("result_status", "missed");
+
+        const hasMissedMove = missedMoves && missedMoves.length > 0;
+        const estComplete = new Date(am.estimated_complete);
+        const estCompletePassed = estComplete < today;
+
+        if (hasMissedMove || estCompletePassed) {
+          let daysToShift = 0;
+          if (estCompletePassed) {
+            daysToShift += Math.ceil((today.getTime() - estComplete.getTime()) / (1000 * 60 * 60 * 24));
+          }
+          if (hasMissedMove) {
+            daysToShift += 7;
+          }
+
+          if (daysToShift > 0) {
+            console.log(`[replan] Map ${am.map_id}: active milestone "${am.title}" slipped. Shifting by ${daysToShift} days.`);
+
+            const { data: allMilestones } = await supabase
+              .from("milestones")
+              .select("*")
+              .eq("map_id", am.map_id)
+              .order("sequence", { ascending: true });
+
+            const activeSeq = am.sequence;
+            let previousComplete: Date | null = null;
+
+            for (const ms of allMilestones ?? []) {
+              if (ms.sequence < activeSeq) continue;
+
+              const updates: any = { is_reforecast: true };
+
+              if (ms.sequence === activeSeq) {
+                const originalComplete = new Date(ms.estimated_complete);
+                originalComplete.setDate(originalComplete.getDate() + daysToShift);
+                updates.estimated_complete = originalComplete.toISOString().split("T")[0];
+                previousComplete = originalComplete;
+              } else {
+                if (previousComplete) {
+                  updates.estimated_start = previousComplete.toISOString().split("T")[0];
+                  
+                  const origDuration = ms.metadata?.original_duration_days || 14;
+                  const newComplete = new Date(previousComplete);
+                  newComplete.setDate(newComplete.getDate() + origDuration);
+                  
+                  updates.estimated_complete = newComplete.toISOString().split("T")[0];
+                  previousComplete = newComplete;
+                }
+              }
+
+              await supabase
+                .from("milestones")
+                .update(updates)
+                .eq("id", ms.id);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("[daily-sync-cron] Error in re-planning phase:", err.message);
     }
 
     return new Response(JSON.stringify({ ok: true, results }), {
