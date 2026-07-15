@@ -54,6 +54,12 @@ type Waypoint = {
   confidence: "starter" | "emerging" | "established";
   metadata?: any;
   completed_at?: string | null;
+  predicted_signal?: string | null;
+  predicted_direction?: string | null;
+  predicted_baseline_value?: string | null;
+  check_back_date?: string | null;
+  result_status?: string | null;
+  result_summary?: string | null;
 };
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -420,7 +426,7 @@ export default function MapDetails() {
       // Load saved waypoints
       const { data: wpData } = await supabase
         .from("waypoints")
-        .select("id, kind, title, confidence, metadata, completed_at")
+        .select("id, kind, title, confidence, metadata, completed_at, predicted_signal, predicted_direction, predicted_baseline_value, check_back_date, result_status, result_summary")
         .eq("map_id", id)
         .order("position", { ascending: true });
 
@@ -637,10 +643,17 @@ export default function MapDetails() {
           evidence: string;
           move: string;
           confidence: string;
-          evidence_sources?: Array<{ source: string; detail: string }>;
+          evidence_sources?: Array<{ source: string; detail: string; url?: string | null }>;
           trajectory_summary?: string;
           metrics?: Array<{ metric: string; current: string; target: string; gap_analysis: string }>;
           alternative_paths?: Array<{ name: string; description: string; workload: string }>;
+          predicted_signal?: string | null;
+          predicted_direction?: string | null;
+          predicted_baseline_value?: string | null;
+          check_back_date?: string | null;
+          result_status?: string | null;
+          result_summary?: string | null;
+          predicted_signal_type?: string | null;
         };
         const conf = (["emerging", "building", "established"].includes(llm.confidence)
           ? llm.confidence : "emerging") as "emerging" | "established";
@@ -663,8 +676,17 @@ export default function MapDetails() {
               kind: "move",
               title: llm.move,
               confidence: "established",
-              metadata: llm.evidence_sources ? { evidence: llm.evidence_sources } : undefined
-            },
+              metadata: {
+                evidence: llm.evidence_sources || [],
+                predicted_signal_type: llm.predicted_signal_type || "unclear"
+              },
+              predicted_signal: llm.predicted_signal || null,
+              predicted_direction: llm.predicted_direction || null,
+              predicted_baseline_value: llm.predicted_baseline_value || null,
+              check_back_date: llm.check_back_date || null,
+              result_status: llm.result_status || "pending",
+              result_summary: llm.result_summary || null,
+            } as any,
           ],
         };
         source = (llm.evidence_sources && llm.evidence_sources.length > 0) ? "llm" : "context-only";
@@ -704,21 +726,32 @@ export default function MapDetails() {
       // Persist waypoints: only delete active ones (keep completed history)
       await supabase.from("waypoints").delete().eq("map_id", id).is("completed_at", null);
       await supabase.from("waypoints").insert(
-        result.waypoints.map((w, idx) => ({
-          map_id: id,
-          user_id: user.id,
-          kind: w.kind,
-          title: w.title,
-          confidence: w.confidence,
-          position: idx,
-          metadata: w.metadata || null,
-        } as any))
+        result.waypoints.map((w, idx) => {
+          const wpObj: any = {
+            map_id: id,
+            user_id: user.id,
+            kind: w.kind,
+            title: w.title,
+            confidence: w.confidence,
+            position: idx,
+            metadata: w.metadata || null,
+          };
+          if (w.kind === "move") {
+            wpObj.predicted_signal = (w as any).predicted_signal || null;
+            wpObj.predicted_direction = (w as any).predicted_direction || null;
+            wpObj.predicted_baseline_value = (w as any).predicted_baseline_value || null;
+            wpObj.check_back_date = (w as any).check_back_date || null;
+            wpObj.result_status = (w as any).result_status || "pending";
+            wpObj.result_summary = (w as any).result_summary || null;
+          }
+          return wpObj;
+        })
       );
 
       // Re-fetch all waypoints from database (both new active and past completed)
       const { data: refreshedWps } = await supabase
         .from("waypoints")
-        .select("id, kind, title, confidence, metadata, completed_at")
+        .select("id, kind, title, confidence, metadata, completed_at, predicted_signal, predicted_direction, predicted_baseline_value, check_back_date, result_status, result_summary")
         .eq("map_id", id)
         .order("position", { ascending: true });
       

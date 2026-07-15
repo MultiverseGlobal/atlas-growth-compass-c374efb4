@@ -12,6 +12,12 @@ interface TrailProps {
     label?: string;
     lastUpdatedDays?: number;
     metadata?: any;
+    predicted_signal?: string | null;
+    predicted_direction?: string | null;
+    predicted_baseline_value?: string | null;
+    check_back_date?: string | null;
+    result_status?: string | null;
+    result_summary?: string | null;
   }>;
   /** Optional feedback handler — if provided, feedback buttons appear on constraint + move pins */
   onFeedback?: (waypointKind: string, action: string, waypointTitle: string) => void;
@@ -112,7 +118,14 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                 </div>
 
                 <div className="flex flex-col items-center w-full px-2">
-                  <div className="eyebrow text-muted-foreground group-hover:text-primary transition-colors text-[10px]">{label}</div>
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                    <div className="eyebrow text-muted-foreground group-hover:text-primary transition-colors text-[10px]">{label}</div>
+                    {kind === "move" && w.result_status === "pending" && w.check_back_date && (
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider text-muted-foreground border border-border/40 shrink-0">
+                        Check back {w.check_back_date}
+                      </span>
+                    )}
+                  </div>
                   <h3 className="mt-2 font-display text-base leading-snug text-foreground group-hover:text-primary/95 transition-colors line-clamp-3">
                     {w.title}
                   </h3>
@@ -120,6 +133,16 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                   {descriptionText && isExpanded && (
                     <p className="mt-3 text-xs leading-relaxed text-muted-foreground page-fade max-w-[180px]">
                       {descriptionText}
+                    </p>
+                  )}
+
+                  {/* Prediction Result */}
+                  {kind === "move" && w.result_status && w.result_status !== "pending" && w.result_summary && (
+                    <p className="mt-3 text-[10px] font-mono text-muted-foreground leading-normal max-w-[180px] mx-auto text-left border-t border-border/40 pt-2">
+                      <span className={w.result_status === "held" ? "text-[hsl(var(--source))] font-semibold" : "text-muted-foreground font-semibold"}>
+                        {w.result_status.charAt(0).toUpperCase() + w.result_status.slice(1)}
+                      </span>
+                      {" — "}{w.result_summary}
                     </p>
                   )}
 
@@ -132,7 +155,25 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                           <ul className="space-y-1">
                             {w.metadata.evidence.map((ev: any, idx: number) => (
                               <li key={idx} className="font-mono text-[10px] text-muted-foreground leading-snug truncate">
-                                — <strong>{ev.source}:</strong> {ev.detail}
+                                —{" "}
+                                {ev.url ? (
+                                  <a
+                                    href={ev.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-primary transition-colors inline-flex items-center gap-0.5 group/link"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <strong>{ev.source}:</strong> {ev.detail}
+                                    <svg className="inline-block h-2.5 w-2.5 opacity-60 group-hover/link:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                  </a>
+                                ) : (
+                                  <span>
+                                    <strong>{ev.source}:</strong> {ev.detail}
+                                  </span>
+                                )}
                               </li>
                             ))}
                           </ul>
@@ -328,13 +369,31 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
               ) : kind === "move" ? (
                 /* ── Move CTA card ── */
                 <div className="rounded-[14px] border border-primary/20 bg-primary/5 px-5 py-4">
-                  <div className={`eyebrow ${labelColor} mb-2`}>{label}</div>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <div className={`eyebrow ${labelColor}`}>{label}</div>
+                    {w.result_status === "pending" && w.check_back_date && (
+                      <span className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/75 border border-border/20">
+                        Check back {w.check_back_date}
+                      </span>
+                    )}
+                  </div>
                   <h3 className="font-display text-2xl md:text-[26px] leading-snug text-foreground">
                     {w.title}
                   </h3>
                   {descriptionText && isExpanded && (
                     <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground page-fade">{descriptionText}</p>
                   )}
+
+                  {/* Prediction Result */}
+                  {w.result_status && w.result_status !== "pending" && w.result_summary && (
+                    <p className="mt-3 text-sm font-mono text-muted-foreground leading-normal">
+                      <span className={w.result_status === "held" ? "text-[hsl(var(--source))] font-semibold" : "text-muted-foreground font-semibold"}>
+                        {w.result_status.charAt(0).toUpperCase() + w.result_status.slice(1)}
+                      </span>
+                      {" — "}{w.result_summary}
+                    </p>
+                  )}
+
                   {/* Evidence used */}
                   {w.metadata?.evidence && Array.isArray(w.metadata.evidence) && w.metadata.evidence.length > 0 && (
                     <div className="mt-3 space-y-1">
@@ -343,7 +402,22 @@ export function Trail({ waypoints, onFeedback, interactive, layout = "vertical" 
                         {w.metadata.evidence.map((ev: any, idx: number) => (
                           <li key={idx} className="font-mono text-xs text-muted-foreground flex items-start gap-1">
                             <span className="text-muted-foreground/50 select-none">—</span>
-                            <span><strong className="text-foreground/80 font-semibold">{ev.source}:</strong> {ev.detail}</span>
+                            {ev.url ? (
+                              <a
+                                href={ev.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-primary transition-colors flex items-center gap-1 group/link"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span><strong className="text-foreground/80 font-semibold">{ev.source}:</strong> {ev.detail}</span>
+                                <svg className="inline-block h-3 w-3 opacity-60 group-hover/link:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                              </a>
+                            ) : (
+                              <span><strong className="text-foreground/80 font-semibold">{ev.source}:</strong> {ev.detail}</span>
+                            )}
                           </li>
                         ))}
                       </ul>

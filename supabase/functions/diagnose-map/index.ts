@@ -41,6 +41,12 @@ interface DiagnoseResponse {
   trajectory_summary: string;        // Brutal, quantitative paragraph assessing current path vs. goal
   metrics: TrajectoryMetric[];        // 2–4 goal-relevant metrics with current vs target
   alternative_paths: StrategicPath[]; // Exactly 2 alternative strategic routes
+  prediction?: {
+    predicted_signal_type: "github_commits" | "notion_updates" | "stripe_charges" | "slack_messages" | "meeting_hours" | "unclear";
+    predicted_signal: string;
+    predicted_direction: "up" | "down" | "flat";
+    predicted_days_window: number;
+  };
 }
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
@@ -81,6 +87,19 @@ Confidence tiers:
 - "building": some real signal but incomplete picture (2–3 moderate signals)
 - "established": strong, recent, multi-source signal (3+ clear signals)
 
+Prediction rules:
+- The "prediction" object describes a specific, measurable signal that is expected to change as a result of the recommended primary "move".
+- predicted_signal_type must be one of:
+  - "github_commits" (if predicting change in commit frequency)
+  - "notion_updates" (if predicting change in product docs/spec editing activity)
+  - "stripe_charges" (if predicting change in billing frequency/revenue)
+  - "slack_messages" (if predicting change in team Slack communication activity)
+  - "meeting_hours" (if predicting change in calendar meetings duration)
+  - "unclear" (if the expected change cannot be measured programmatically through these integrations)
+- predicted_signal must be a precise description of the expected change (e.g. "customer-facing commits per week" or "Notion product spec updates").
+- predicted_direction must be "up", "down", or "flat".
+- predicted_days_window must be an integer between 3 and 14 representing a reasonable window to check back (e.g., 7 for a week, 14 for two weeks, 5 for a few days).
+
 Return ONLY valid JSON matching this exact shape — no markdown, no explanation:
 {
   "constraint": "string",
@@ -107,7 +126,13 @@ Return ONLY valid JSON matching this exact shape — no markdown, no explanation
       "description": "string",
       "workload": "string"
     }
-  ]
+  ],
+  "prediction": {
+    "predicted_signal_type": "github_commits" | "notion_updates" | "stripe_charges" | "slack_messages" | "meeting_hours" | "unclear",
+    "predicted_signal": "string",
+    "predicted_direction": "up" | "down" | "flat",
+    "predicted_days_window": number
+  }
 }`;
 }
 
@@ -649,22 +674,50 @@ Deno.serve(async (req: Request) => {
     const evidenceSources = flags.map(f => {
       let src = "GitHub";
       const fl = f.flag.toLowerCase();
-      if (fl.includes("stripe")) src = "Stripe";
-      else if (fl.includes("notion") || fl.includes("docs")) src = "Notion";
-      else if (fl.includes("slack")) src = "Slack";
-      else if (fl.includes("calendar") || fl.includes("meeting")) src = "Google Workspace";
+      let url: string | null = null;
+      if (fl.includes("stripe")) {
+        src = "Stripe";
+      } else if (fl.includes("notion") || fl.includes("docs")) {
+        src = "Notion";
+        url = notionSignals?.[0]?.payload?.url || null;
+      } else if (fl.includes("slack")) {
+        src = "Slack";
+      } else if (fl.includes("calendar") || fl.includes("meeting")) {
+        src = "Google Workspace";
+      } else {
+        // GitHub
+        url = latestCommit?.payload?.url || null;
+      }
       return {
         source: src,
-        detail: `${f.flag}: ${f.reason}`
+        detail: `${f.flag}: ${f.reason}`,
+        url: url
       };
     });
 
     if (manualNotes && manualNotes.trim()) {
       evidenceSources.push({
         source: "Manual Notes",
-        detail: manualNotes.trim()
+        detail: manualNotes.trim(),
+        url: null
       });
     }
+
+    // Compute baseline value for prediction
+    let baselineValue = "0";
+    const sigType = result.prediction?.predicted_signal_type || "unclear";
+    if (sigType === "github_commits") baselineValue = String(commitsThisWeek);
+    else if (sigType === "notion_updates") baselineValue = String(updatesThisWeek);
+    else if (sigType === "stripe_charges") baselineValue = String(chargesThisWeek);
+    else if (sigType === "slack_messages") baselineValue = String(slackThisWeek);
+    else if (sigType === "meeting_hours") baselineValue = String(meetingHours);
+    else baselineValue = "unclear";
+
+    // Compute check back date (YYYY-MM-DD)
+    const checkBackDate = new Date();
+    const days = result.prediction?.predicted_days_window || 7;
+    checkBackDate.setDate(checkBackDate.getDate() + days);
+    const checkBackStr = checkBackDate.toISOString().split("T")[0];
 
     const responseBody = {
       ...result,
@@ -673,6 +726,14 @@ Deno.serve(async (req: Request) => {
       trajectory_summary: result.trajectory_summary ?? null,
       metrics: result.metrics ?? [],
       alternative_paths: result.alternative_paths ?? [],
+      // Prediction fields
+      predicted_signal: result.prediction?.predicted_signal ?? null,
+      predicted_direction: result.prediction?.predicted_direction ?? null,
+      predicted_baseline_value: baselineValue,
+      check_back_date: checkBackStr,
+      result_status: "pending",
+      result_summary: null,
+      predicted_signal_type: sigType
     };
 
     return new Response(JSON.stringify(responseBody), {

@@ -9,6 +9,7 @@ import { UpgradeModal } from "@/components/atlas/UpgradeModal";
 import { loadStarterMap, clearStarterMap } from "@/lib/starterMap";
 import { formatDistanceToNow } from "date-fns";
 import { NewMapModal } from "@/components/atlas/NewMapModal";
+import { supabase } from "@/integrations/supabase/client";
 
 const confidenceMeta = {
   starter: {
@@ -38,6 +39,26 @@ export default function Home() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const navigate = useNavigate();
+
+  const [trackRecord, setTrackRecord] = useState<{ held: number; total: number } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchTrackRecord = async () => {
+      const { data } = await supabase
+        .from("waypoints")
+        .select("result_status")
+        .eq("user_id", user.id)
+        .in("result_status", ["held", "missed"]);
+      
+      if (data && data.length >= 3) {
+        const total = data.length;
+        const held = data.filter(w => w.result_status === "held").length;
+        setTrackRecord({ held, total });
+      }
+    };
+    fetchTrackRecord();
+  }, [user]);
 
   const starterMap = loadStarterMap();
   const hasClaimedStarter = maps.length > 0;
@@ -92,6 +113,11 @@ export default function Home() {
       <p className="mt-3 text-sm text-muted-foreground">
         Each map is a goal. Atlas diagnoses what's blocking it.
       </p>
+      {trackRecord && (
+        <p className="mt-1 text-xs text-muted-foreground/80">
+          Right {trackRecord.held} of {trackRecord.total} times so far.
+        </p>
+      )}
 
       <div className="mt-10 space-y-3">
         {/* Unclaimed starter from localStorage */}

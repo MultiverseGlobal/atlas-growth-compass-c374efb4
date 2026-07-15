@@ -150,7 +150,8 @@ export function runGitHubRulesFallback(stats: GitHubStats, goal: string) {
 
   const evidenceSources = flags.map(f => ({
     source: "GitHub",
-    detail: `${f.flag}: ${f.reason}`
+    detail: `${f.flag}: ${f.reason}`,
+    url: null
   }));
 
   return {

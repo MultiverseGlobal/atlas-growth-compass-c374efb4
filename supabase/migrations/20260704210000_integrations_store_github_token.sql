@@ -6,7 +6,7 @@
 ALTER TABLE public.integrations
   ADD COLUMN IF NOT EXISTS access_token_encrypted TEXT,
   ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS scopes TEXT[]; -- Ensure scopes is text array
+  ADD COLUMN IF NOT EXISTS scopes TEXT;
 
 -- Revoke SELECT on the sensitive column from authenticated role
 -- (they can still INSERT/UPDATE the row via the secure function below)
@@ -29,7 +29,6 @@ SET search_path = public
 AS $$
 DECLARE
   v_label TEXT;
-  v_scopes TEXT[];
 BEGIN
   -- Get the GitHub username from user_metadata (set during OAuth)
   SELECT COALESCE(
@@ -37,13 +36,6 @@ BEGIN
     (auth.jwt()->'user_metadata'->>'full_name'),
     'GitHub'
   ) INTO v_label;
-
-  -- Convert space-separated scope string to array
-  IF p_scopes IS NOT NULL THEN
-    v_scopes := string_to_array(p_scopes, ' ');
-  ELSE
-    v_scopes := ARRAY['read:user', 'repo']::TEXT[];
-  END IF;
 
   INSERT INTO public.integrations (
     user_id,
@@ -61,7 +53,7 @@ BEGIN
     'active',
     v_label,
     p_token,
-    v_scopes,
+    p_scopes,
     p_expires_at,
     now()
   )
@@ -88,4 +80,3 @@ ALTER TABLE public.integrations
 COMMENT ON FUNCTION public.upsert_github_token IS
   'Security-definer function that stores a GitHub OAuth provider_token in integrations.access_token_encrypted. '
   'Authenticated users can write their own token via this function but cannot SELECT the column directly.';
-
