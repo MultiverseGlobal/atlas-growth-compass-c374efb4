@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS public.milestones (
 -- Index for speed
 CREATE INDEX IF NOT EXISTS idx_milestones_map ON public.milestones(map_id, sequence);
 
+-- Extend maps to support generic metadata JSONB
+ALTER TABLE public.maps
+  ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 -- Extend waypoints to support milestone grouping
 ALTER TABLE public.waypoints
   ADD COLUMN IF NOT EXISTS milestone_id UUID REFERENCES public.milestones(id) ON DELETE SET NULL;
