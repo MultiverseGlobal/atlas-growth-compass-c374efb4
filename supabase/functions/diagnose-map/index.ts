@@ -68,6 +68,7 @@ Constraint Logic Rules:
 - Reason from the GOAL STATEMENT first. A goal of "get first 10 customers" means the key metrics are customer acquisition (outreach, signups, conversions, demos booked) — NOT commit velocity. A goal of "ship v2 API" means the key metrics are engineering throughput. Match your metrics to what actually moves the needle for THIS specific goal.
 - If code velocity is healthy (50+ commits/week) but there is no customer or revenue signal, the constraint is NOT engineering — it is distribution, outreach, or customer validation.
 - If no integration signals exist, reason from the goal and manual notes to infer the most likely constraint and produce estimated/target metrics.
+- Asking Clarifying Questions: If you cannot find evidence of a required component in the integration activity logs (e.g., if you don't know whether the user has already set up a CRM, created an offer document, or connected their payment gateways), or if you need more context on the founder's target customer/niche, make the primary "move" a direct, highly-specific question prompting the founder to write a clarifying note (e.g., "Save a note explaining if you have already set up a client CRM in Notion and list its page name"). This engages the user to compare integration data with their actual progress.
 
 Metrics rules:
 - Generate 2–4 metrics that are DIRECTLY relevant to the stated goal — not a fixed template.
@@ -185,8 +186,8 @@ function buildUserPrompt(
     : "";
 
   const instructionText = activeMilestone
-    ? `Based on the active milestone: "${activeMilestone.title}", these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress toward THIS milestone. The overall goal is "${goalStatement}", which serves as the larger frame, but your constraint diagnosis and recommended next move MUST be focused on unblocking this active milestone.`
-    : `Based on the founder's goal, these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress right now. If no live signals are available, reason from the stated goal and context to infer the most likely constraint. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
+    ? `Based on the active milestone: "${activeMilestone.title}", these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress toward THIS milestone. The overall goal is "${goalStatement}", which serves as the larger frame, but your constraint diagnosis and recommended next move MUST be focused on unblocking this active milestone. If you need more details about what the user has already done or what they want to achieve, ask a specific question in your recommended next move prompting them to clarify it in a note.`
+    : `Based on the founder's goal, these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress right now. If no live signals are available, reason from the stated goal and context to infer the most likely constraint. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API." If you need more details about what the user has already done or what they want to achieve (e.g. if they have already created a CRM, draft list, or set up Stripe), ask a specific question in your recommended next move prompting them to clarify it in a note.`;
 
   return `Founder's stated goal: "${goalStatement}"
 ${milestoneSection}
