@@ -144,7 +144,8 @@ function buildUserPrompt(
   statedContext?: string,
   completedMoves?: string[],
   healthySummaries?: string[],
-  activeMilestone?: { title: string; description: string | null } | null
+  activeMilestone?: { title: string; description: string | null } | null,
+  recentActivity?: string
 ): string {
   let flagLines = flags.length > 0
     ? flags.map(f => `- [${f.severity.toUpperCase()}] ${f.flag}: ${f.reason}`).join("\n")
@@ -179,6 +180,10 @@ function buildUserPrompt(
     ? `\nActive milestone: "${activeMilestone.title}" - Description: "${activeMilestone.description || ""}"`
     : "";
 
+  const activitySection = recentActivity
+    ? `\nRecent integration activity logs (last 14 days):\n${recentActivity}`
+    : "";
+
   const instructionText = activeMilestone
     ? `Based on the active milestone: "${activeMilestone.title}", these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress toward THIS milestone. The overall goal is "${goalStatement}", which serves as the larger frame, but your constraint diagnosis and recommended next move MUST be focused on unblocking this active milestone.`
     : `Based on the founder's goal, these specific signals, stated context, and past feedback history, identify the single constraint most likely blocking progress right now. If no live signals are available, reason from the stated goal and context to infer the most likely constraint. Consider the goal carefully — a commit velocity flag matters very differently for "get my first 10 customers" versus "ship the v2 API."`;
@@ -188,6 +193,7 @@ ${milestoneSection}
 
 Deterministic signals from connected tools:
 ${flagLines}${statedContextSection}${notesSection}${feedbackSection}${completedMovesSection}
+${activitySection}
 
 ${instructionText}`;
 }
@@ -339,10 +345,11 @@ async function route(
   statedContext?: string,
   completedMoves?: string[],
   healthySummaries?: string[],
-  activeMilestone?: { title: string; description: string | null } | null
+  activeMilestone?: { title: string; description: string | null } | null,
+  recentActivity?: string
 ): Promise<DiagnoseResponse> {
   const system = buildSystemPrompt();
-  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext, completedMoves, healthySummaries, activeMilestone);
+  const user = buildUserPrompt(goalStatement, flags, manualNotes, recentFeedbackNotes, statedContext, completedMoves, healthySummaries, activeMilestone, recentActivity);
 
   const selectedProvider = provider ?? "nvidia-nim";
   const chain: Array<{ name: string; fn: () => Promise<DiagnoseResponse> }> = [];
@@ -683,8 +690,26 @@ Deno.serve(async (req: Request) => {
     const dbManualNote = manualNoteSignal?.payload?.note || "";
     const manualNotes = body.manual_notes ?? dbManualNote;
 
+    // 7.5. Construct recent activity log text from integrations
+    const recentActivity = signals
+      ?.filter((s) => s.title !== "__manual_note" && new Date(s.occurred_at) >= twoWeeksAgo)
+      .slice(0, 15)
+      .map((s) => `- [${new Date(s.occurred_at).toISOString().split("T")[0]}] ${s.title}`)
+      .join("\n") || "- No recent integration activity logs.";
+
     // 8. Call the LLM chain
-    const result = await route(map.goal_statement, flags, manualNotes, body.provider, recentFeedbackNotes, statedContext, completedMoves, healthySummaries, activeMilestone);
+    const result = await route(
+      map.goal_statement,
+      flags,
+      manualNotes,
+      body.provider,
+      recentFeedbackNotes,
+      statedContext,
+      completedMoves,
+      healthySummaries,
+      activeMilestone,
+      recentActivity
+    );
 
     // If route() returned a Response (no_llm_key case), pass it through
     if (result instanceof Response) return result;
