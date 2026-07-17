@@ -209,6 +209,8 @@ export type Database = {
           notes: string | null
           created_at: string
           updated_at: string
+          exported_to_notion: boolean
+          exported_to_airtable: boolean
         }
         Insert: {
           id?: string
@@ -226,6 +228,8 @@ export type Database = {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          exported_to_notion?: boolean
+          exported_to_airtable?: boolean
         }
         Update: {
           id?: string
@@ -243,6 +247,8 @@ export type Database = {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          exported_to_notion?: boolean
+          exported_to_airtable?: boolean
         }
         Relationships: []
       }

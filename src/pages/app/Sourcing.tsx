@@ -3,7 +3,8 @@ import {
   Target, Loader2, Plus, Search, Trash2, ExternalLink, 
   FileSpreadsheet, Link2, Check, X, Edit2, CheckSquare, 
   Square, RefreshCw, AlertCircle, HelpCircle, ArrowRight,
-  LogOut
+  LogOut, SlidersHorizontal, TrendingUp, Users, CheckCircle2,
+  Database
 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,6 +43,8 @@ interface Lead {
   product_hunt_url: string | null;
   notes: string | null;
   created_at: string;
+  exported_to_notion: boolean;
+  exported_to_airtable: boolean;
 }
 
 interface NotionDatabase {
@@ -91,6 +94,23 @@ export default function Sourcing() {
   const [airtablePat, setAirtablePat] = useState(() => localStorage.getItem("atlas.airtable.pat") || "");
   const [airtableBaseId, setAirtableBaseId] = useState(() => localStorage.getItem("atlas.airtable.base_id") || "");
   const [airtableTableName, setAirtableTableName] = useState(() => localStorage.getItem("atlas.airtable.table_name") || "");
+
+  // Integration Default Configs & Display States
+  const [showIntegrationsConfig, setShowIntegrationsConfig] = useState(false);
+  const [defaultNotionDb, setDefaultNotionDb] = useState(() => localStorage.getItem("atlas.sourcing.default_notion_db") || "");
+  const [autoNotion, setAutoNotion] = useState(() => localStorage.getItem("atlas.sourcing.auto_notion") === "true");
+  const [autoAirtable, setAutoAirtable] = useState(() => localStorage.getItem("atlas.sourcing.auto_airtable") === "true");
+
+  // Selection state for Bulk Actions
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+
+  // Sourcing mode state
+  const [sourcingMode, setSourcingMode] = useState<"url" | "text">("url");
+  const [rawTextInput, setRawTextInput] = useState("");
+
+  // Preview & Organize Staging Flow state
+  const [previewLead, setPreviewLead] = useState<Partial<Lead> | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Load leads from database
   const fetchLeads = async () => {
@@ -158,18 +178,28 @@ export default function Sourcing() {
   // Sourcing pipeline execution
   const handleSource = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!urlInput.trim()) return;
+    
+    const isUrlMode = sourcingMode === "url";
+    const input = isUrlMode ? urlInput.trim() : rawTextInput.trim();
+    if (!input) return;
 
-    let targetUrl = urlInput.trim();
-    if (!/^https?:\/\//i.test(targetUrl)) {
-      targetUrl = "https://" + targetUrl;
+    let targetUrl = "";
+    if (isUrlMode) {
+      targetUrl = input;
+      if (!/^https?:\/\//i.test(targetUrl)) {
+        targetUrl = "https://" + targetUrl;
+      }
     }
 
     setSourcing(true);
-    setUrlInput("");
+    if (isUrlMode) {
+      setUrlInput("");
+    } else {
+      setRawTextInput("");
+    }
     
     // Simulate steps in UI for beautiful UX
-    setSourcingStep(1); // Scrape URL
+    setSourcingStep(1); // Scrape/Input
     
     const stepInterval = setInterval(() => {
       setSourcingStep(prev => {
@@ -179,10 +209,13 @@ export default function Sourcing() {
     }, 2800);
 
     try {
-      const { data: newLead, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-        body: {
+      const { data: parsedLead, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: isUrlMode ? {
           action: "source",
           url: targetUrl
+        } : {
+          action: "source",
+          raw_text: input
         }
       });
 
@@ -190,18 +223,101 @@ export default function Sourcing() {
         throw new Error(invokeError.message ?? "Failed to source lead");
       }
 
-      if (!newLead) {
+      if (!parsedLead) {
         throw new Error("No data returned from sourcing service");
       }
 
-      setLeads(prev => [newLead, ...prev]);
-      toast.success(`Successfully sourced ${newLead.company_name}!`);
+      // Store in preview state instead of directly saving to DB
+      setPreviewLead(parsedLead);
+      setShowPreviewModal(true);
+      toast.success(`Successfully parsed ${parsedLead.company_name || "lead"}! Please review before saving.`);
     } catch (err: any) {
       toast.error("Sourcing failed: " + err.message);
     } finally {
       clearInterval(stepInterval);
       setSourcing(false);
       setSourcingStep(0);
+    }
+  };
+
+  // Fetch Notion Databases list
+  const loadNotionDatabasesList = async (showToastError = true) => {
+    try {
+      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: { action: "list-notion-databases" }
+      });
+
+      if (invokeError) throw new Error(invokeError.message ?? "Failed to fetch databases");
+
+      setNotionDatabases(body?.databases || []);
+      return body?.databases || [];
+    } catch (err: any) {
+      if (showToastError) {
+        toast.error("Notion databases load error: " + err.message);
+      }
+      return [];
+    }
+  };
+
+  // Perform actual Notion export
+  const performExportToNotion = async (lead: Lead | Partial<Lead>, dbId: string) => {
+    try {
+      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: {
+          action: "export-notion",
+          lead,
+          database_id: dbId
+        }
+      });
+
+      if (invokeError) throw new Error(invokeError.message ?? "Notion export failed");
+
+      // If it has an ID (already saved in DB), mark as exported
+      if (lead.id) {
+        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, exported_to_notion: true } : l));
+        await supabase
+          .from("leads")
+          .update({ exported_to_notion: true })
+          .eq("id", lead.id);
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Perform actual Airtable export
+  const performExportToAirtable = async (lead: Lead | Partial<Lead>) => {
+    if (!airtablePat || !airtableBaseId || !airtableTableName) {
+      return { success: false, error: "Airtable configuration missing" };
+    }
+
+    try {
+      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: {
+          action: "export-airtable",
+          lead,
+          airtable_pat: airtablePat,
+          base_id: airtableBaseId,
+          table_name: airtableTableName
+        }
+      });
+
+      if (invokeError) throw new Error(invokeError.message ?? "Airtable export failed");
+
+      // If it has an ID (already saved in DB), mark as exported
+      if (lead.id) {
+        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, exported_to_airtable: true } : l));
+        await supabase
+          .from("leads")
+          .update({ exported_to_airtable: true })
+          .eq("id", lead.id);
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
   };
 
@@ -251,6 +367,78 @@ export default function Sourcing() {
       setManualUrl("");
     } catch (err: any) {
       toast.error("Failed to add lead: " + err.message);
+    }
+  };
+
+  // Save parsed/staged preview lead to Supabase & auto-push if configured
+  const savePreviewLeadToPipeline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!previewLead || !previewLead.company_name?.trim()) {
+      toast.error("Company name is required");
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Unauthorized");
+
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from("leads")
+        .insert({
+          user_id: user.id,
+          company_name: previewLead.company_name.trim(),
+          founder_name: previewLead.founder_name?.trim() || null,
+          linkedin_url: previewLead.linkedin_url?.trim() || null,
+          twitter_url: previewLead.twitter_url?.trim() || null,
+          employee_count: previewLead.employee_count ?? null,
+          is_b2b_saas: previewLead.is_b2b_saas ?? false,
+          icp_score: previewLead.icp_score ?? null,
+          product_hunt_url: previewLead.product_hunt_url?.trim() || null,
+          notes: previewLead.notes?.trim() || null,
+          exported_to_notion: false,
+          exported_to_airtable: false
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      // Update local lists
+      setLeads(prev => [data, ...prev]);
+      setShowPreviewModal(false);
+      setPreviewLead(null);
+      toast.success(`Successfully saved ${data.company_name} to pipeline!`);
+
+      // Trigger auto-push if configured
+      if (autoNotion) {
+        const notionDb = defaultNotionDb || (notionDatabases.length > 0 ? notionDatabases[0].id : null);
+        if (notionDb) {
+          toast.loading(`Auto-pushing ${data.company_name} to Notion...`);
+          const res = await performExportToNotion(data, notionDb);
+          toast.dismiss();
+          if (res.success) {
+            toast.success("Auto-pushed to Notion!");
+          } else {
+            toast.error("Notion auto-push failed: " + res.error);
+          }
+        }
+      }
+
+      if (autoAirtable) {
+        if (airtablePat && airtableBaseId && airtableTableName) {
+          toast.loading(`Auto-pushing ${data.company_name} to Airtable...`);
+          const res = await performExportToAirtable(data);
+          toast.dismiss();
+          if (res.success) {
+            toast.success("Auto-pushed to Airtable!");
+          } else {
+            toast.error("Airtable auto-push failed: " + res.error);
+          }
+        }
+      }
+    } catch (err: any) {
+      toast.error("Failed to save lead: " + err.message);
     }
   };
 
@@ -337,26 +525,16 @@ export default function Sourcing() {
   const fetchNotionDatabases = async (lead: Lead) => {
     setExportingLead(lead);
     setShowNotionModal(true);
-    setNotionLoading(true);
-    setNotionDatabases([]);
-    setSelectedNotionDb("");
-
-    try {
-      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-        body: { action: "list-notion-databases" }
-      });
-
-      if (invokeError) throw new Error(invokeError.message ?? "Failed to fetch databases");
-
-      setNotionDatabases(body?.databases || []);
-      if (body?.databases?.length > 0) {
-        setSelectedNotionDb(body.databases[0].id);
-      }
-    } catch (err: any) {
-      toast.error("Notion databases load error: " + err.message);
-      setShowNotionModal(false);
-    } finally {
+    
+    if (notionDatabases.length === 0) {
+      setNotionLoading(true);
+      const dbs = await loadNotionDatabasesList(true);
       setNotionLoading(false);
+      if (dbs.length > 0) {
+        setSelectedNotionDb(defaultNotionDb || dbs[0].id);
+      }
+    } else {
+      setSelectedNotionDb(defaultNotionDb || notionDatabases[0].id);
     }
   };
 
@@ -365,23 +543,15 @@ export default function Sourcing() {
     if (!exportingLead || !selectedNotionDb) return;
     setNotionLoading(true);
 
-    try {
-      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-        body: {
-          action: "export-notion",
-          lead: exportingLead,
-          database_id: selectedNotionDb
-        }
-      });
+    const res = await performExportToNotion(exportingLead, selectedNotionDb);
+    setNotionLoading(false);
 
-      if (invokeError) throw new Error(invokeError.message ?? "Export failed");
-
-      toast.success("Successfully exported to Notion! 🚀");
+    if (res.success) {
+      toast.success(`Successfully exported ${exportingLead.company_name} to Notion! 🚀`);
       setShowNotionModal(false);
-    } catch (err: any) {
-      toast.error("Notion export failed: " + err.message);
-    } finally {
-      setNotionLoading(false);
+      setExportingLead(null);
+    } else {
+      toast.error(`Notion export failed: ${res.error}`);
     }
   };
 
@@ -393,25 +563,111 @@ export default function Sourcing() {
       return;
     }
 
-    toast.loading("Exporting to Airtable...");
+    toast.loading(`Exporting ${lead.company_name} to Airtable...`);
+    const res = await performExportToAirtable(lead);
+    toast.dismiss();
+
+    if (res.success) {
+      toast.success(`Successfully exported ${lead.company_name} to Airtable! 📊`);
+    } else {
+      toast.error(`Airtable export failed: ${res.error}`);
+    }
+  };
+
+  // Bulk actions handlers
+  const handleBulkExportNotion = async () => {
+    const targetDb = defaultNotionDb || (notionDatabases.length > 0 ? notionDatabases[0].id : null);
+    if (!targetDb) {
+      toast.error("Please configure a default Notion Database in settings first.");
+      setShowIntegrationsConfig(true);
+      return;
+    }
+
+    const selectedLeads = leads.filter(l => selectedLeadIds.includes(l.id));
+    const leadsToExport = selectedLeads.filter(l => !l.exported_to_notion);
+
+    if (leadsToExport.length === 0) {
+      toast.info("All selected leads are already exported to Notion.");
+      return;
+    }
+
+    toast.loading(`Bulk exporting ${leadsToExport.length} leads to Notion...`);
+    let successCount = 0;
+    for (const lead of leadsToExport) {
+      const res = await performExportToNotion(lead, targetDb);
+      if (res.success) successCount++;
+    }
+    toast.dismiss();
+    toast.success(`Exported ${successCount} of ${leadsToExport.length} leads to Notion! 🚀`);
+    setSelectedLeadIds([]);
+  };
+
+  const handleBulkExportAirtable = async () => {
+    if (!airtablePat || !airtableBaseId || !airtableTableName) {
+      toast.error("Please configure Airtable settings first.");
+      setShowIntegrationsConfig(true);
+      return;
+    }
+
+    const selectedLeads = leads.filter(l => selectedLeadIds.includes(l.id));
+    const leadsToExport = selectedLeads.filter(l => !l.exported_to_airtable);
+
+    if (leadsToExport.length === 0) {
+      toast.info("All selected leads are already exported to Airtable.");
+      return;
+    }
+
+    toast.loading(`Bulk exporting ${leadsToExport.length} leads to Airtable...`);
+    let successCount = 0;
+    for (const lead of leadsToExport) {
+      const res = await performExportToAirtable(lead);
+      if (res.success) successCount++;
+    }
+    toast.dismiss();
+    toast.success(`Exported ${successCount} of ${leadsToExport.length} leads to Airtable! 📊`);
+    setSelectedLeadIds([]);
+  };
+
+  const handleBulkDelete = async () => {
+    const selectedCount = selectedLeadIds.length;
+    if (!confirm(`Are you sure you want to delete ${selectedCount} leads?`)) return;
+
+    toast.loading(`Deleting ${selectedCount} leads...`);
     try {
-      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-        body: {
-          action: "export-airtable",
-          lead,
-          airtable_pat: airtablePat,
-          base_id: airtableBaseId,
-          table_name: airtableTableName
-        }
-      });
+      const { error } = await supabase
+        .from("leads")
+        .delete()
+        .in("id", selectedLeadIds);
 
+      if (error) throw error;
+      
+      setLeads(prev => prev.filter(l => !selectedLeadIds.includes(l.id)));
       toast.dismiss();
-
-      if (invokeError) throw new Error(invokeError.message ?? "Airtable export failed");
-      toast.success("Successfully exported to Airtable! 📊");
+      toast.success(`Successfully deleted ${selectedCount} leads.`);
+      setSelectedLeadIds([]);
     } catch (err: any) {
       toast.dismiss();
-      toast.error("Airtable export failed: " + err.message);
+      toast.error("Failed to delete leads: " + err.message);
+    }
+  };
+
+  const handleBulkMarkContacted = async (contacted: boolean) => {
+    toast.loading("Updating status...");
+    try {
+      const { error } = await supabase
+        .from("leads")
+        .update({ is_contacted: contacted })
+        .in("id", selectedLeadIds);
+
+      if (error) throw error;
+
+      setLeads(prev => prev.map(l => selectedLeadIds.includes(l.id) ? { ...l, is_contacted: contacted } : l));
+      toast.dismiss();
+      toast.success(`Updated ${selectedLeadIds.length} leads.`);
+      setSelectedLeadIds([]);
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error("Failed to update status: " + err.message);
     }
   };
 
@@ -499,6 +755,20 @@ export default function Sourcing() {
     return matchSearch && matchSaas;
   });
 
+  // Stats Calculations
+  const statsTotal = leads.length;
+  const statsIcpAvg = leads.length > 0
+    ? Number((leads.reduce((sum, l) => sum + (l.icp_score || 0), 0) / leads.length).toFixed(1))
+    : 0;
+  const statsSaasCount = leads.filter(l => l.is_b2b_saas).length;
+  const statsSaasRatio = leads.length > 0
+    ? Math.round((statsSaasCount / leads.length) * 100)
+    : 0;
+  const statsContactedCount = leads.filter(l => l.is_contacted).length;
+  const statsContactRate = leads.length > 0
+    ? Math.round((statsContactedCount / leads.length) * 100)
+    : 0;
+
   return (
     <div className="min-h-screen bg-background flex flex-col grain">
       {/* Premium Top Navigation Bar */}
@@ -562,13 +832,11 @@ export default function Sourcing() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => {
-              setExportingLead(null);
-              setShowAirtableModal(true);
-            }}
-            className="text-xs h-9"
+            onClick={() => setShowIntegrationsConfig(prev => !prev)}
+            className={`text-xs h-9 gap-1.5 font-medium ${showIntegrationsConfig ? "bg-primary/10 border-primary text-primary" : ""}`}
           >
-            Airtable Settings
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Configure Destinations
           </Button>
           <Button 
             variant="outline" 
@@ -589,32 +857,243 @@ export default function Sourcing() {
         </div>
       </div>
 
-      {/* ── Sourcing URL Input Card ── */}
-      <div className="mt-8 rounded-lg border border-border/60 bg-card p-6 shadow-sm">
-        <form onSubmit={handleSource} className="flex gap-2.5 max-w-3xl">
-          <div className="relative flex-1">
-            <Input
-              type="text"
-              placeholder="Paste launch URL or landing page (e.g. producthunt.com/posts/... or example.com)"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              disabled={sourcing}
-              className="pr-10 h-11 bg-background text-sm"
-            />
+      {/* ── Stats Dashboard ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+        <div className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-sm backdrop-blur-sm flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
+            <Target className="h-5 w-5" />
           </div>
-          <Button type="submit" size="lg" disabled={sourcing || !urlInput.trim()} className="h-11 px-5 gap-1.5 font-medium shrink-0">
-            {sourcing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Sourcing...
-              </>
-            ) : (
-              <>
-                Analyze Lead
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
-          </Button>
+          <div>
+            <div className="text-2xl font-semibold tracking-tight font-display">{statsTotal}</div>
+            <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">Total Leads</div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-sm backdrop-blur-sm flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+            <TrendingUp className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-2xl font-semibold tracking-tight font-display">{statsIcpAvg}/10</div>
+            <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">Avg ICP Score</div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-sm backdrop-blur-sm flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-500 shrink-0">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-2xl font-semibold tracking-tight font-display">{statsSaasRatio}%</div>
+            <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">B2B SaaS Ratio</div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-sm backdrop-blur-sm flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-2xl font-semibold tracking-tight font-display">{statsContactRate}%</div>
+            <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">Contact Rate</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Collapsible Integrations Config ── */}
+      {showIntegrationsConfig && (
+        <div className="mt-6 rounded-lg border border-border/60 bg-card p-6 shadow-sm relative overflow-hidden transition-all duration-300">
+          <div className="absolute right-4 top-4">
+            <Button variant="ghost" size="sm" onClick={() => setShowIntegrationsConfig(false)} className="h-8 w-8 p-0 text-muted-foreground">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <h3 className="font-display font-semibold text-lg text-foreground flex items-center gap-2">
+            <Database className="h-4 w-4 text-primary" /> Destination Settings & Auto-Push Pipeline
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+            Configure your integrations defaults. Choose where target prospects are sent, choose which database to use, and toggle auto-push to automate your entire outreach workflow.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            {/* Notion Destination Settings */}
+            <div className="space-y-4 rounded-md border border-border/40 p-4 bg-muted/20">
+              <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  Notion Integration
+                </span>
+                <Checkbox
+                  id="auto-notion"
+                  checked={autoNotion}
+                  onCheckedChange={(checked) => {
+                    setAutoNotion(!!checked);
+                    localStorage.setItem("atlas.sourcing.auto_notion", String(!!checked));
+                    toast.success(!!checked ? "Auto-Notion enabled" : "Auto-Notion disabled");
+                  }}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Default Target Database</label>
+                <Select 
+                  value={defaultNotionDb} 
+                  onValueChange={(val) => {
+                    setDefaultNotionDb(val);
+                    localStorage.setItem("atlas.sourcing.default_notion_db", val);
+                    toast.success("Default Notion Database set");
+                  }}
+                >
+                  <SelectTrigger className="w-full h-9 bg-background text-xs">
+                    <SelectValue placeholder={notionLoading ? "Loading databases..." : "Select Notion DB"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {notionDatabases.length === 0 ? (
+                      <SelectItem value="none" disabled>No databases loaded</SelectItem>
+                    ) : (
+                      notionDatabases.map(db => (
+                        <SelectItem key={db.id} value={db.id}>{db.title}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between gap-2 mt-4 pt-1">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => loadNotionDatabasesList(false)}
+                  className="text-[11px] h-7 font-medium text-primary hover:bg-primary/5 p-0"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1 inline" /> Reload Databases
+                </Button>
+                <div className="text-[10px] text-muted-foreground text-right max-w-[180px]">
+                  Turn on Notion auto-push to export newly analyzed leads.
+                </div>
+              </div>
+            </div>
+
+            {/* Airtable Destination Settings */}
+            <div className="space-y-4 rounded-md border border-border/40 p-4 bg-muted/20">
+              <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  Airtable Integration
+                </span>
+                <Checkbox
+                  id="auto-airtable"
+                  checked={autoAirtable}
+                  onCheckedChange={(checked) => {
+                    setAutoAirtable(!!checked);
+                    localStorage.setItem("atlas.sourcing.auto_airtable", String(!!checked));
+                    toast.success(!!checked ? "Auto-Airtable enabled" : "Auto-Airtable disabled");
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2 mt-4 pt-1">
+                <div className="text-xs text-muted-foreground">
+                  {airtablePat && airtableBaseId && airtableTableName ? (
+                    <span className="text-emerald-500 font-medium">✓ Airtable configured</span>
+                  ) : (
+                    <span className="text-amber-500">⚠ Airtable configuration missing</span>
+                  )}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    setExportingLead(null);
+                    setShowAirtableModal(true);
+                  }}
+                  className="text-[11px] h-8"
+                >
+                  Edit Airtable Credentials
+                </Button>
+              </div>
+              
+              <div className="text-[10px] text-muted-foreground leading-relaxed">
+                Turn on Airtable auto-push to export newly analyzed leads.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sourcing Input Card ── */}
+      <div className="mt-8 rounded-lg border border-border/60 bg-card p-6 shadow-sm">
+        {/* Toggle Mode Switcher */}
+        <div className="flex border-b border-border/40 pb-4 mb-4 gap-4">
+          <button
+            type="button"
+            onClick={() => setSourcingMode("url")}
+            className={`text-xs font-semibold pb-1 border-b-2 transition-all ${
+              sourcingMode === "url" 
+                ? "border-primary text-primary" 
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            🔗 URL Scanner
+          </button>
+          <button
+            type="button"
+            onClick={() => setSourcingMode("text")}
+            className={`text-xs font-semibold pb-1 border-b-2 transition-all ${
+              sourcingMode === "text" 
+                ? "border-primary text-primary" 
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            📋 Raw Page Scraper (Paste Text)
+          </button>
+        </div>
+
+        <form onSubmit={handleSource} className="flex flex-col gap-3.5 max-w-3xl">
+          {sourcingMode === "url" ? (
+            <div className="flex gap-2.5 w-full">
+              <div className="relative flex-1">
+                <Input
+                  type="text"
+                  placeholder="Paste launch URL or landing page (e.g. producthunt.com/posts/... or example.com)"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  disabled={sourcing}
+                  className="pr-10 h-11 bg-background text-sm"
+                />
+              </div>
+              <Button type="submit" size="lg" disabled={sourcing || !urlInput.trim()} className="h-11 px-5 gap-1.5 font-medium shrink-0">
+                {sourcing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sourcing...
+                  </>
+                ) : (
+                  <>
+                    Analyze URL
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 w-full">
+              <Textarea
+                placeholder="Copy and paste the full page contents here (founder details, socials, SaaS status, and notes will be extracted and scored using Kimi AI)..."
+                value={rawTextInput}
+                onChange={(e) => setRawTextInput(e.target.value)}
+                disabled={sourcing}
+                className="min-h-[140px] bg-background text-sm resize-y"
+              />
+              <Button type="submit" size="lg" disabled={sourcing || !rawTextInput.trim()} className="h-11 px-5 gap-1.5 font-medium align-self-start self-start">
+                {sourcing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing Content...
+                  </>
+                ) : (
+                  <>
+                    Analyze Paste
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </form>
 
         {/* ── Progressive Loading UX ── */}
@@ -628,7 +1107,7 @@ export default function Sourcing() {
                 sourcingStep > 1 ? <Check className="h-4 w-4 text-emerald-500 shrink-0" /> : <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
               ) : <div className="h-4 w-4 rounded-full border border-muted shrink-0" />}
               <span className={sourcingStep === 1 ? "font-medium text-foreground" : "text-muted-foreground"}>
-                1. Crawling target URL & extracting page body...
+                {sourcingMode === "url" ? "1. Crawling target URL & extracting page body..." : "1. Reading raw text input block..."}
               </span>
             </div>
             <div className="flex items-center gap-3 text-sm">
@@ -652,7 +1131,7 @@ export default function Sourcing() {
                 <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
               ) : <div className="h-4 w-4 rounded-full border border-muted shrink-0" />}
               <span className={sourcingStep === 4 ? "font-medium text-foreground" : "text-muted-foreground"}>
-                4. Appending records to public.leads table...
+                4. Formatting details for staging preview...
               </span>
             </div>
           </div>
@@ -691,6 +1170,68 @@ export default function Sourcing() {
         </div>
       </div>
 
+      {/* ── Bulk Actions Staging Banner ── */}
+      {selectedLeadIds.length > 0 && (
+        <div className="mt-6 p-3 px-4 rounded-lg border border-primary/35 bg-primary/5 flex items-center justify-between text-xs animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-2 text-foreground font-medium">
+            <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground font-mono flex items-center justify-center font-bold text-[10px]">
+              {selectedLeadIds.length}
+            </span>
+            selected prospects
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkExportNotion}
+              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
+            >
+              Export Notion
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkExportAirtable}
+              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
+            >
+              Export Airtable
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkMarkContacted(true)}
+              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
+            >
+              Mark Contacted
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkMarkContacted(false)}
+              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
+            >
+              Mark Uncontacted
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBulkDelete}
+              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-destructive/10 text-destructive"
+            >
+              Delete Selected
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedLeadIds([])}
+              className="h-8 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── Sourced Leads Table ── */}
       <div className="mt-4 overflow-hidden rounded-lg border border-border/50 bg-card shadow-sm">
         {loadingLeads ? (
@@ -712,6 +1253,18 @@ export default function Sourcing() {
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
+                <TableHead className="w-[40px] py-3 text-center">
+                  <Checkbox 
+                    checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedLeadIds(filteredLeads.map(l => l.id));
+                      } else {
+                        setSelectedLeadIds([]);
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead className="w-[180px] font-mono text-[10px] tracking-wider uppercase py-3">Company</TableHead>
                 <TableHead className="w-[160px] font-mono text-[10px] tracking-wider uppercase py-3">Founder</TableHead>
                 <TableHead className="w-[80px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Socials</TableHead>
@@ -733,6 +1286,18 @@ export default function Sourcing() {
 
                 return (
                   <TableRow key={lead.id} className="hover:bg-muted/10 transition-colors">
+                    <TableCell className="align-middle text-center">
+                      <Checkbox 
+                        checked={selectedLeadIds.includes(lead.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedLeadIds(prev => [...prev, lead.id]);
+                          } else {
+                            setSelectedLeadIds(prev => prev.filter(id => id !== lead.id));
+                          }
+                        }}
+                      />
+                    </TableCell>
                     {/* Company */}
                     <TableCell className="font-medium align-middle">
                       <div className="flex flex-col">
@@ -1174,6 +1739,173 @@ export default function Sourcing() {
               Save Credentials {exportingLead ? "& Export" : ""}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Preview & Edit Sourced Lead ── */}
+      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+        <DialogContent className="sm:max-w-[500px] bg-card border border-border/80">
+          <form onSubmit={savePreviewLeadToPipeline}>
+            <DialogHeader>
+              <DialogTitle className="text-xl flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" /> Review Extracted Lead
+              </DialogTitle>
+              <DialogDescription>
+                Verify and refine details extracted by Atlas AI before saving them to your active outreach pipeline.
+              </DialogDescription>
+            </DialogHeader>
+            {previewLead && (
+              <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-company">
+                      Company Name *
+                    </label>
+                    <Input 
+                      id="p-company" 
+                      value={previewLead.company_name || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, company_name: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-founder">
+                      Founder Name
+                    </label>
+                    <Input 
+                      id="p-founder" 
+                      value={previewLead.founder_name || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, founder_name: e.target.value }))}
+                      placeholder="e.g. John Doe"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-linkedin">
+                      LinkedIn Profile URL
+                    </label>
+                    <Input 
+                      id="p-linkedin" 
+                      value={previewLead.linkedin_url || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, linkedin_url: e.target.value }))}
+                      placeholder="https://linkedin.com/in/..."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-twitter">
+                      Twitter / X Handle
+                    </label>
+                    <Input 
+                      id="p-twitter" 
+                      value={previewLead.twitter_url || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, twitter_url: e.target.value }))}
+                      placeholder="@handle"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-employees">
+                      Employees
+                    </label>
+                    <Input 
+                      id="p-employees" 
+                      type="number"
+                      value={previewLead.employee_count !== null ? String(previewLead.employee_count) : ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, employee_count: e.target.value === "" ? null : parseInt(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-icp">
+                      ICP Score (0-10)
+                    </label>
+                    <Input 
+                      id="p-icp" 
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={previewLead.icp_score !== null ? String(previewLead.icp_score) : ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, icp_score: e.target.value === "" ? null : parseInt(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="flex items-center justify-center pt-5">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <Checkbox 
+                        checked={previewLead.is_b2b_saas || false} 
+                        onCheckedChange={(checked) => setPreviewLead(prev => ({ ...prev!, is_b2b_saas: !!checked }))}
+                      />
+                      <span className="text-xs font-semibold text-muted-foreground">B2B SaaS</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-url">
+                    Source / Website URL
+                  </label>
+                  <Input 
+                    id="p-url" 
+                    value={previewLead.product_hunt_url || ""} 
+                    onChange={e => setPreviewLead(prev => ({ ...prev!, product_hunt_url: e.target.value }))}
+                    placeholder="https://..."
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-notes">
+                    Strategy / Outreach Notes
+                  </label>
+                  <Textarea 
+                    id="p-notes" 
+                    value={previewLead.notes || ""} 
+                    onChange={e => setPreviewLead(prev => ({ ...prev!, notes: e.target.value }))}
+                    className="min-h-[100px]"
+                  />
+                </div>
+                
+                {/* Auto Push options */}
+                <div className="border-t border-border/40 pt-3 mt-1 flex flex-col gap-2">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">Pipeline Integrations:</span>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <Checkbox 
+                        checked={autoNotion} 
+                        onCheckedChange={(checked) => {
+                          setAutoNotion(!!checked);
+                          localStorage.setItem("atlas.sourcing.auto_notion", String(!!checked));
+                        }}
+                      />
+                      <span className="text-xs text-foreground">Auto-push to Notion</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <Checkbox 
+                        checked={autoAirtable} 
+                        onCheckedChange={(checked) => {
+                          setAutoAirtable(!!checked);
+                          localStorage.setItem("atlas.sourcing.auto_airtable", String(!!checked));
+                        }}
+                      />
+                      <span className="text-xs text-foreground">Auto-push to Airtable</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => {
+                setShowPreviewModal(false);
+                setPreviewLead(null);
+              }}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                Save & Add to Pipeline
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
         </div>

@@ -9,6 +9,7 @@ const corsHeaders = {
 interface SourcingRequest {
   action: "source" | "export-notion" | "export-airtable" | "list-notion-databases";
   url?: string;
+  raw_text?: string;
   lead?: {
     company_name: string;
     founder_name?: string | null;
@@ -148,15 +149,24 @@ Deno.serve(async (req: Request) => {
     const body: SourcingRequest = await req.json();
 
     if (body.action === "source") {
-      if (!body.url) {
-        return new Response(JSON.stringify({ error: "URL is required" }), {
+      if (!body.url && !body.raw_text) {
+        return new Response(JSON.stringify({ error: "URL or raw_text is required" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      console.log(`Scraping URL: ${body.url}`);
-      const scraped = await scrapeUrl(body.url);
-      console.log(`Scraped title: ${scraped.title}`);
+      let contentToAnalyze = "";
+      let sourceUrl = body.url || null;
+
+      if (body.url) {
+        console.log(`Scraping URL: ${body.url}`);
+        const scraped = await scrapeUrl(body.url);
+        console.log(`Scraped title: ${scraped.title}`);
+        contentToAnalyze = `URL: ${body.url}\nTitle: ${scraped.title}\nMeta Description: ${scraped.description}\nPage Content:\n${scraped.content}`;
+      } else {
+        console.log("Analyzing provided raw text...");
+        contentToAnalyze = `Raw Text Page Content:\n${body.raw_text}`;
+      }
 
       // Check for Kimi API key
       const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
@@ -165,7 +175,7 @@ Deno.serve(async (req: Request) => {
       if (kimiApiKey && kimiApiKey !== "your-kimi-api-key") {
         console.log("Calling Kimi AI (Moonshot) API...");
         const systemPrompt = `You are Atlas HQ — an intelligent sales machine designed to identify early-stage B2B SaaS founders.
-Given the HTML scraping of a website, extract or infer the following details:
+Given the HTML scraping or raw page text of a website, extract or infer the following details:
 1. Company Name (e.g. "River" or "AnySearch")
 2. Founder Name (e.g. "Jane Doe")
 3. Founder's LinkedIn profile URL (if listed, or guess if safe, or return null)
@@ -189,15 +199,9 @@ Return ONLY a valid JSON object matching this exact schema:
   "icp_score": number,
   "notes": "string"
 }`;
-        
-        const userPrompt = `URL: ${body.url}
-Title: ${scraped.title}
-Meta Description: ${scraped.description}
-Page Content:
-${scraped.content}`;
 
         try {
-          leadResult = await callKimi(systemPrompt, userPrompt, kimiApiKey);
+          leadResult = await callKimi(systemPrompt, contentToAnalyze, kimiApiKey);
         } catch (err: any) {
           console.error("Kimi AI failed, falling back to mock:", err.message);
         }
@@ -208,13 +212,18 @@ ${scraped.content}`;
         console.log("Using smart fallback parser/mock...");
         // Extract host name as company name
         let company = "Startup";
-        try {
-          const parsed = new URL(body.url);
-          const parts = parsed.hostname.replace("www.", "").split(".");
-          company = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-        } catch (_) {}
+        if (body.url) {
+          try {
+            const parsed = new URL(body.url);
+            const parts = parsed.hostname.replace("www.", "").split(".");
+            company = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+          } catch (_) {}
+        } else {
+          const firstLine = body.raw_text?.split("\n")[0] || "";
+          company = firstLine.slice(0, 20).trim() || "Startup";
+        }
 
-        const lowercaseTitle = scraped.title.toLowerCase() + " " + scraped.description.toLowerCase();
+        const lowercaseTitle = contentToAnalyze.toLowerCase();
         const isB2B = lowercaseTitle.includes("b2b") || lowercaseTitle.includes("saas") || lowercaseTitle.includes("business") || lowercaseTitle.includes("workflow") || lowercaseTitle.includes("api") || lowercaseTitle.includes("tool") || lowercaseTitle.includes("platform");
         
         // Generate a random-looking but realistic founder name
@@ -235,34 +244,14 @@ ${scraped.content}`;
           employee_count: empCount,
           is_b2b_saas: isB2B,
           icp_score: Math.min(score, 10),
-          notes: scraped.description || `A workspace and collaboration tool called ${company}. Sourced automatically.`,
+          notes: body.url ? `A workspace and collaboration tool called ${company}. Sourced automatically.` : `Extracted details from raw text block.`,
         };
       }
 
-      // Write to the database
-      const dbClient = createClient(supabaseUrl, supabaseServiceKey);
-      const { data: insertedLead, error: insertError } = await dbClient
-        .from("leads")
-        .insert({
-          user_id: userId,
-          company_name: leadResult.company_name,
-          founder_name: leadResult.founder_name,
-          linkedin_url: leadResult.linkedin_url,
-          twitter_url: leadResult.twitter_url,
-          employee_count: leadResult.employee_count,
-          is_b2b_saas: leadResult.is_b2b_saas,
-          icp_score: leadResult.icp_score,
-          product_hunt_url: body.url,
-          notes: leadResult.notes,
-        })
-        .select()
-        .single();
+      // Add product_hunt_url field
+      leadResult.product_hunt_url = sourceUrl;
 
-      if (insertError) {
-        throw new Error(`Failed to save lead: ${insertError.message}`);
-      }
-
-      return new Response(JSON.stringify(insertedLead), {
+      return new Response(JSON.stringify(leadResult), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
