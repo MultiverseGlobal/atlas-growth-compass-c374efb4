@@ -88,18 +88,10 @@ export default function Sourcing() {
   const [selectedNotionDb, setSelectedNotionDb] = useState("");
   const [exportingLead, setExportingLead] = useState<Lead | null>(null);
 
-  // Export Airtable Modal State
-  const [showAirtableModal, setShowAirtableModal] = useState(false);
-  const [airtableLoading, setAirtableLoading] = useState(false);
-  const [airtablePat, setAirtablePat] = useState(() => localStorage.getItem("atlas.airtable.pat") || "");
-  const [airtableBaseId, setAirtableBaseId] = useState(() => localStorage.getItem("atlas.airtable.base_id") || "");
-  const [airtableTableName, setAirtableTableName] = useState(() => localStorage.getItem("atlas.airtable.table_name") || "");
-
   // Integration Default Configs & Display States
   const [showIntegrationsConfig, setShowIntegrationsConfig] = useState(false);
   const [defaultNotionDb, setDefaultNotionDb] = useState(() => localStorage.getItem("atlas.sourcing.default_notion_db") || "");
   const [autoNotion, setAutoNotion] = useState(() => localStorage.getItem("atlas.sourcing.auto_notion") === "true");
-  const [autoAirtable, setAutoAirtable] = useState(() => localStorage.getItem("atlas.sourcing.auto_airtable") === "true");
 
   // Selection state for Bulk Actions
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
@@ -287,39 +279,6 @@ export default function Sourcing() {
     }
   };
 
-  // Perform actual Airtable export
-  const performExportToAirtable = async (lead: Lead | Partial<Lead>) => {
-    if (!airtablePat || !airtableBaseId || !airtableTableName) {
-      return { success: false, error: "Airtable configuration missing" };
-    }
-
-    try {
-      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-        body: {
-          action: "export-airtable",
-          lead,
-          airtable_pat: airtablePat,
-          base_id: airtableBaseId,
-          table_name: airtableTableName
-        }
-      });
-
-      if (invokeError) throw new Error(invokeError.message ?? "Airtable export failed");
-
-      // If it has an ID (already saved in DB), mark as exported
-      if (lead.id) {
-        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, exported_to_airtable: true } : l));
-        await supabase
-          .from("leads")
-          .update({ exported_to_airtable: true })
-          .eq("id", lead.id);
-      }
-
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message };
-    }
-  };
 
   // Add lead manually
   const handleAddManual = async (e: React.FormEvent) => {
@@ -425,18 +384,6 @@ export default function Sourcing() {
         }
       }
 
-      if (autoAirtable) {
-        if (airtablePat && airtableBaseId && airtableTableName) {
-          toast.loading(`Auto-pushing ${data.company_name} to Airtable...`);
-          const res = await performExportToAirtable(data);
-          toast.dismiss();
-          if (res.success) {
-            toast.success("Auto-pushed to Airtable!");
-          } else {
-            toast.error("Airtable auto-push failed: " + res.error);
-          }
-        }
-      }
     } catch (err: any) {
       toast.error("Failed to save lead: " + err.message);
     }
@@ -555,24 +502,6 @@ export default function Sourcing() {
     }
   };
 
-  // Export Airtable trigger
-  const exportToAirtable = async (lead: Lead) => {
-    if (!airtablePat || !airtableBaseId || !airtableTableName) {
-      setExportingLead(lead);
-      setShowAirtableModal(true);
-      return;
-    }
-
-    toast.loading(`Exporting ${lead.company_name} to Airtable...`);
-    const res = await performExportToAirtable(lead);
-    toast.dismiss();
-
-    if (res.success) {
-      toast.success(`Successfully exported ${lead.company_name} to Airtable! 📊`);
-    } else {
-      toast.error(`Airtable export failed: ${res.error}`);
-    }
-  };
 
   // Bulk actions handlers
   const handleBulkExportNotion = async () => {
@@ -602,31 +531,6 @@ export default function Sourcing() {
     setSelectedLeadIds([]);
   };
 
-  const handleBulkExportAirtable = async () => {
-    if (!airtablePat || !airtableBaseId || !airtableTableName) {
-      toast.error("Please configure Airtable settings first.");
-      setShowIntegrationsConfig(true);
-      return;
-    }
-
-    const selectedLeads = leads.filter(l => selectedLeadIds.includes(l.id));
-    const leadsToExport = selectedLeads.filter(l => !l.exported_to_airtable);
-
-    if (leadsToExport.length === 0) {
-      toast.info("All selected leads are already exported to Airtable.");
-      return;
-    }
-
-    toast.loading(`Bulk exporting ${leadsToExport.length} leads to Airtable...`);
-    let successCount = 0;
-    for (const lead of leadsToExport) {
-      const res = await performExportToAirtable(lead);
-      if (res.success) successCount++;
-    }
-    toast.dismiss();
-    toast.success(`Exported ${successCount} of ${leadsToExport.length} leads to Airtable! 📊`);
-    setSelectedLeadIds([]);
-  };
 
   const handleBulkDelete = async () => {
     const selectedCount = selectedLeadIds.length;
@@ -671,26 +575,6 @@ export default function Sourcing() {
     }
   };
 
-  // Save Airtable Credentials and run export
-  const saveAirtableAndExport = async () => {
-    if (!airtablePat || !airtableBaseId || !airtableTableName) {
-      toast.error("Please fill in all Airtable credentials");
-      return;
-    }
-
-    localStorage.setItem("atlas.airtable.pat", airtablePat);
-    localStorage.setItem("atlas.airtable.base_id", airtableBaseId);
-    localStorage.setItem("atlas.airtable.table_name", airtableTableName);
-    
-    setShowAirtableModal(false);
-    
-    if (exportingLead) {
-      await exportToAirtable(exportingLead);
-      setExportingLead(null);
-    } else {
-      toast.success("Airtable configurations saved!");
-    }
-  };
 
   // Download all leads as CSV
   const downloadCSV = () => {
@@ -969,48 +853,6 @@ export default function Sourcing() {
               </div>
             </div>
 
-            {/* Airtable Destination Settings */}
-            <div className="space-y-4 rounded-md border border-border/40 p-4 bg-muted/20">
-              <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  Airtable Integration
-                </span>
-                <Checkbox
-                  id="auto-airtable"
-                  checked={autoAirtable}
-                  onCheckedChange={(checked) => {
-                    setAutoAirtable(!!checked);
-                    localStorage.setItem("atlas.sourcing.auto_airtable", String(!!checked));
-                    toast.success(!!checked ? "Auto-Airtable enabled" : "Auto-Airtable disabled");
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-2 mt-4 pt-1">
-                <div className="text-xs text-muted-foreground">
-                  {airtablePat && airtableBaseId && airtableTableName ? (
-                    <span className="text-emerald-500 font-medium">✓ Airtable configured</span>
-                  ) : (
-                    <span className="text-amber-500">⚠ Airtable configuration missing</span>
-                  )}
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => {
-                    setExportingLead(null);
-                    setShowAirtableModal(true);
-                  }}
-                  className="text-[11px] h-8"
-                >
-                  Edit Airtable Credentials
-                </Button>
-              </div>
-              
-              <div className="text-[10px] text-muted-foreground leading-relaxed">
-                Turn on Airtable auto-push to export newly analyzed leads.
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -1187,14 +1029,6 @@ export default function Sourcing() {
               className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
             >
               Export Notion
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBulkExportAirtable}
-              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
-            >
-              Export Airtable
             </Button>
             <Button
               variant="outline"
@@ -1446,15 +1280,7 @@ export default function Sourcing() {
                             <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
                           </svg>
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                          onClick={() => exportToAirtable(lead)}
-                          title="Export to Airtable"
-                        >
-                          <span className="text-[10px] font-bold font-mono">A</span>
-                        </Button>
+
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -1672,75 +1498,6 @@ export default function Sourcing() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog: Airtable Credentials Settings ── */}
-      <Dialog open={showAirtableModal} onOpenChange={setShowAirtableModal}>
-        <DialogContent className="sm:max-w-[440px] bg-card border border-border/80">
-          <DialogHeader>
-            <DialogTitle>Airtable Connection Settings</DialogTitle>
-            <DialogDescription>
-              Provide your personal API keys to export records to Airtable. Credentials are saved locally in your browser.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground" htmlFor="at-pat">
-                Personal Access Token (PAT)
-              </label>
-              <Input
-                id="at-pat"
-                type="password"
-                placeholder="pat..."
-                value={airtablePat}
-                onChange={e => setAirtablePat(e.target.value)}
-                className="bg-background border-border/50"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground" htmlFor="at-base">
-                  Base ID
-                </label>
-                <Input
-                  id="at-base"
-                  placeholder="app..."
-                  value={airtableBaseId}
-                  onChange={e => setAirtableBaseId(e.target.value)}
-                  className="bg-background border-border/50"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground" htmlFor="at-table">
-                  Table Name
-                </label>
-                <Input
-                  id="at-table"
-                  placeholder="Leads"
-                  value={airtableTableName}
-                  onChange={e => setAirtableTableName(e.target.value)}
-                  className="bg-background border-border/50"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowAirtableModal(false);
-                setExportingLead(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={saveAirtableAndExport}>
-              Save Credentials {exportingLead ? "& Export" : ""}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ── Dialog: Preview & Edit Sourced Lead ── */}
       <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
@@ -1879,16 +1636,6 @@ export default function Sourcing() {
                         }}
                       />
                       <span className="text-xs text-foreground">Auto-push to Notion</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <Checkbox 
-                        checked={autoAirtable} 
-                        onCheckedChange={(checked) => {
-                          setAutoAirtable(!!checked);
-                          localStorage.setItem("atlas.sourcing.auto_airtable", String(!!checked));
-                        }}
-                      />
-                      <span className="text-xs text-foreground">Auto-push to Airtable</span>
                     </label>
                   </div>
                 </div>

@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface SourcingRequest {
-  action: "source" | "export-notion" | "export-airtable" | "list-notion-databases";
+  action: "source" | "export-notion" | "list-notion-databases";
   url?: string;
   raw_text?: string;
   lead?: {
@@ -24,9 +24,6 @@ interface SourcingRequest {
     product_hunt_url?: string | null;
   };
   database_id?: string;
-  airtable_pat?: string;
-  base_id?: string;
-  table_name?: string;
 }
 
 // Scrape helper
@@ -365,54 +362,6 @@ Return ONLY a valid JSON object matching this exact schema:
       if (!res.ok) {
         const errorText = await res.text();
         return new Response(JSON.stringify({ error: `Notion export failed: ${errorText}` }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (body.action === "export-airtable") {
-      const { lead, airtable_pat, base_id, table_name } = body;
-      if (!lead || !airtable_pat || !base_id || !table_name) {
-        return new Response(JSON.stringify({ error: "Missing required Airtable export parameters" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const airtableUrl = `https://api.airtable.com/v0/${base_id}/${table_name}`;
-      const res = await fetch(airtableUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${airtable_pat}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          records: [
-            {
-              fields: {
-                "Company": lead.company_name,
-                "Founder": lead.founder_name || "",
-                "LinkedIn": lead.linkedin_url || "",
-                "X": lead.twitter_url || "",
-                "ICP Score": lead.icp_score,
-                "Employee Count": lead.employee_count || 0,
-                "B2B SaaS": lead.is_b2b_saas,
-                "Notes": lead.notes || "",
-                "Contacted": lead.is_contacted || false,
-                "Reply": lead.reply_status || "none",
-                "Source URL": lead.product_hunt_url || "",
-              }
-            }
-          ]
-        })
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        return new Response(JSON.stringify({ error: `Airtable export failed: ${errorText}` }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
