@@ -105,6 +105,38 @@ async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string
   return JSON.parse(jsonMatch[0]);
 }
 
+// Call NVIDIA NIM (OpenAI-compatible, llama-3.1-70b-instruct)
+async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: string): Promise<any> {
+  const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "meta/llama-3.1-70b-instruct",
+      temperature: 0.3,
+      max_tokens: 1024,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`NVIDIA NIM error: ${res.status} ${await res.text()}`);
+  }
+
+  const data = await res.json();
+  const text = data.choices[0].message.content;
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("No JSON object found in NVIDIA NIM response");
+  }
+  return JSON.parse(jsonMatch[0]);
+}
+
 // Parse structured markdown notes into Notion block formats
 function parseNotesToNotionBlocks(notesText: string) {
   if (!notesText) return [];
@@ -335,13 +367,13 @@ Deno.serve(async (req: Request) => {
         contentToAnalyze = `Raw Text Page Content:\n${body.raw_text}`;
       }
 
-      // Check for Kimi API key
+      // Build the shared system prompt for all AI providers
       const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
       let leadResult: any = null;
+      let aiProvider = "none";
 
-      if (kimiApiKey && kimiApiKey !== "your-kimi-api-key") {
-        console.log("Calling Kimi AI (Moonshot) API...");
-        const systemPrompt = `You are Atlas HQ — an intelligent sales machine designed to identify early-stage B2B SaaS founders.
+      const systemPrompt = `You are Atlas HQ — an intelligent sales machine designed to identify early-stage B2B SaaS founders.
 Given the HTML scraping or raw page text of a website, extract or infer the following details:
 1. Company Name (e.g. "River" or "AnySearch")
 2. Founder Name (e.g. "Jane Doe")
@@ -375,17 +407,46 @@ Return ONLY a valid JSON object matching this exact schema:
   "notes": "string"
 }`;
 
+      // 1️⃣ Try Kimi (Moonshot) first
+      if (kimiApiKey && kimiApiKey !== "your-kimi-api-key") {
         try {
+          console.log("Calling Kimi AI (Moonshot)...");
           leadResult = await callKimi(systemPrompt, contentToAnalyze, kimiApiKey);
-        } catch (err: any) {
-          console.error("Kimi AI failed:", err.message);
-          return new Response(JSON.stringify({ 
-            error: `Kimi AI analysis failed: ${err.message}. Please verify your KIMI_API_KEY / MOONSHOT_API_KEY settings or input text.` 
+          aiProvider = "kimi";
+          console.log("Kimi AI succeeded.");
+        } catch (kimiErr: any) {
+          console.warn("Kimi AI failed, trying NVIDIA NIM fallback:", kimiErr.message);
+        }
+      }
+
+      // 2️⃣ Fallback: NVIDIA NIM
+      if (!leadResult && nimApiKey) {
+        try {
+          console.log("Calling NVIDIA NIM (llama-3.1-70b-instruct)...");
+          leadResult = await callNvidiaNim(systemPrompt, contentToAnalyze, nimApiKey);
+          aiProvider = "nvidia-nim";
+          console.log("NVIDIA NIM succeeded.");
+        } catch (nimErr: any) {
+          console.error("NVIDIA NIM also failed:", nimErr.message);
+          return new Response(JSON.stringify({
+            error: `All AI providers failed. Kimi: check MOONSHOT_API_KEY. NIM: ${nimErr.message}.`
           }), {
             status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
       }
+
+      // 3️⃣ Neither key configured
+      if (!leadResult && !kimiApiKey && !nimApiKey) {
+        return new Response(JSON.stringify({
+          error: "No AI API key configured. Please set MOONSHOT_API_KEY or NVIDIA_NIM_API_KEY in Supabase secrets."
+        }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      console.log(`AI extraction completed via: ${aiProvider}`);
+
 
       // Fallback Mock if key is missing or call failed
       if (!leadResult) {
