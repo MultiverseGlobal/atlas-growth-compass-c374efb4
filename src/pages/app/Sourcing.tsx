@@ -109,7 +109,7 @@ export default function Sourcing() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Notion integration hooks
-  const { data: integrations = [] } = useIntegrations();
+  const { data: integrations = [], connectNotion } = useIntegrations();
 
   // Duplicate Conflict Modal State
   const [conflictLead, setConflictLead] = useState<Lead | null>(null);
@@ -982,16 +982,27 @@ export default function Sourcing() {
               <div className="flex items-center justify-between border-b border-border/40 pb-2">
                 <span className="text-sm font-semibold text-foreground flex items-center gap-2">
                   Notion Integration
+                  {integrations.some(i => i.provider === "notion" && i.status === "active") ? (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">✓ Connected</span>
+                  ) : (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600">Not connected</span>
+                  )}
                 </span>
-                <Checkbox
-                  id="auto-notion"
-                  checked={autoNotion}
-                  onCheckedChange={(checked) => {
-                    setAutoNotion(!!checked);
-                    localStorage.setItem("atlas.sourcing.auto_notion", String(!!checked));
-                    toast.success(!!checked ? "Auto-Notion enabled" : "Auto-Notion disabled");
-                  }}
-                />
+                {integrations.some(i => i.provider === "notion" && i.status === "active") ? (
+                  <Checkbox
+                    id="auto-notion"
+                    checked={autoNotion}
+                    onCheckedChange={(checked) => {
+                      setAutoNotion(!!checked);
+                      localStorage.setItem("atlas.sourcing.auto_notion", String(!!checked));
+                      toast.success(!!checked ? "Auto-Notion enabled" : "Auto-Notion disabled");
+                    }}
+                  />
+                ) : (
+                  <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5" onClick={connectNotion}>
+                    <ExternalLink className="h-3 w-3" /> Connect Notion
+                  </Button>
+                )}
               </div>
               
               <div className="space-y-2">
