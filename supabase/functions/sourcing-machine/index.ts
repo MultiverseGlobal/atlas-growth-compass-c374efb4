@@ -7,10 +7,11 @@ const corsHeaders = {
 };
 
 interface SourcingRequest {
-  action: "source" | "export-notion" | "list-notion-databases";
+  action: "source" | "export-notion" | "list-notion-databases" | "validate-notion-database";
   url?: string;
   raw_text?: string;
   lead?: {
+    id?: string;
     company_name: string;
     founder_name?: string | null;
     linkedin_url?: string | null;
@@ -24,6 +25,8 @@ interface SourcingRequest {
     product_hunt_url?: string | null;
   };
   database_id?: string;
+  duplicate_behavior?: "update" | "duplicate" | "skip";
+  field_mappings?: Record<string, string>;
 }
 
 // Scrape helper
@@ -102,6 +105,160 @@ async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string
   return JSON.parse(jsonMatch[0]);
 }
 
+// Parse structured markdown notes into Notion block formats
+function parseNotesToNotionBlocks(notesText: string) {
+  if (!notesText) return [];
+  
+  const lines = notesText.split("\n");
+  const blocks: any[] = [];
+  let currentParagraph: string[] = [];
+  
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      blocks.push({
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: [{ type: "text", text: { content: currentParagraph.join("\n").trim() } }]
+        }
+      });
+      currentParagraph = [];
+    }
+  };
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    if (trimmed.startsWith("##") || trimmed.startsWith("###") || trimmed.startsWith("#") || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      flushParagraph();
+      const headerText = trimmed.replace(/^#+\s*/, "").replace(/^\[/, "").replace(/\]$/, "");
+      blocks.push({
+        object: "block",
+        type: "heading_3",
+        heading_3: {
+          rich_text: [{ type: "text", text: { content: headerText } }]
+        }
+      });
+    } else if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
+      flushParagraph();
+      const bulletText = trimmed.replace(/^[-*]\s*/, "");
+      blocks.push({
+        object: "block",
+        type: "bulleted_list_item",
+        bulleted_list_item: {
+          rich_text: [{ type: "text", text: { content: bulletText } }]
+        }
+      });
+    } else {
+      currentParagraph.push(trimmed);
+    }
+  }
+  
+  flushParagraph();
+  return blocks;
+}
+
+// Auto-detect mappings from Notion properties list
+function autoMapProperties(properties: any) {
+  const propertyList = Object.entries(properties).map(([name, val]: [string, any]) => ({
+    name,
+    type: val.type
+  }));
+
+  const mappings: Record<string, string> = {};
+  const validationErrors: string[] = [];
+
+  const findMatch = (candidates: string[], type: string) => {
+    // Exact match
+    const exact = propertyList.find(p => candidates.includes(p.name.toLowerCase()) && p.type === type);
+    if (exact) return exact.name;
+    // Partial match
+    const partial = propertyList.find(p => candidates.some(c => p.name.toLowerCase().includes(c)) && p.type === type);
+    if (partial) return partial.name;
+    return null;
+  };
+
+  // 1. Company (Title)
+  const companyCandidates = ["company", "company name", "name", "title", "startup"];
+  let companyField = findMatch(companyCandidates, "title");
+  if (!companyField) {
+    const anyTitle = propertyList.find(p => p.type === "title");
+    if (anyTitle) companyField = anyTitle.name;
+  }
+  if (companyField) mappings["company_name"] = companyField;
+  else validationErrors.push("Missing property: 'Company' (Title)");
+
+  // 2. Founder (Rich Text)
+  const founderCandidates = ["founder", "founder name", "foundername", "contact", "ceo"];
+  const founderField = findMatch(founderCandidates, "rich_text");
+  if (founderField) mappings["founder_name"] = founderField;
+  else validationErrors.push("Missing property: 'Founder' (Rich Text)");
+
+  // 3. LinkedIn (URL)
+  const linkedinCandidates = ["linkedin", "linkedin url", "social"];
+  const linkedinField = findMatch(linkedinCandidates, "url");
+  if (linkedinField) mappings["linkedin_url"] = linkedinField;
+  else validationErrors.push("Missing property: 'LinkedIn' (URL)");
+
+  // 4. X (URL/Rich Text)
+  const xCandidates = ["x", "twitter", "twitter handle", "twitter url", "x url"];
+  let xField = findMatch(xCandidates, "url") || findMatch(xCandidates, "rich_text");
+  if (xField) mappings["twitter_url"] = xField;
+  else validationErrors.push("Missing property: 'X' (URL/Rich Text)");
+
+  // 5. ICP Score (Number)
+  const icpCandidates = ["icp score", "icp", "score", "icp index"];
+  const icpField = findMatch(icpCandidates, "number");
+  if (icpField) mappings["icp_score"] = icpField;
+  else validationErrors.push("Missing property: 'ICP Score' (Number)");
+
+  // 6. Notes (Rich Text)
+  const notesCandidates = ["notes", "outreach notes", "strategy", "description"];
+  const notesField = findMatch(notesCandidates, "rich_text");
+  if (notesField) mappings["notes"] = notesField;
+  else validationErrors.push("Missing property: 'Notes' (Rich Text)");
+
+  return { mappings, validationErrors, properties: propertyList };
+}
+
+// Validate database properties against schema requirements
+function validateDatabaseSchema(properties: any, customMappings?: Record<string, string>) {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  const requiredSchema = [
+    { key: "company_name", defaultName: "Company", type: "title", label: "Company" },
+    { key: "founder_name", defaultName: "Founder", type: "rich_text", label: "Founder" },
+    { key: "linkedin_url", defaultName: "LinkedIn", type: "url", label: "LinkedIn" },
+    { key: "twitter_url", defaultName: "X", type: "url", alternativeType: "rich_text", label: "X" },
+    { key: "icp_score", defaultName: "ICP Score", type: "number", label: "ICP Score" },
+    { key: "notes", defaultName: "Notes", type: "rich_text", label: "Notes" },
+  ];
+
+  const currentMappings = customMappings || {};
+
+  requiredSchema.forEach(field => {
+    const propertyName = currentMappings[field.key] || field.defaultName;
+    const prop = properties[propertyName];
+
+    if (!prop) {
+      errors.push(`Missing: '${propertyName}' (${field.label})`);
+    } else {
+      const propType = prop.type;
+      if (propType !== field.type && (!field.alternativeType || propType !== field.alternativeType)) {
+        errors.push(`Wrong Type: '${propertyName}' should be ${field.label === "X" ? "URL or Rich Text" : field.type === "rich_text" ? "Rich Text" : field.type.toUpperCase()}`);
+      }
+    }
+  });
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -155,11 +312,24 @@ Deno.serve(async (req: Request) => {
       let contentToAnalyze = "";
       let sourceUrl = body.url || null;
 
-      if (body.url) {
-        console.log(`Scraping URL: ${body.url}`);
-        const scraped = await scrapeUrl(body.url);
+      // Smart check: if user pasted a single URL in the raw text scraper, treat it as a URL
+      if (!sourceUrl && body.raw_text) {
+        const trimmed = body.raw_text.trim();
+        const isUrl = /^(https?:\/\/[^\s]+)$/i.test(trimmed) || 
+                      (/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?$/i.test(trimmed));
+        if (isUrl) {
+          sourceUrl = trimmed;
+          if (!/^https?:\/\//i.test(sourceUrl)) {
+            sourceUrl = "https://" + sourceUrl;
+          }
+        }
+      }
+
+      if (sourceUrl) {
+        console.log(`Scraping URL: ${sourceUrl}`);
+        const scraped = await scrapeUrl(sourceUrl);
         console.log(`Scraped title: ${scraped.title}`);
-        contentToAnalyze = `URL: ${body.url}\nTitle: ${scraped.title}\nMeta Description: ${scraped.description}\nPage Content:\n${scraped.content}`;
+        contentToAnalyze = `URL: ${sourceUrl}\nTitle: ${scraped.title}\nMeta Description: ${scraped.description}\nPage Content:\n${scraped.content}`;
       } else {
         console.log("Analyzing provided raw text...");
         contentToAnalyze = `Raw Text Page Content:\n${body.raw_text}`;
@@ -183,7 +353,15 @@ Given the HTML scraping or raw page text of a website, extract or infer the foll
    - Is it B2B SaaS? (If yes, +4 points)
    - Is the team size under 15? (If yes, +3 points)
    - Does the founder still make day-to-day decisions? (If yes, +3 points)
-8. Summary notes about their product and what they do.
+8. Summary notes about their product and what they do. Return the notes in this structured markdown format with these exact headings:
+## Summary
+[Summary of what they do]
+## ICP Reasoning
+[Brief point-by-point reasons for the ICP score]
+## Founder Signals
+[Any signals about the founder's background/tech/social presence]
+## Recommended Outreach
+[Outreach strategies and talking points]
 
 Return ONLY a valid JSON object matching this exact schema:
 {
@@ -200,7 +378,12 @@ Return ONLY a valid JSON object matching this exact schema:
         try {
           leadResult = await callKimi(systemPrompt, contentToAnalyze, kimiApiKey);
         } catch (err: any) {
-          console.error("Kimi AI failed, falling back to mock:", err.message);
+          console.error("Kimi AI failed:", err.message);
+          return new Response(JSON.stringify({ 
+            error: `Kimi AI analysis failed: ${err.message}. Please verify your KIMI_API_KEY / MOONSHOT_API_KEY settings or input text.` 
+          }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
       }
 
@@ -241,7 +424,7 @@ Return ONLY a valid JSON object matching this exact schema:
           employee_count: empCount,
           is_b2b_saas: isB2B,
           icp_score: Math.min(score, 10),
-          notes: body.url ? `A workspace and collaboration tool called ${company}. Sourced automatically.` : `Extracted details from raw text block.`,
+          notes: `## Summary\nA workspace and collaboration tool called ${company}. Sourced automatically.\n## ICP Reasoning\nStrong B2B SaaS fit (+4 points).\nEstimated team size of ${empCount} is under 15 (+3 points).\n## Founder Signals\nActive founder with social links detected.\n## Recommended Outreach\nDiscuss workspace automation solutions.`,
         };
       }
 
@@ -291,8 +474,29 @@ Return ONLY a valid JSON object matching this exact schema:
 
       const searchData = await res.json();
       const databases = (searchData.results || []).map((db: any) => {
-        const titleProp = db.title?.[0]?.plain_text || "Untitled Database";
-        return { id: db.id, title: titleProp, url: db.url };
+        let title = "Untitled Database";
+        if (db.title && db.title.length > 0) {
+          title = db.title.map((t: any) => t.plain_text).join("");
+        }
+        
+        let icon = null;
+        if (db.icon) {
+          if (db.icon.type === "emoji") {
+            icon = db.icon.emoji;
+          } else if (db.icon.type === "external") {
+            icon = db.icon.external.url;
+          } else if (db.icon.type === "file") {
+            icon = db.icon.file.url;
+          }
+        }
+
+        return { 
+          id: db.id, 
+          title, 
+          icon, 
+          last_edited_time: db.last_edited_time, 
+          url: db.url 
+        };
       });
 
       return new Response(JSON.stringify({ databases }), {
@@ -300,9 +504,9 @@ Return ONLY a valid JSON object matching this exact schema:
       });
     }
 
-    if (body.action === "export-notion") {
-      if (!body.lead || !body.database_id) {
-        return new Response(JSON.stringify({ error: "lead and database_id are required" }), {
+    if (body.action === "validate-notion-database") {
+      if (!body.database_id) {
+        return new Response(JSON.stringify({ error: "database_id is required" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -318,67 +522,322 @@ Return ONLY a valid JSON object matching this exact schema:
 
       const notionToken = integration?.access_token_encrypted;
       if (!notionToken) {
-        return new Response(JSON.stringify({ error: "Notion not connected." }), {
+        return new Response(JSON.stringify({ error: "Notion not connected. Please connect Notion first." }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const notionUrl = "https://api.notion.com/v1/pages";
-      const notionBody = {
-        parent: { database_id: body.database_id },
-        properties: {
-          // Attempt standard schema names. If Notion returns Schema Error, we'll suggest matching names.
-          "Company": {
-            title: [{ text: { content: body.lead.company_name } }]
-          },
-          "Founder": {
-            rich_text: [{ text: { content: body.lead.founder_name || "" } }]
-          },
-          "LinkedIn": {
-            url: body.lead.linkedin_url || null
-          },
-          "X": {
-            url: body.lead.twitter_url ? `https://x.com/${body.lead.twitter_url.replace("@", "")}` : null
-          },
-          "ICP Score": {
-            number: body.lead.icp_score
-          },
-          "Notes": {
-            rich_text: [{ text: { content: body.lead.notes || "" } }]
-          }
-        }
-      };
-
-      const res = await fetch(notionUrl, {
-        method: "POST",
+      const res = await fetch(`https://api.notion.com/v1/databases/${body.database_id}`, {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${notionToken}`,
           "Notion-Version": "2022-06-28",
-          "Content-Type": "application/json",
         },
-        body: JSON.stringify(notionBody),
       });
 
       if (!res.ok) {
         const errorText = await res.text();
-        return new Response(JSON.stringify({ error: `Notion export failed: ${errorText}` }), {
+        return new Response(JSON.stringify({ error: `Notion failed to fetch database schema: ${errorText}` }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      return new Response(JSON.stringify({ success: true }), {
+      const dbData = await res.json();
+      const properties = dbData.properties || {};
+      
+      const autoMap = autoMapProperties(properties);
+      const mappingsToValidate = body.field_mappings || autoMap.mappings;
+      const validation = validateDatabaseSchema(properties, mappingsToValidate);
+
+      return new Response(JSON.stringify({
+        valid: validation.valid,
+        errors: validation.errors,
+        auto_mappings: autoMap.mappings,
+        properties: autoMap.properties
+      }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    if (body.action === "export-notion") {
+      if (!body.lead || !body.database_id) {
+        return new Response(JSON.stringify({ error: "lead and database_id are required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const dbClient = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Optimistic/Immediate status change to syncing if lead ID is provided
+      if (body.lead.id) {
+        await dbClient
+          .from("leads")
+          .update({
+            notion_sync_status: "syncing",
+            notion_sync_error: null
+          })
+          .eq("id", body.lead.id);
+      }
+
+      const { data: integration } = await dbClient
+        .from("integrations")
+        .select("access_token_encrypted")
+        .eq("user_id", userId)
+        .eq("provider", "notion")
+        .eq("status", "active")
+        .maybeSingle();
+
+      const notionToken = integration?.access_token_encrypted;
+      if (!notionToken) {
+        throw new Error("Notion not connected. Please connect Notion first.");
+      }
+
+      try {
+        // Fetch database properties schema
+        const dbSchemaRes = await fetch(`https://api.notion.com/v1/databases/${body.database_id}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${notionToken}`,
+            "Notion-Version": "2022-06-28",
+          },
+        });
+        if (!dbSchemaRes.ok) {
+          throw new Error(`Failed to retrieve Notion database schema: ${await dbSchemaRes.text()}`);
+        }
+        const dbSchema = await dbSchemaRes.json();
+        const properties = dbSchema.properties || {};
+        
+        // Match properties mapping
+        const mappings = body.field_mappings || autoMapProperties(properties).mappings;
+
+        const lead = body.lead;
+        const notionProperties: any = {};
+
+        // 1. Company Name
+        const compPropName = mappings["company_name"];
+        if (compPropName && properties[compPropName]) {
+          notionProperties[compPropName] = {
+            title: [{ text: { content: lead.company_name } }]
+          };
+        } else {
+          throw new Error("Company Name property mapping not found or invalid in Notion schema");
+        }
+
+        // 2. Founder Name
+        const founderPropName = mappings["founder_name"];
+        if (founderPropName && properties[founderPropName]) {
+          notionProperties[founderPropName] = {
+            rich_text: [{ text: { content: lead.founder_name || "" } }]
+          };
+        }
+
+        // 3. LinkedIn URL
+        const linkedinPropName = mappings["linkedin_url"];
+        if (linkedinPropName && properties[linkedinPropName]) {
+          notionProperties[linkedinPropName] = {
+            url: lead.linkedin_url || null
+          };
+        }
+
+        // 4. X / Twitter
+        const xPropName = mappings["twitter_url"];
+        if (xPropName && properties[xPropName]) {
+          const xVal = lead.twitter_url ? `https://x.com/${lead.twitter_url.replace("@", "")}` : null;
+          if (properties[xPropName].type === "url") {
+            notionProperties[xPropName] = { url: xVal };
+          } else {
+            notionProperties[xPropName] = { rich_text: [{ text: { content: lead.twitter_url || "" } }] };
+          }
+        }
+
+        // 5. ICP Score
+        const icpPropName = mappings["icp_score"];
+        if (icpPropName && properties[icpPropName]) {
+          notionProperties[icpPropName] = {
+            number: lead.icp_score !== null && lead.icp_score !== undefined ? Number(lead.icp_score) : null
+          };
+        }
+
+        // 6. Notes Column
+        const notesPropName = mappings["notes"];
+        if (notesPropName && properties[notesPropName]) {
+          const truncatedNotes = (lead.notes || "").slice(0, 2000);
+          notionProperties[notesPropName] = {
+            rich_text: [{ text: { content: truncatedNotes } }]
+          };
+        }
+
+        // --- Duplicate Detection ---
+        const companyProp = mappings["company_name"] || "Company";
+        let existingPageId: string | null = null;
+
+        const queryBody = {
+          filter: {
+            property: companyProp,
+            title: {
+              equals: lead.company_name
+            }
+          },
+          page_size: 1
+        };
+
+        const queryRes = await fetch(`https://api.notion.com/v1/databases/${body.database_id}/query`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${notionToken}`,
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(queryBody)
+        });
+
+        if (queryRes.ok) {
+          const queryData = await queryRes.json();
+          if (queryData.results && queryData.results.length > 0) {
+            existingPageId = queryData.results[0].id;
+          }
+        }
+
+        if (existingPageId) {
+          // If no choice was provided, report conflict to client
+          if (!body.duplicate_behavior) {
+            if (lead.id) {
+              await dbClient
+                .from("leads")
+                .update({ notion_sync_status: "not_synced" })
+                .eq("id", lead.id);
+            }
+            return new Response(JSON.stringify({ 
+              duplicate_detected: true, 
+              existing_page_id: existingPageId, 
+              company_name: lead.company_name 
+            }), {
+              status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          if (body.duplicate_behavior === "skip") {
+            if (lead.id) {
+              await dbClient
+                .from("leads")
+                .update({
+                  notion_sync_status: "synced",
+                  notion_page_id: existingPageId,
+                  notion_sync_error: null
+                })
+                .eq("id", lead.id);
+            }
+            return new Response(JSON.stringify({ success: true, skipped: true }), {
+              status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          if (body.duplicate_behavior === "update") {
+            const updateUrl = `https://api.notion.com/v1/pages/${existingPageId}`;
+            const updateRes = await fetch(updateUrl, {
+              method: "PATCH",
+              headers: {
+                Authorization: `Bearer ${notionToken}`,
+                "Notion-Version": "2022-06-28",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                properties: notionProperties
+              })
+            });
+
+            if (!updateRes.ok) {
+              const errorText = await updateRes.text();
+              throw new Error(`Notion update page failed: ${errorText}`);
+            }
+
+            if (lead.id) {
+              await dbClient
+                .from("leads")
+                .update({
+                  notion_sync_status: "synced",
+                  notion_page_id: existingPageId,
+                  notion_sync_error: null
+                })
+                .eq("id", lead.id);
+            }
+
+            return new Response(JSON.stringify({ success: true, updated: true, page_id: existingPageId }), {
+              status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        }
+
+        // --- Create New Page Flow ---
+        const notionBlocks = parseNotesToNotionBlocks(lead.notes || "");
+        const notionUrl = "https://api.notion.com/v1/pages";
+        const notionBody = {
+          parent: { database_id: body.database_id },
+          properties: notionProperties,
+          children: notionBlocks.length > 0 ? notionBlocks : undefined
+        };
+
+        const createRes = await fetch(notionUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${notionToken}`,
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(notionBody),
+        });
+
+        if (!createRes.ok) {
+          const errorText = await createRes.text();
+          throw new Error(`Notion create page failed: ${errorText}`);
+        }
+
+        const createData = await createRes.json();
+        const newPageId = createData.id;
+
+        if (lead.id) {
+          await dbClient
+            .from("leads")
+            .update({
+              notion_sync_status: "synced",
+              notion_page_id: newPageId,
+              notion_sync_error: null
+            })
+            .eq("id", lead.id);
+        }
+
+        return new Response(JSON.stringify({ success: true, created: true, page_id: newPageId }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+
+      } catch (err: any) {
+        if (body.lead && body.lead.id) {
+          try {
+            await dbClient
+              .from("leads")
+              .update({
+                notion_sync_status: "failed",
+                notion_sync_error: err.message
+              })
+              .eq("id", body.lead.id);
+          } catch (dbErr: any) {
+            console.error("Failed to update lead sync status to failed:", dbErr.message);
+          }
+        }
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (err: any) {
     console.error("Function error:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

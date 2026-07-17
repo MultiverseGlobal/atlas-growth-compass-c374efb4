@@ -4,10 +4,11 @@ import {
   FileSpreadsheet, Link2, Check, X, Edit2, CheckSquare, 
   Square, RefreshCw, AlertCircle, HelpCircle, ArrowRight,
   LogOut, SlidersHorizontal, TrendingUp, Users, CheckCircle2,
-  Database
+  Database, Play, Info
 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useIntegrations } from "@/hooks/useIntegrations";
 import { LogoMark } from "@/components/atlas/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,9 @@ interface Lead {
   created_at: string;
   exported_to_notion: boolean;
   exported_to_airtable: boolean;
+  notion_sync_status?: string | null;
+  notion_page_id?: string | null;
+  notion_sync_error?: string | null;
 }
 
 interface NotionDatabase {
@@ -103,6 +107,24 @@ export default function Sourcing() {
   // Preview & Organize Staging Flow state
   const [previewLead, setPreviewLead] = useState<Partial<Lead> | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  // Notion integration hooks
+  const { data: integrations = [] } = useIntegrations();
+
+  // Duplicate Conflict Modal State
+  const [conflictLead, setConflictLead] = useState<Lead | null>(null);
+  const [conflictDbId, setConflictDbId] = useState("");
+  const [showConflictModal, setShowConflictModal] = useState(false);
+
+  // Batch Sync Report State
+  const [batchReport, setBatchReport] = useState<{
+    total: number;
+    success: number;
+    failed: number;
+    skipped: number;
+    failures: { name: string; reason: string }[];
+  } | null>(null);
+  const [showBatchReportModal, setShowBatchReportModal] = useState(false);
 
   // Load leads from database
   const fetchLeads = async () => {
@@ -215,6 +237,10 @@ export default function Sourcing() {
         throw new Error(invokeError.message ?? "Failed to source lead");
       }
 
+      if (parsedLead && parsedLead.error) {
+        throw new Error(parsedLead.error);
+      }
+
       if (!parsedLead) {
         throw new Error("No data returned from sourcing service");
       }
@@ -277,6 +303,187 @@ export default function Sourcing() {
     } catch (err: any) {
       return { success: false, error: err.message };
     }
+  };
+
+  // Sync a single lead with step-by-step progress toasts and conflict handler
+  const syncSingleLeadWithProgress = async (lead: Lead, behavior?: "update" | "duplicate" | "skip") => {
+    const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
+    const dbId = notionIntegration?.settings?.notion_database_id;
+    if (!dbId) {
+      toast.error("No target Notion database configured. Please select a database in Integrations page first.");
+      return;
+    }
+
+    const toastId = toast.loading("Preparing founder intelligence...", { duration: 0 });
+    
+    // Set status to syncing in local state
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, notion_sync_status: "syncing" } : l));
+
+    try {
+      toast.loading("Querying Notion database for duplicates...", { id: toastId });
+      
+      const payload: any = {
+        action: "export-notion",
+        lead: {
+          id: lead.id,
+          company_name: lead.company_name,
+          founder_name: lead.founder_name,
+          linkedin_url: lead.linkedin_url,
+          twitter_url: lead.twitter_url,
+          employee_count: lead.employee_count,
+          is_b2b_saas: lead.is_b2b_saas,
+          icp_score: lead.icp_score,
+          notes: lead.notes,
+          is_contacted: lead.is_contacted,
+          reply_status: lead.reply_status,
+          product_hunt_url: lead.product_hunt_url
+        },
+        database_id: dbId,
+        duplicate_behavior: behavior || notionIntegration?.settings?.notion_duplicate_behavior,
+        field_mappings: notionIntegration?.settings?.field_mappings
+      };
+
+      toast.loading("Publishing rich blocks layout to Notion page...", { id: toastId });
+      
+      const { data, error } = await supabase.functions.invoke("sourcing-machine", {
+        body: payload
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.duplicate_detected) {
+        toast.dismiss(toastId);
+        // Reset local lead status to not_synced
+        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, notion_sync_status: "not_synced" } : l));
+        
+        // Open conflict choices dialog
+        setConflictLead(lead);
+        setConflictDbId(dbId);
+        setShowConflictModal(true);
+        return;
+      }
+
+      toast.loading("Updating intelligence logs...", { id: toastId });
+      
+      // Update local state to synced
+      setLeads(prev => prev.map(l => l.id === lead.id ? { 
+        ...l, 
+        notion_sync_status: "synced",
+        notion_page_id: data.page_id,
+        notion_sync_error: null,
+        exported_to_notion: true
+      } : l));
+
+      toast.success(`Successfully pushed ${lead.company_name} to Notion!`, { id: toastId });
+
+    } catch (err: any) {
+      setLeads(prev => prev.map(l => l.id === lead.id ? { 
+        ...l, 
+        notion_sync_status: "failed",
+        notion_sync_error: err.message
+      } : l));
+      toast.error(`Notion push failed for ${lead.company_name}: ${err.message}`, { id: toastId });
+    }
+  };
+
+  // Batch sync selected leads with progress reporting
+  const handleBulkExportNotion = async () => {
+    const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
+    const dbId = notionIntegration?.settings?.notion_database_id;
+    if (!dbId) {
+      toast.error("Notion database is not configured. Please connect Notion and select a database first.");
+      return;
+    }
+
+    const selectedLeads = leads.filter(l => selectedLeadIds.includes(l.id));
+    if (selectedLeads.length === 0) {
+      toast.error("No leads selected.");
+      return;
+    }
+
+    const toastId = toast.loading(`Initiating batch sync for ${selectedLeads.length} leads...`, { duration: 0 });
+
+    let successCount = 0;
+    let failedCount = 0;
+    let skippedCount = 0;
+    const failures: { name: string; reason: string }[] = [];
+
+    const defaultBehavior = notionIntegration?.settings?.notion_duplicate_behavior || "duplicate";
+
+    for (let i = 0; i < selectedLeads.length; i++) {
+      const lead = selectedLeads[i];
+      toast.loading(`Uploading ${i + 1} of ${selectedLeads.length}: ${lead.company_name}...`, { id: toastId });
+
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, notion_sync_status: "syncing" } : l));
+
+      try {
+        const { data, error } = await supabase.functions.invoke("sourcing-machine", {
+          body: {
+            action: "export-notion",
+            lead: {
+              id: lead.id,
+              company_name: lead.company_name,
+              founder_name: lead.founder_name,
+              linkedin_url: lead.linkedin_url,
+              twitter_url: lead.twitter_url,
+              employee_count: lead.employee_count,
+              is_b2b_saas: lead.is_b2b_saas,
+              icp_score: lead.icp_score,
+              notes: lead.notes,
+              is_contacted: lead.is_contacted,
+              reply_status: lead.reply_status,
+              product_hunt_url: lead.product_hunt_url
+            },
+            database_id: dbId,
+            duplicate_behavior: defaultBehavior,
+            field_mappings: notionIntegration?.settings?.field_mappings
+          }
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        if (data?.skipped) {
+          skippedCount++;
+          setLeads(prev => prev.map(l => l.id === lead.id ? { 
+            ...l, 
+            notion_sync_status: "synced",
+            notion_page_id: data.page_id,
+            notion_sync_error: null
+          } : l));
+        } else {
+          successCount++;
+          setLeads(prev => prev.map(l => l.id === lead.id ? { 
+            ...l, 
+            notion_sync_status: "synced",
+            notion_page_id: data.page_id,
+            notion_sync_error: null,
+            exported_to_notion: true
+          } : l));
+        }
+      } catch (err: any) {
+        failedCount++;
+        failures.push({ name: lead.company_name, reason: err.message });
+        setLeads(prev => prev.map(l => l.id === lead.id ? { 
+          ...l, 
+          notion_sync_status: "failed",
+          notion_sync_error: err.message
+        } : l));
+      }
+    }
+
+    toast.dismiss(toastId);
+
+    setBatchReport({
+      total: selectedLeads.length,
+      success: successCount,
+      failed: failedCount,
+      skipped: skippedCount,
+      failures
+    });
+    setShowBatchReportModal(true);
+    setSelectedLeadIds([]);
   };
 
 
@@ -503,33 +710,6 @@ export default function Sourcing() {
   };
 
 
-  // Bulk actions handlers
-  const handleBulkExportNotion = async () => {
-    const targetDb = defaultNotionDb || (notionDatabases.length > 0 ? notionDatabases[0].id : null);
-    if (!targetDb) {
-      toast.error("Please configure a default Notion Database in settings first.");
-      setShowIntegrationsConfig(true);
-      return;
-    }
-
-    const selectedLeads = leads.filter(l => selectedLeadIds.includes(l.id));
-    const leadsToExport = selectedLeads.filter(l => !l.exported_to_notion);
-
-    if (leadsToExport.length === 0) {
-      toast.info("All selected leads are already exported to Notion.");
-      return;
-    }
-
-    toast.loading(`Bulk exporting ${leadsToExport.length} leads to Notion...`);
-    let successCount = 0;
-    for (const lead of leadsToExport) {
-      const res = await performExportToNotion(lead, targetDb);
-      if (res.success) successCount++;
-    }
-    toast.dismiss();
-    toast.success(`Exported ${successCount} of ${leadsToExport.length} leads to Notion! 🚀`);
-    setSelectedLeadIds([]);
-  };
 
 
   const handleBulkDelete = async () => {
@@ -887,30 +1067,38 @@ export default function Sourcing() {
 
         <form onSubmit={handleSource} className="flex flex-col gap-3.5 max-w-3xl">
           {sourcingMode === "url" ? (
-            <div className="flex gap-2.5 w-full">
-              <div className="relative flex-1">
-                <Input
-                  type="text"
-                  placeholder="Paste launch URL or landing page (e.g. producthunt.com/posts/... or example.com)"
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                  disabled={sourcing}
-                  className="pr-10 h-11 bg-background text-sm"
-                />
+            <div className="flex flex-col gap-2 w-full">
+              <div className="flex gap-2.5 w-full">
+                <div className="relative flex-1">
+                  <Input
+                    type="text"
+                    placeholder="Paste launch URL or landing page (e.g. producthunt.com/posts/... or example.com)"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    disabled={sourcing}
+                    className="pr-10 h-11 bg-background text-sm"
+                  />
+                </div>
+                <Button type="submit" size="lg" disabled={sourcing || !urlInput.trim()} className="h-11 px-5 gap-1.5 font-medium shrink-0">
+                  {sourcing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Sourcing...
+                    </>
+                  ) : (
+                    <>
+                      Analyze URL
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
               </div>
-              <Button type="submit" size="lg" disabled={sourcing || !urlInput.trim()} className="h-11 px-5 gap-1.5 font-medium shrink-0">
-                {sourcing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Sourcing...
-                  </>
-                ) : (
-                  <>
-                    Analyze URL
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
+              <p className="text-[10px] text-muted-foreground leading-normal flex items-start gap-1.5 mt-1 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-md">
+                <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <span>
+                  <strong>LinkedIn & X/Twitter Note:</strong> Direct URL scanning of social media profiles will fail and yield placeholder data due to strict anti-scraping paywalls. To source from LinkedIn or X, copy the page text and paste it into the <strong>Raw Page Scraper (Paste Text)</strong> tab above.
+                </span>
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-3 w-full">
@@ -1105,6 +1293,7 @@ export default function Sourcing() {
                 <TableHead className="w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">ICP Score</TableHead>
                 <TableHead className="w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Contacted</TableHead>
                 <TableHead className="w-[120px] font-mono text-[10px] tracking-wider uppercase py-3">Reply Status</TableHead>
+                <TableHead className="w-[110px] font-mono text-[10px] tracking-wider uppercase py-3">Notion Sync</TableHead>
                 <TableHead className="font-mono text-[10px] tracking-wider uppercase py-3">Outreach Notes / Strategy</TableHead>
                 <TableHead className="w-[120px] text-right font-mono text-[10px] tracking-wider uppercase py-3">Actions</TableHead>
               </TableRow>
@@ -1233,6 +1422,50 @@ export default function Sourcing() {
                       </Select>
                     </TableCell>
 
+                    {/* Notion Sync Status */}
+                    <TableCell className="align-middle">
+                      <div className="flex items-center gap-1.5">
+                        {lead.notion_sync_status === "synced" && (
+                          <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 font-medium text-[10px] px-1.5 py-0.5">
+                            Synced
+                          </Badge>
+                        )}
+                        {lead.notion_sync_status === "syncing" && (
+                          <Badge variant="outline" className="border-primary/25 bg-primary/5 text-primary font-medium text-[10px] px-1.5 py-0.5 flex items-center gap-1">
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing
+                          </Badge>
+                        )}
+                        {lead.notion_sync_status === "failed" && (
+                          <div className="flex items-center gap-1" title={lead.notion_sync_error || "Sync failed"}>
+                            <Badge variant="outline" className="border-destructive/25 bg-destructive/5 text-destructive font-medium text-[10px] px-1.5 py-0.5">
+                              Failed
+                            </Badge>
+                            <button 
+                              onClick={() => syncSingleLeadWithProgress(lead)}
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                              title="Retry Sync"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                        {(lead.notion_sync_status === "not_synced" || !lead.notion_sync_status) && (
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="border-border/60 bg-muted/20 text-muted-foreground font-medium text-[10px] px-1.5 py-0.5">
+                              Unsynced
+                            </Badge>
+                            <button 
+                              onClick={() => syncSingleLeadWithProgress(lead)}
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-primary"
+                              title="Sync to Notion"
+                            >
+                              <Play className="h-3 w-3 fill-current" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+
                     {/* Notes (Inline editable on click) */}
                     <TableCell className="align-middle text-xs">
                       {editingNotesId === lead.id ? (
@@ -1273,7 +1506,7 @@ export default function Sourcing() {
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                          onClick={() => fetchNotionDatabases(lead)}
+                          onClick={() => syncSingleLeadWithProgress(lead)}
                           title="Export to Notion"
                         >
                           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
@@ -1438,61 +1671,126 @@ export default function Sourcing() {
       </Dialog>
 
       {/* ── Dialog: Export to Notion ── */}
-      <Dialog open={showNotionModal} onOpenChange={setShowNotionModal}>
+      {/* ── Dialog: Notion Duplicate Conflict ── */}
+      <Dialog open={showConflictModal} onOpenChange={setShowConflictModal}>
         <DialogContent className="sm:max-w-[420px] bg-card border border-border/80">
           <DialogHeader>
-            <DialogTitle>Export Lead to Notion</DialogTitle>
+            <DialogTitle className="text-base flex items-center gap-1.5 text-amber-600">
+              <AlertCircle className="h-5 w-5 shrink-0" /> Duplicate Record Detected
+            </DialogTitle>
             <DialogDescription>
-              Select which Notion database to push <strong>{exportingLead?.company_name}</strong> to.
+              A page for <strong>{conflictLead?.company_name}</strong> already exists in your active Notion database. How would you like to handle this conflict?
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            {notionLoading && notionDatabases.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-6">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <span className="mt-2 text-xs text-muted-foreground">Listing shared Notion databases...</span>
+
+          <div className="py-4 flex flex-col gap-3">
+            <Button 
+              variant="outline" 
+              className="justify-start text-left h-auto py-3 px-4 border-border/50 hover:bg-primary/5 hover:border-primary/30"
+              onClick={() => {
+                if (conflictLead) {
+                  syncSingleLeadWithProgress(conflictLead, "update");
+                  setShowConflictModal(false);
+                }
+              }}
+            >
+              <div>
+                <div className="font-semibold text-xs text-foreground">Update Existing Page</div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Overwrite parameters (LinkedIn, X, ICP score, strategy notes column) on the existing Notion page.</p>
               </div>
-            ) : notionDatabases.length === 0 ? (
-              <div className="text-center py-6 space-y-2">
-                <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
-                <h4 className="text-sm font-semibold">No Notion databases shared</h4>
-                <p className="text-xs text-muted-foreground max-w-[280px] mx-auto">
-                  Ensure you share databases with your Notion integration before attempting export.
-                </p>
+            </Button>
+
+            <Button 
+              variant="outline" 
+              className="justify-start text-left h-auto py-3 px-4 border-border/50 hover:bg-primary/5 hover:border-primary/30"
+              onClick={() => {
+                if (conflictLead) {
+                  syncSingleLeadWithProgress(conflictLead, "duplicate");
+                  setShowConflictModal(false);
+                }
+              }}
+            >
+              <div>
+                <div className="font-semibold text-xs text-foreground">Create Duplicate Page</div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Create a brand new page alongside the existing one.</p>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground">
-                  Select Notion Database
-                </label>
-                <Select value={selectedNotionDb} onValueChange={setSelectedNotionDb}>
-                  <SelectTrigger className="w-full bg-background border-border/50">
-                    <SelectValue placeholder="Choose Notion DB" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {notionDatabases.map(db => (
-                      <SelectItem key={db.id} value={db.id}>
-                        {db.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            </Button>
+
+            <Button 
+              variant="outline" 
+              className="justify-start text-left h-auto py-3 px-4 border-border/50 hover:bg-destructive/5 hover:border-destructive/20 hover:text-foreground"
+              onClick={() => {
+                if (conflictLead) {
+                  syncSingleLeadWithProgress(conflictLead, "skip");
+                  setShowConflictModal(false);
+                }
+              }}
+            >
+              <div>
+                <div className="font-semibold text-xs text-foreground">Skip Sync</div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Do nothing. Mark the lead as synced locally without pushing updates to Notion.</p>
               </div>
-            )}
+            </Button>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNotionModal(false)} disabled={notionLoading}>
+          <DialogFooter className="sm:justify-start border-t border-border/40 pt-3">
+            <Button variant="ghost" size="sm" onClick={() => setShowConflictModal(false)} className="text-muted-foreground hover:text-foreground">
               Cancel
             </Button>
-            <Button 
-              onClick={exportToNotion} 
-              disabled={notionLoading || !selectedNotionDb}
-              className="gap-1.5"
-            >
-              {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              Export to Notion
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Notion Batch Sync Report ── */}
+      <Dialog open={showBatchReportModal} onOpenChange={setShowBatchReportModal}>
+        <DialogContent className="sm:max-w-[460px] bg-card border border-border/80">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-1.5">
+              <Database className="h-5 w-5 text-primary" /> Batch Sync Report
+            </DialogTitle>
+            <DialogDescription>
+              Synchronization report for the exported leads batch to Notion.
+            </DialogDescription>
+          </DialogHeader>
+
+          {batchReport && (
+            <div className="py-4 space-y-4">
+              {/* Count Badges */}
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-center">
+                  <div className="font-mono text-xl font-bold text-emerald-600 dark:text-emerald-400">{batchReport.success}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase font-semibold mt-0.5">Success</div>
+                </div>
+                <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-center">
+                  <div className="font-mono text-xl font-bold text-amber-600 dark:text-amber-400">{batchReport.skipped}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase font-semibold mt-0.5">Skipped</div>
+                </div>
+                <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20 text-center">
+                  <div className="font-mono text-xl font-bold text-destructive">{batchReport.failed}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase font-semibold mt-0.5">Failed</div>
+                </div>
+              </div>
+
+              {/* Failures List */}
+              {batchReport.failed > 0 && (
+                <div className="space-y-2 border-t border-border/40 pt-3">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Failures & Reasons:</label>
+                  <div className="max-h-[160px] overflow-y-auto space-y-2 pr-1">
+                    {batchReport.failures.map((f, i) => (
+                      <div key={i} className="p-2.5 rounded border border-destructive/20 bg-destructive/5 text-[11px] font-sans">
+                        <div className="font-semibold text-foreground">{f.name}</div>
+                        <p className="text-muted-foreground mt-0.5 leading-normal">{f.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setShowBatchReportModal(false)} className="w-full sm:w-auto">
+              Close Report
             </Button>
           </DialogFooter>
         </DialogContent>

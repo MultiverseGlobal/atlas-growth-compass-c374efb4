@@ -1,8 +1,29 @@
-import { useState } from "react";
-import { Github, Plug, CheckCircle2, Loader2, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { 
+  Github, 
+  Plug, 
+  CheckCircle2, 
+  Loader2, 
+  ExternalLink,
+  Search,
+  Database,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle,
+  HelpCircle,
+  Activity,
+  Settings,
+  Info
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useMaps } from "@/hooks/useMaps";
+import { supabase } from "@/integrations/supabase/client";
 
 function getRecommendedSources(goalText: string): string[] {
   const t = (goalText || "").toLowerCase();
@@ -137,6 +158,15 @@ export default function Integrations() {
       <p className="mt-6 text-center text-xs text-muted-foreground/60">
         Stripe OAuth coming soon — all connections are secured via OAuth 2.0 and never expose your keys.
       </p>
+
+      {/* ── Notion Integration Settings ── */}
+      {getIntegration("notion") && (
+        <NotionSettingsPanel 
+          integration={getIntegration("notion")}
+          onDisconnect={() => disconnect.mutate(getIntegration("notion")!.id)}
+          onReconnect={connectNotion}
+        />
+      )}
     </div>
   );
 }
@@ -239,6 +269,358 @@ function ConnectorCard({
             )}
           </Button>
         )
+      )}
+    </div>
+  );
+}
+
+function NotionSettingsPanel({
+  integration,
+  onDisconnect,
+  onReconnect
+}: {
+  integration: any;
+  onDisconnect: () => void;
+  onReconnect: () => void;
+}) {
+  const { updateSettings } = useIntegrations();
+  const [databases, setDatabases] = useState<any[]>([]);
+  const [loadingDbs, setLoadingDbs] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [validationReport, setValidationReport] = useState<any>(null);
+  const [validating, setValidating] = useState(false);
+
+  const settings = integration.settings || {};
+  const activeDbId = settings.notion_database_id || "";
+  const duplicateBehavior = settings.notion_duplicate_behavior || "duplicate";
+  const customMappings = settings.field_mappings || {};
+
+  const fetchDatabases = async (showToast = false) => {
+    setLoadingDbs(true);
+    if (showToast) toast.loading("Fetching Notion databases...");
+    try {
+      const { data, error } = await supabase.functions.invoke("sourcing-machine", {
+        body: { action: "list-notion-databases" }
+      });
+      if (error) throw error;
+      setDatabases(data.databases || []);
+      if (showToast) {
+        toast.dismiss();
+        toast.success(`Loaded ${data.databases?.length || 0} Notion databases.`);
+      }
+    } catch (err: any) {
+      if (showToast) toast.dismiss();
+      toast.error("Failed to load Notion databases: " + err.message);
+    } finally {
+      setLoadingDbs(false);
+    }
+  };
+
+  const validateDatabase = async (dbId: string) => {
+    if (!dbId) {
+      setValidationReport(null);
+      return;
+    }
+    setValidating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sourcing-machine", {
+        body: { 
+          action: "validate-notion-database",
+          database_id: dbId,
+          field_mappings: customMappings
+        }
+      });
+      if (error) throw error;
+      setValidationReport(data);
+      
+      // Auto-save auto-mappings if none are set yet
+      if (Object.keys(customMappings).length === 0 && data.auto_mappings) {
+        await updateSettings.mutateAsync({
+          integrationId: integration.id,
+          settings: {
+            ...settings,
+            field_mappings: data.auto_mappings
+          }
+        });
+      }
+    } catch (err: any) {
+      toast.error("Schema validation failed: " + err.message);
+      setValidationReport({ valid: false, errors: [err.message] });
+    } finally {
+      setValidationReport(null);
+      setValidating(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDatabases();
+  }, [integration.id]);
+
+  useEffect(() => {
+    if (activeDbId) {
+      validateDatabase(activeDbId);
+    } else {
+      setValidationReport(null);
+    }
+  }, [activeDbId, integration.id]);
+
+  const handleSelectDb = async (dbId: string) => {
+    const db = databases.find(d => d.id === dbId);
+    const dbTitle = db ? db.title : "Notion Database";
+    
+    await updateSettings.mutateAsync({
+      integrationId: integration.id,
+      settings: {
+        ...settings,
+        notion_database_id: dbId,
+        notion_database_name: dbTitle
+      }
+    });
+    toast.success(`Active export database set to: ${dbTitle}`);
+  };
+
+  const handleDuplicateBehavior = async (val: string) => {
+    await updateSettings.mutateAsync({
+      integrationId: integration.id,
+      settings: {
+        ...settings,
+        notion_duplicate_behavior: val
+      }
+    });
+    toast.success(`Duplicate strategy updated to: ${val}`);
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    toast.loading("Testing Notion workspace authorization...");
+    try {
+      await fetchDatabases(false);
+      if (activeDbId) {
+        await validateDatabase(activeDbId);
+      }
+      toast.dismiss();
+      toast.success("Notion connection test passed successfully! 🚀");
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error("Notion connection test failed: " + err.message);
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  // Filter databases based on search query
+  const filteredDbs = databases.filter(db => 
+    db.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const selectedDb = databases.find(d => d.id === activeDbId);
+
+  return (
+    <div className="mt-8 border-t border-border/60 pt-8 animate-in fade-in duration-300">
+      <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-6">
+        <Settings className="h-4 w-4 text-primary" /> Notion Integration Console
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Connection Status Card */}
+        <div className="card-warm p-5 space-y-4">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Activity className="h-4 w-4 text-emerald-500" /> Connection Status
+          </h3>
+          <div className="text-xs text-muted-foreground space-y-2.5">
+            <div className="flex justify-between">
+              <span>Status:</span>
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">✓ Connected</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Workspace:</span>
+              <span className="font-medium text-foreground truncate max-w-[150px]" title={integration.external_account_label}>
+                {integration.external_account_label || "Workspace"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Last Sync Check:</span>
+              <span className="font-medium text-foreground text-right">
+                {integration.last_sync_at ? new Date(integration.last_sync_at).toLocaleString() : "Never synced"}
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-2 flex flex-col gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs" 
+              onClick={handleTestConnection}
+              disabled={testingConnection}
+            >
+              {testingConnection ? "Testing..." : "Test Connection"}
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" className="flex-1 text-xs text-muted-foreground hover:text-foreground" onClick={onReconnect}>
+                Reconnect
+              </Button>
+              <Button variant="ghost" size="sm" className="flex-1 text-xs text-destructive hover:bg-destructive/10" onClick={onDisconnect}>
+                Disconnect
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Database Selection Card */}
+        <div className="card-warm p-5 space-y-4 md:col-span-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <Database className="h-4 w-4 text-primary" /> Active Export Target
+            </h3>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-7 w-7 text-muted-foreground"
+              onClick={() => fetchDatabases(true)}
+              disabled={loadingDbs}
+              title="Refresh database listing"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loadingDbs ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {databases.length === 0 && !loadingDbs ? (
+              <div className="p-4 rounded-md border border-amber-300/30 bg-amber-500/5 text-xs text-amber-800 dark:text-amber-300 space-y-2">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" /> No Notion databases discovered
+                </div>
+                <p className="leading-relaxed text-muted-foreground">
+                  Atlas HQ has not been granted access to any Notion databases. Open Notion, share your database with the Atlas HQ integration, or click **Reconnect** to re-authorize workspace permissions.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-muted-foreground">Select Target Notion Database</label>
+                  {databases.length > 5 && (
+                    <Input
+                      placeholder="Search databases..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="h-7 text-[10px] w-[150px] bg-background border-border/50 py-0"
+                    />
+                  )}
+                </div>
+                <Select value={activeDbId} onValueChange={handleSelectDb}>
+                  <SelectTrigger className="w-full bg-background border-border/50 h-9 text-xs">
+                    <SelectValue placeholder="Choose Notion DB..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    {filteredDbs.map(db => (
+                      <SelectItem key={db.id} value={db.id} className="text-xs">
+                        <span className="flex items-center gap-2">
+                          <span>{db.icon && typeof db.icon === "string" ? db.icon : "📂"}</span>
+                          <span>{db.title}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Duplicate Settings */}
+            <div className="space-y-2.5 pt-2 border-t border-border/40">
+              <label className="text-xs font-semibold text-muted-foreground">Default Duplicate Strategy</label>
+              <Select value={duplicateBehavior} onValueChange={handleDuplicateBehavior}>
+                <SelectTrigger className="w-full bg-background border-border/50 h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="duplicate" className="text-xs">Create Duplicate Page</SelectItem>
+                  <SelectItem value="update" className="text-xs">Update Existing Page</SelectItem>
+                  <SelectItem value="skip" className="text-xs">Skip Sync</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Database Schema Validation Report */}
+      {activeDbId && (
+        <div className="mt-6 card-warm p-5 space-y-4">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Settings className="h-4 w-4 text-primary" /> Schema Alignment Verification
+          </h3>
+          
+          {validating ? (
+            <div className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" /> Validating Notion properties layout...
+            </div>
+          ) : validationReport ? (
+            <div className="space-y-4 text-xs">
+              {validationReport.valid ? (
+                <div className="p-3.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5">
+                  <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-sm">Perfect Database Alignment</div>
+                    <p className="mt-1 leading-relaxed text-muted-foreground">
+                      All required columns (`Company`, `Founder`, `LinkedIn`, `X`, `ICP Score`, `Notes`) are mapped and match Notion's properties layout. Ready to sync leads!
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-lg border border-destructive/40 bg-destructive/5 text-destructive flex items-start gap-2.5 animate-in fade-in duration-200">
+                  <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-sm">Property Mismatch Detected</div>
+                    <p className="mt-1 leading-relaxed text-muted-foreground/80">
+                      Atlas HQ cannot write to the selected Notion database because of schema mismatches. Please align the properties in Notion or map similarly named columns:
+                    </p>
+                    <ul className="mt-3 space-y-1.5 font-mono text-[11px] list-disc list-inside">
+                      {validationReport.errors.map((err: string, i: number) => (
+                        <li key={i} className="text-destructive font-medium">{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Mappings Table */}
+              <div className="rounded-md border border-border/40 overflow-hidden bg-background/50">
+                <div className="grid grid-cols-3 bg-muted/40 p-2.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/40 font-semibold">
+                  <div>Atlas Fields</div>
+                  <div>Mapped Property</div>
+                  <div className="text-right">Type</div>
+                </div>
+                <div className="divide-y divide-border/40 font-mono text-[11px]">
+                  {[
+                    { field: "company_name", label: "Company Name", default: "Company", type: "Title" },
+                    { field: "founder_name", label: "Founder Name", default: "Founder", type: "Rich Text" },
+                    { field: "linkedin_url", label: "LinkedIn URL", default: "LinkedIn", type: "URL" },
+                    { field: "twitter_url", label: "Twitter handle / URL", default: "X", type: "URL / Rich Text" },
+                    { field: "icp_score", label: "ICP Score", default: "ICP Score", type: "Number" },
+                    { field: "notes", label: "Outreach notes", default: "Notes", type: "Rich Text" },
+                  ].map((f, i) => {
+                    const mappedName = customMappings[f.field] || validationReport.auto_mappings?.[f.field] || f.default;
+                    const prop = validationReport.properties?.find((p: any) => p.name === mappedName);
+                    return (
+                      <div key={i} className="grid grid-cols-3 p-2.5 items-center">
+                        <div className="font-sans font-medium text-foreground">{f.label}</div>
+                        <div className="text-muted-foreground flex items-center gap-1">
+                          <span>{mappedName}</span>
+                          {!prop && <Badge variant="outline" className="text-[9px] text-destructive border-destructive/20 bg-destructive/5 font-sans px-1.5 py-0.5">Unmapped</Badge>}
+                        </div>
+                        <div className="text-right text-muted-foreground">{prop?.type?.toUpperCase() || f.type.toUpperCase()}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">Verification check ready.</div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -12,6 +12,7 @@ export type IntegrationRow = {
   status: "active" | "error" | "disconnected" | "syncing";
   external_account_label: string | null;
   last_sync_at: string | null;
+  settings?: any;
 };
 
 export function useIntegrations() {
@@ -92,7 +93,7 @@ export function useIntegrations() {
 
       const { data, error } = await supabase
         .from("integrations")
-        .select("id, provider, status, external_account_label, last_sync_at")
+        .select("id, provider, status, external_account_label, last_sync_at, settings")
         .eq("user_id", user.id);
       if (error) throw error;
       return (data ?? []) as IntegrationRow[];
@@ -190,5 +191,19 @@ export function useIntegrations() {
     onError: (err: Error) => toast.error(friendlyError(err)),
   });
 
-  return { ...query, connectGitHub, connectNotion, connectSlack, connectGoogle, disconnect };
+  const updateSettings = useMutation({
+    mutationFn: async ({ integrationId, settings }: { integrationId: string; settings: any }) => {
+      const { error } = await supabase
+        .from("integrations")
+        .update({ settings })
+        .eq("id", integrationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["integrations", user?.id] });
+    },
+    onError: (err: Error) => toast.error(friendlyError(err)),
+  });
+
+  return { ...query, connectGitHub, connectNotion, connectSlack, connectGoogle, disconnect, updateSettings };
 }
