@@ -192,6 +192,60 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          id: string
+          user_id: string
+          company_name: string
+          founder_name: string | null
+          linkedin_url: string | null
+          twitter_url: string | null
+          employee_count: number | null
+          is_b2b_saas: boolean
+          icp_score: number | null
+          is_contacted: boolean
+          reply_status: string
+          product_hunt_url: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          company_name: string
+          founder_name?: string | null
+          linkedin_url?: string | null
+          twitter_url?: string | null
+          employee_count?: number | null
+          is_b2b_saas?: boolean
+          icp_score?: number | null
+          is_contacted?: boolean
+          reply_status?: string
+          product_hunt_url?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          company_name?: string
+          founder_name?: string | null
+          linkedin_url?: string | null
+          twitter_url?: string | null
+          employee_count?: number | null
+          is_b2b_saas?: boolean
+          icp_score?: number | null
+          is_contacted?: boolean
+          reply_status?: string
+          product_hunt_url?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null

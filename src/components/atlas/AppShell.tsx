@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun, Palette, Menu, X } from "lucide-react";
+import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun, Palette, Menu, X, Target } from "lucide-react";
 import { Logo, LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -10,6 +10,7 @@ import { useTheme } from "@/hooks/useTheme";
 
 const nav = [
   { to: "/app", end: true, icon: Compass, label: "Today" },
+  { to: "/app/sourcing", icon: Target, label: "Atlas HQ" },
   { to: "/app/timeline", icon: Activity, label: "Timeline" },
   { to: "/app/notifications", icon: Bell, label: "Notifications" },
   { to: "/app/reports", icon: FileText, label: "Reports" },
