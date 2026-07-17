@@ -263,6 +263,7 @@ export type Database = {
           goal_statement: string
           confidence: Database["public"]["Enums"]["map_confidence"]
           is_published: boolean
+          metadata: Json
           created_at: string
           updated_at: string
         }
@@ -273,6 +274,7 @@ export type Database = {
           goal_statement: string
           confidence?: Database["public"]["Enums"]["map_confidence"]
           is_published?: boolean
+          metadata?: Json
           created_at?: string
           updated_at?: string
         }
@@ -283,6 +285,7 @@ export type Database = {
           goal_statement?: string
           confidence?: Database["public"]["Enums"]["map_confidence"]
           is_published?: boolean
+          metadata?: Json
           created_at?: string
           updated_at?: string
         }
@@ -335,6 +338,7 @@ export type Database = {
           event_id: string | null
           title: string
           score: number
+          payload: Json
           occurred_at: string
           created_at: string
         }
@@ -345,6 +349,7 @@ export type Database = {
           event_id?: string | null
           title: string
           score?: number
+          payload?: Json
           occurred_at?: string
           created_at?: string
         }
@@ -355,6 +360,7 @@ export type Database = {
           event_id?: string | null
           title?: string
           score?: number
+          payload?: Json
           occurred_at?: string
           created_at?: string
         }
@@ -429,6 +435,14 @@ export type Database = {
           title: string
           confidence: Database["public"]["Enums"]["map_confidence"]
           position: number
+          milestone_id: string | null
+          predicted_signal: string | null
+          predicted_direction: Database["public"]["Enums"]["predicted_direction"] | null
+          predicted_baseline_value: string | null
+          check_back_date: string | null
+          result_status: Database["public"]["Enums"]["prediction_status"] | null
+          result_summary: string | null
+          metadata: Json | null
           created_at: string
           completed_at: string | null
         }
@@ -440,6 +454,14 @@ export type Database = {
           title: string
           confidence?: Database["public"]["Enums"]["map_confidence"]
           position?: number
+          milestone_id?: string | null
+          predicted_signal?: string | null
+          predicted_direction?: Database["public"]["Enums"]["predicted_direction"] | null
+          predicted_baseline_value?: string | null
+          check_back_date?: string | null
+          result_status?: Database["public"]["Enums"]["prediction_status"] | null
+          result_summary?: string | null
+          metadata?: Json | null
           created_at?: string
           completed_at?: string | null
         }
@@ -451,10 +473,26 @@ export type Database = {
           title?: string
           confidence?: Database["public"]["Enums"]["map_confidence"]
           position?: number
+          milestone_id?: string | null
+          predicted_signal?: string | null
+          predicted_direction?: Database["public"]["Enums"]["predicted_direction"] | null
+          predicted_baseline_value?: string | null
+          check_back_date?: string | null
+          result_status?: Database["public"]["Enums"]["prediction_status"] | null
+          result_summary?: string | null
+          metadata?: Json | null
           created_at?: string
           completed_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "waypoints_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       public_snapshots: {
         Row: {
@@ -620,6 +658,151 @@ export type Database = {
         }
         Relationships: []
       }
+      milestones: {
+        Row: {
+          id: string
+          map_id: string
+          title: string
+          description: string | null
+          sequence: number
+          status: Database["public"]["Enums"]["milestone_status"]
+          estimated_start: string | null
+          estimated_complete: string | null
+          actual_complete_at: string | null
+          is_reforecast: boolean
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          map_id: string
+          title: string
+          description?: string | null
+          sequence?: number
+          status?: Database["public"]["Enums"]["milestone_status"]
+          estimated_start?: string | null
+          estimated_complete?: string | null
+          actual_complete_at?: string | null
+          is_reforecast?: boolean
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          map_id?: string
+          title?: string
+          description?: string | null
+          sequence?: number
+          status?: Database["public"]["Enums"]["milestone_status"]
+          estimated_start?: string | null
+          estimated_complete?: string | null
+          actual_complete_at?: string | null
+          is_reforecast?: boolean
+          metadata?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestones_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "maps"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      commitments: {
+        Row: {
+          id: string
+          map_id: string
+          waypoint_id: string
+          user_id: string
+          date: string
+          status: Database["public"]["Enums"]["commitment_status"]
+          note: string | null
+          timezone: string
+          reminder_sent: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          map_id: string
+          waypoint_id: string
+          user_id: string
+          date: string
+          status?: Database["public"]["Enums"]["commitment_status"]
+          note?: string | null
+          timezone?: string
+          reminder_sent?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          map_id?: string
+          waypoint_id?: string
+          user_id?: string
+          date?: string
+          status?: Database["public"]["Enums"]["commitment_status"]
+          note?: string | null
+          timezone?: string
+          reminder_sent?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commitments_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commitments_waypoint_id_fkey"
+            columns: ["waypoint_id"]
+            isOneToOne: false
+            referencedRelation: "waypoints"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      chat_messages: {
+        Row: {
+          id: string
+          map_id: string
+          user_id: string
+          role: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          map_id: string
+          user_id: string
+          role: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          map_id?: string
+          user_id?: string
+          role?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "maps"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -639,6 +822,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      commitment_status: "committed" | "done" | "not_done"
       event_type:
         | "gh_pr_merged"
         | "gh_release"
@@ -662,7 +846,10 @@ export type Database = {
       integration_provider: "github" | "stripe" | "linear" | "posthog"
       integration_status: "active" | "error" | "disconnected" | "syncing"
       map_confidence: "starter" | "emerging" | "established"
+      milestone_status: "pending" | "active" | "complete" | "skipped"
       page_visibility: "public" | "unlisted" | "private"
+      predicted_direction: "up" | "down" | "flat"
+      prediction_status: "pending" | "held" | "missed" | "unclear"
       report_type: "weekly" | "investor" | "launch_post"
       user_plan: "free" | "atlas"
       waypoint_kind: "goal" | "constraint" | "evidence" | "move"
@@ -794,6 +981,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      commitment_status: ["committed", "done", "not_done"],
       event_type: [
         "gh_pr_merged",
         "gh_release",
@@ -817,7 +1005,10 @@ export const Constants = {
       ],
       integration_provider: ["github", "stripe", "linear", "posthog"],
       integration_status: ["active", "error", "disconnected", "syncing"],
+      milestone_status: ["pending", "active", "complete", "skipped"],
       page_visibility: ["public", "unlisted", "private"],
+      predicted_direction: ["up", "down", "flat"],
+      prediction_status: ["pending", "held", "missed", "unclear"],
       report_type: ["weekly", "investor", "launch_post"],
     },
   },

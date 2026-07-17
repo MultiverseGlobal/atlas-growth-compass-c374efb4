@@ -236,9 +236,9 @@ export default function Home() {
         newWaypoints.map((w, idx) => ({
           map_id: activeMap.id,
           user_id: user?.id,
-          kind: w.kind,
+          kind: w.kind as "goal" | "constraint" | "evidence" | "move",
           title: w.title,
-          confidence: w.confidence,
+          confidence: w.confidence as "starter" | "emerging" | "established",
           position: idx,
           metadata: w.metadata || null,
           predicted_signal: w.predicted_signal || null,

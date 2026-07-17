@@ -810,7 +810,7 @@ export default function MapDetails() {
       setMap(prev => prev ? { ...prev, confidence: newConf } : null);
 
       // Auto-trigger roadmap if map just moved past starter confidence
-      if (map && map.confidence === "starter" && newConf !== "starter" && milestones.length === 0) {
+      if (map && map.confidence === "starter" && milestones.length === 0) {
         toast.info("Goal confidence established. Drafting roadmap campaign...");
         try {
           await supabase.functions.invoke("generate-roadmap", { body: { map_id: id } });
