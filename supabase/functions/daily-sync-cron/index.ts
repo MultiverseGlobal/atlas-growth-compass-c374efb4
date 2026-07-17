@@ -59,10 +59,10 @@ Deno.serve(async (req: Request) => {
 
         const llm = await diagnoseResponse.json();
 
-        // Step 3: Fetch the map goal statement
+        // Step 3: Fetch the map goal statement and metadata
         const { data: mapData } = await supabase
           .from("maps")
-          .select("goal_statement")
+          .select("goal_statement, metadata")
           .eq("id", map_id)
           .maybeSingle();
 

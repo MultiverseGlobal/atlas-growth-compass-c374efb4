@@ -9,7 +9,7 @@ import { CompassLoader } from "@/pages/app/Home";
 import { useTheme } from "@/hooks/useTheme";
 
 const nav = [
-  { to: "/app", end: true, icon: Compass, label: "Maps" },
+  { to: "/app", end: true, icon: Compass, label: "Today" },
   { to: "/app/timeline", icon: Activity, label: "Timeline" },
   { to: "/app/notifications", icon: Bell, label: "Notifications" },
   { to: "/app/reports", icon: FileText, label: "Reports" },
