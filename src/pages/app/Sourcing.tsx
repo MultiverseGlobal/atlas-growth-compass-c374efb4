@@ -115,9 +115,21 @@ export default function Sourcing() {
   useEffect(() => {
     const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
     if (notionIntegration) {
-      // Sync the local defaultNotionDb state with whatever is stored in the database
       const dbIdFromDb = notionIntegration.settings?.notion_database_id || "";
-      if (dbIdFromDb && dbIdFromDb !== defaultNotionDb) {
+      
+      // Self-healing: if the DB has no database selected, but local state/localStorage has one, update the DB
+      if (!dbIdFromDb && defaultNotionDb && defaultNotionDb !== "none" && notionDatabases.length > 0) {
+        const db = notionDatabases.find(d => d.id === defaultNotionDb);
+        const dbTitle = db ? db.title : "Notion Database";
+        updateSettings.mutate({
+          integrationId: notionIntegration.id,
+          settings: {
+            ...notionIntegration.settings,
+            notion_database_id: defaultNotionDb,
+            notion_database_name: dbTitle
+          }
+        });
+      } else if (dbIdFromDb && dbIdFromDb !== defaultNotionDb) {
         setDefaultNotionDb(dbIdFromDb);
       }
       
@@ -129,7 +141,7 @@ export default function Sourcing() {
         });
       }
     }
-  }, [integrations, notionDatabases.length]);
+  }, [integrations, notionDatabases, defaultNotionDb]);
 
   // Duplicate Conflict Modal State
   const [conflictLead, setConflictLead] = useState<Lead | null>(null);
@@ -328,8 +340,8 @@ export default function Sourcing() {
   // Sync a single lead with step-by-step progress toasts and conflict handler
   const syncSingleLeadWithProgress = async (lead: Lead, behavior?: "update" | "duplicate" | "skip") => {
     const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
-    const dbId = notionIntegration?.settings?.notion_database_id;
-    if (!dbId) {
+    const dbId = notionIntegration?.settings?.notion_database_id || defaultNotionDb;
+    if (!dbId || dbId === "none") {
       toast.error("No target Notion database configured. Please select a database from the Notion CRM panel on the left.");
       return;
     }
@@ -410,8 +422,8 @@ export default function Sourcing() {
   // Batch sync selected leads with progress reporting
   const handleBulkExportNotion = async () => {
     const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
-    const dbId = notionIntegration?.settings?.notion_database_id;
-    if (!dbId) {
+    const dbId = notionIntegration?.settings?.notion_database_id || defaultNotionDb;
+    if (!dbId || dbId === "none") {
       toast.error("Notion database is not configured. Please connect Notion and select a database first.");
       return;
     }
