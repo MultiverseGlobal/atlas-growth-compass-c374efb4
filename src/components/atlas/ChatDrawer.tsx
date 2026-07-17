@@ -120,7 +120,7 @@ export function ChatDrawer({ open, onClose, mapId, mapName, onActionExecuted }: 
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="right" className="w-full sm:max-w-lg border-l border-border/60 bg-background/98 backdrop-blur-sm p-0 flex flex-col h-full overflow-hidden grain">
+      <SheetContent side="right" className="w-full sm:max-w-lg border-l border-border/60 bg-background p-0 flex flex-col h-full overflow-hidden">
         
         {/* Header */}
         <div className="p-6 border-b border-border/40 shrink-0">

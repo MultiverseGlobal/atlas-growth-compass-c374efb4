@@ -61,7 +61,7 @@ export function MapEvidenceDrawer({ open, onClose, mapId, goalStatement, mapName
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="right" className="w-full sm:max-w-lg border-l border-border/60 bg-background/98 backdrop-blur-sm p-6 overflow-y-auto grain">
+      <SheetContent side="right" className="w-full sm:max-w-lg border-l border-border/60 bg-background p-6 overflow-y-auto">
         <SheetHeader className="pb-6 border-b border-border/40">
           <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-primary uppercase mb-1">
             <Compass className="h-3.5 w-3.5" /> Evidence Trail
