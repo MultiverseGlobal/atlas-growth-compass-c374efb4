@@ -134,34 +134,21 @@ export function useIntegrations() {
   // ── Generic OAuth via Edge Function ──────────────────────────────────────
   const connectViaEdgeFunction = async (provider: "notion" | "slack" | "google") => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) {
-        toast.error("Please sign in again to connect integrations.");
-        return;
-      }
-
-      const supabaseUrl = (supabase as any).supabaseUrl as string;
-      const res = await fetch(
-        `${supabaseUrl}/functions/v1/oauth-initiate?provider=${provider}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-        }
+      const { data, error } = await supabase.functions.invoke(
+        `oauth-initiate?provider=${provider}`,
+        { method: "GET" }
       );
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(body.error ?? `Failed to initiate ${provider} OAuth`);
+      if (error) {
+        throw new Error(error.message ?? `Failed to initiate ${provider} OAuth`);
       }
 
-      const { url } = await res.json();
-      if (!url) throw new Error("No OAuth URL returned from server.");
+      if (!data?.url) {
+        throw new Error("No OAuth URL returned from server.");
+      }
 
       // Redirect the user to the provider's OAuth page
-      window.location.href = url;
+      window.location.href = data.url;
     } catch (err: unknown) {
       toast.error(friendlyError(err));
     }

@@ -10,7 +10,7 @@ import { useTheme } from "@/hooks/useTheme";
 
 const nav = [
   { to: "/app", end: true, icon: Compass, label: "Today" },
-  { to: "/app/sourcing", icon: Target, label: "Atlas HQ" },
+  { to: "/hq", icon: Target, label: "Atlas HQ" },
   { to: "/app/timeline", icon: Activity, label: "Timeline" },
   { to: "/app/notifications", icon: Bell, label: "Notifications" },
   { to: "/app/reports", icon: FileText, label: "Reports" },
@@ -151,7 +151,7 @@ export default function AppShell() {
           <div className={`h-16 flex items-center border-b border-border/60 ${collapsed ? "justify-center px-2" : "px-5"}`}>
             {collapsed ? <LogoMark size={22} /> : <Logo />}
           </div>
-          <SidebarNav collapsed={collapsed} unreadCount={unreadCount} />
+          <SidebarNav collapsed={collapsed} unreadCount={unreadCount} email={user?.email} />
           <div className="p-3 border-t border-border/60 space-y-1">
             <button
               onClick={toggle}
@@ -235,7 +235,7 @@ export default function AppShell() {
 
       {!isFocusMode && (
         <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border/70 bg-sidebar/95 px-2 py-2 backdrop-blur md:hidden">
-          {nav.slice(0, 5).map((n) => (
+          {nav.filter(n => n.to !== "/hq" || user?.email?.toLowerCase() === "multiverseglobals@gmail.com").slice(0, 5).map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
@@ -261,19 +261,24 @@ export default function AppShell() {
   );
 }
 
-function SidebarNav({ collapsed, unreadCount }: { collapsed: boolean; unreadCount: number }) {
+const ADMIN_EMAIL = "multiverseglobals@gmail.com";
+
+function SidebarNav({ collapsed, unreadCount, email }: { collapsed: boolean; unreadCount: number; email?: string }) {
   const location = useLocation();
   const listRef = useRef<HTMLDivElement | null>(null);
   const [indicator, setIndicator] = useState<{ top: number; height: number; visible: boolean }>({
     top: 0, height: 0, visible: false,
   });
 
+  const visibleNav = nav.filter(n =>
+    n.to !== "/hq" || (email?.toLowerCase() === ADMIN_EMAIL)
+  );
+
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    // Pick the deepest (most-specific) match: prefer exact route, else longest prefix.
     const path = location.pathname;
-    const match = [...nav]
+    const match = [...visibleNav]
       .filter((n) => (n.end ? path === n.to : path.startsWith(n.to)))
       .sort((a, b) => b.to.length - a.to.length)[0];
     if (!match) { setIndicator((s) => ({ ...s, visible: false })); return; }
@@ -299,7 +304,7 @@ function SidebarNav({ collapsed, unreadCount }: { collapsed: boolean; unreadCoun
           opacity: indicator.visible ? 1 : 0,
         }}
       />
-      {nav.map((n) => {
+      {visibleNav.map((n) => {
         const link = (
           <NavLink
             to={n.to}

@@ -51,8 +51,9 @@ const App = () => (
               <Route path="page" element={<PublicPagePreview />} />
               <Route path="settings" element={<Settings />} />
               <Route path="notifications" element={<Notifications />} />
-              <Route path="sourcing" element={<Sourcing />} />
+              <Route path="sourcing" element={<Navigate to="/hq" replace />} />
             </Route>
+            <Route path="/hq" element={<Sourcing />} />
             <Route path="/:handle" element={<PublicProfile />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />

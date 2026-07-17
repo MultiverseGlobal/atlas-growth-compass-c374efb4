@@ -2,8 +2,12 @@ import { useState, useEffect } from "react";
 import { 
   Target, Loader2, Plus, Search, Trash2, ExternalLink, 
   FileSpreadsheet, Link2, Check, X, Edit2, CheckSquare, 
-  Square, RefreshCw, AlertCircle, HelpCircle, ArrowRight
+  Square, RefreshCw, AlertCircle, HelpCircle, ArrowRight,
+  LogOut
 } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { LogoMark } from "@/components/atlas/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +51,9 @@ interface NotionDatabase {
 }
 
 export default function Sourcing() {
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
+
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
   const [urlInput, setUrlInput] = useState("");
@@ -104,8 +111,49 @@ export default function Sourcing() {
   };
 
   useEffect(() => {
-    fetchLeads();
-  }, []);
+    if (!loading) {
+      if (!user) {
+        navigate("/auth");
+      } else if (user.email?.toLowerCase() === "multiverseglobals@gmail.com") {
+        fetchLeads();
+      }
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center grain">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          <p className="text-sm text-muted-foreground font-mono">Verifying credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || user.email?.toLowerCase() !== "multiverseglobals@gmail.com") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 grain">
+        <div className="max-w-md w-full rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xl p-8 text-center shadow-lg">
+          <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-5 animate-bounce">
+            <X className="h-6 w-6 text-destructive" />
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground font-display">Access Denied</h2>
+          <p className="mt-3 text-[14px] text-muted-foreground leading-relaxed">
+            Atlas HQ is a restricted admin console. Only the account owner <strong>multiverseglobals@gmail.com</strong> is permitted to access this portal.
+          </p>
+          <div className="mt-8 flex flex-col gap-3">
+            <Button onClick={() => navigate("/app")} className="w-full h-10 gap-1.5 font-medium">
+              Back to Main App
+            </Button>
+            <Button variant="outline" onClick={() => signOut().then(() => navigate("/auth"))} className="w-full h-10 gap-1.5 font-medium">
+              <LogOut className="h-4 w-4" /> Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Sourcing pipeline execution
   const handleSource = async (e: React.FormEvent) => {
@@ -131,31 +179,21 @@ export default function Sourcing() {
     }, 2800);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) {
-        throw new Error("Session expired. Please log in again.");
-      }
-
-      const supabaseUrl = (supabase as any).supabaseUrl as string;
-      const response = await fetch(`${supabaseUrl}/functions/v1/sourcing-machine`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { data: newLead, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: {
           action: "source",
           url: targetUrl
-        })
+        }
       });
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({ error: "Sourcing failed" }));
-        throw new Error(body.error ?? "Failed to source lead");
+      if (invokeError) {
+        throw new Error(invokeError.message ?? "Failed to source lead");
       }
 
-      const newLead = await response.json();
+      if (!newLead) {
+        throw new Error("No data returned from sourcing service");
+      }
+
       setLeads(prev => [newLead, ...prev]);
       toast.success(`Successfully sourced ${newLead.company_name}!`);
     } catch (err: any) {
@@ -304,25 +342,14 @@ export default function Sourcing() {
     setSelectedNotionDb("");
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error("Unauthorized");
-
-      const supabaseUrl = (supabase as any).supabaseUrl as string;
-      const res = await fetch(`${supabaseUrl}/functions/v1/sourcing-machine`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action: "list-notion-databases" })
+      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: { action: "list-notion-databases" }
       });
 
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to fetch databases");
+      if (invokeError) throw new Error(invokeError.message ?? "Failed to fetch databases");
 
-      setNotionDatabases(body.databases || []);
-      if (body.databases?.length > 0) {
+      setNotionDatabases(body?.databases || []);
+      if (body?.databases?.length > 0) {
         setSelectedNotionDb(body.databases[0].id);
       }
     } catch (err: any) {
@@ -339,26 +366,15 @@ export default function Sourcing() {
     setNotionLoading(true);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error("Unauthorized");
-
-      const supabaseUrl = (supabase as any).supabaseUrl as string;
-      const res = await fetch(`${supabaseUrl}/functions/v1/sourcing-machine`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: {
           action: "export-notion",
           lead: exportingLead,
           database_id: selectedNotionDb
-        })
+        }
       });
 
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Export failed");
+      if (invokeError) throw new Error(invokeError.message ?? "Export failed");
 
       toast.success("Successfully exported to Notion! 🚀");
       setShowNotionModal(false);
@@ -379,30 +395,19 @@ export default function Sourcing() {
 
     toast.loading("Exporting to Airtable...");
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error("Unauthorized");
-
-      const supabaseUrl = (supabase as any).supabaseUrl as string;
-      const res = await fetch(`${supabaseUrl}/functions/v1/sourcing-machine`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: {
           action: "export-airtable",
           lead,
           airtable_pat: airtablePat,
           base_id: airtableBaseId,
           table_name: airtableTableName
-        })
+        }
       });
 
-      const body = await res.json();
       toast.dismiss();
 
-      if (!res.ok) throw new Error(body.error ?? "Airtable export failed");
+      if (invokeError) throw new Error(invokeError.message ?? "Airtable export failed");
       toast.success("Successfully exported to Airtable! 📊");
     } catch (err: any) {
       toast.dismiss();
@@ -495,11 +500,54 @@ export default function Sourcing() {
   });
 
   return (
-    <div className="relative page-hero mx-auto max-w-6xl px-4 py-8 md:px-8">
-      {/* ── Heading ── */}
-      <div className="flex items-center gap-2 eyebrow text-primary">
-        <Target className="h-3.5 w-3.5" /> Atlas HQ
-      </div>
+    <div className="min-h-screen bg-background flex flex-col grain">
+      {/* Premium Top Navigation Bar */}
+      <header className="border-b border-border/60 bg-card/40 backdrop-blur-md sticky top-0 z-30 px-6 h-16 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <LogoMark size={24} />
+          <div className="flex items-center gap-2">
+            <span className="font-display font-semibold text-lg text-foreground">Atlas HQ</span>
+            <span className="text-[10px] uppercase font-mono tracking-wider font-semibold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+              Admin Board
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2 text-xs font-mono bg-emerald-500/5 text-emerald-500 border border-emerald-500/10 px-2.5 py-1 rounded-full">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Connected to Supabase
+          </div>
+          <div className="hidden sm:block text-xs text-muted-foreground border-l border-border/80 pl-4 h-5 flex items-center">
+            {user?.email}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/app")}
+            className="text-xs h-9 gap-1.5 font-medium border-border/80 hover:bg-muted"
+          >
+            Back to App
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => signOut().then(() => navigate("/"))}
+            className="text-xs h-9 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors gap-1.5 font-medium"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Sign Out
+          </Button>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="relative page-hero mx-auto max-w-6xl px-4 py-8 md:px-8">
+          {/* ── Heading ── */}
+          <div className="flex items-center gap-2 eyebrow text-primary">
+            <Target className="h-3.5 w-3.5" /> Outreach Pipeline
+          </div>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-3">
         <div>
           <h1 className="font-display text-4xl font-semibold leading-tight tracking-tight text-foreground">
@@ -1128,6 +1176,8 @@ export default function Sourcing() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </div>
+      </main>
     </div>
   );
 }
