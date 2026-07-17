@@ -25,27 +25,17 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, cycleTheme } = useTheme();
-  const [profile, setProfile] = useState<{ handle: string | null; display_name: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ handle: string | null; display_name: string | null; created_at?: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
+    if (typeof window === "undefined") return true;
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "true") return true;
     if (stored === "false") return false;
-    return window.innerWidth < 1280; // auto-collapse at 1366px laptop size & below
+    return true; // default to collapsed for standard users
   });
-
-  // Auto-adjust default only when the user hasn't set an explicit preference.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (localStorage.getItem(STORAGE_KEY) !== null) return;
-    const mq = window.matchMedia("(max-width: 1279px)");
-    const onChange = (e: MediaQueryListEvent) => setCollapsed(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   const toggle = () => {
     setCollapsed((c) => {
@@ -62,9 +52,18 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("handle, display_name, onboarded_at").eq("id", user.id).maybeSingle().then(({ data }) => {
+    supabase.from("profiles").select("handle, display_name, onboarded_at, created_at").eq("id", user.id).maybeSingle().then(({ data }) => {
       if (data && !data.onboarded_at) navigate("/onboarding");
       setProfile(data);
+
+      // Expand sidebar on the first day of usage, default to collapsed otherwise
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === null && data) {
+        const signupDate = new Date(data.created_at || Date.now());
+        const oneDayInMs = 24 * 60 * 60 * 1000;
+        const isFirstDay = (Date.now() - signupDate.getTime()) < oneDayInMs;
+        setCollapsed(!isFirstDay);
+      }
     });
   }, [user, navigate]);
 
