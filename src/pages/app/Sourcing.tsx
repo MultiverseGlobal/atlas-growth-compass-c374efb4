@@ -109,7 +109,27 @@ export default function Sourcing() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Notion integration hooks
-  const { data: integrations = [], connectNotion } = useIntegrations();
+  const { data: integrations = [], connectNotion, updateSettings } = useIntegrations();
+
+  // Auto-fetch Notion databases and sync defaultNotionDb state on load/connection
+  useEffect(() => {
+    const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
+    if (notionIntegration) {
+      // Sync the local defaultNotionDb state with whatever is stored in the database
+      const dbIdFromDb = notionIntegration.settings?.notion_database_id || "";
+      if (dbIdFromDb && dbIdFromDb !== defaultNotionDb) {
+        setDefaultNotionDb(dbIdFromDb);
+      }
+      
+      // Auto-load databases if we haven't loaded them yet
+      if (notionDatabases.length === 0 && !notionLoading) {
+        setNotionLoading(true);
+        loadNotionDatabasesList(false).finally(() => {
+          setNotionLoading(false);
+        });
+      }
+    }
+  }, [integrations, notionDatabases.length]);
 
   // Duplicate Conflict Modal State
   const [conflictLead, setConflictLead] = useState<Lead | null>(null);
@@ -310,7 +330,7 @@ export default function Sourcing() {
     const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
     const dbId = notionIntegration?.settings?.notion_database_id;
     if (!dbId) {
-      toast.error("No target Notion database configured. Please select a database in Integrations page first.");
+      toast.error("No target Notion database configured. Please select a database from the Notion CRM panel on the left.");
       return;
     }
 
@@ -1057,7 +1077,24 @@ export default function Sourcing() {
                         onValueChange={(val) => {
                           setDefaultNotionDb(val);
                           localStorage.setItem("atlas.sourcing.default_notion_db", val);
-                          toast.success("Default Notion Database set");
+                          
+                          // Save to integrations settings table in Supabase
+                          const db = notionDatabases.find(d => d.id === val);
+                          const dbTitle = db ? db.title : "Notion Database";
+                          const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
+                          if (notionIntegration) {
+                            updateSettings.mutate({
+                              integrationId: notionIntegration.id,
+                              settings: {
+                                ...notionIntegration.settings,
+                                notion_database_id: val,
+                                notion_database_name: dbTitle
+                              }
+                            });
+                            toast.success(`Active export database set to: ${dbTitle}`);
+                          } else {
+                            toast.success("Default database selected locally");
+                          }
                         }}
                       >
                         <SelectTrigger className="w-full h-8 bg-background text-xs">
