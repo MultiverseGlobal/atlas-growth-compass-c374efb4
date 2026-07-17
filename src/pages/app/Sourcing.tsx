@@ -4,7 +4,7 @@ import {
   FileSpreadsheet, Link2, Check, X, Edit2, CheckSquare, 
   Square, RefreshCw, AlertCircle, HelpCircle, ArrowRight,
   LogOut, SlidersHorizontal, TrendingUp, Users, CheckCircle2,
-  Database, Play, Info
+  Database, Play, Info, Plug
 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -855,6 +855,15 @@ export default function Sourcing() {
           <div className="hidden sm:block text-xs text-muted-foreground border-l border-border/80 pl-4 h-5 flex items-center">
             {user?.email}
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/app/integrations")}
+            className="text-xs h-9 gap-1.5 font-medium border-border/80 hover:bg-muted"
+          >
+            <Plug className="h-3.5 w-3.5" />
+            Integrations
+          </Button>
           <Button
             variant="outline"
             size="sm"
