@@ -873,431 +873,309 @@ export default function Sourcing() {
             Sign Out
           </Button>
         </div>
-      </header>
-
-      {/* Main Content Area */}
+      </header>      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto">
-        <div className="relative page-hero mx-auto max-w-6xl px-4 py-8 md:px-8">
-          {/* ── Heading ── */}
-          <div className="flex items-center gap-2 eyebrow text-primary">
-            <Target className="h-3.5 w-3.5" /> Outreach Pipeline
-          </div>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-3">
-        <div>
-          <h1 className="font-display text-4xl font-semibold leading-tight tracking-tight text-foreground">
-            Outreach Pipeline
-          </h1>
-          <p className="mt-1.5 text-[15px] text-muted-foreground max-w-xl">
-            Automate founder acquisition. Paste any URL to find LinkedIn profiles, check B2B SaaS status, evaluate team size, and score leads using Kimi AI.
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2 shrink-0">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setShowIntegrationsConfig(prev => !prev)}
-            className={`text-xs h-9 gap-1.5 font-medium ${showIntegrationsConfig ? "bg-primary/10 border-primary text-primary" : ""}`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Configure Destinations
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={downloadCSV}
-            className="text-xs h-9 gap-1.5"
-            disabled={leads.length === 0}
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" /> Export CSV
-          </Button>
-          <Button 
-            onClick={() => setShowManualModal(true)}
-            size="sm" 
-            className="text-xs h-9 gap-1.5"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add Lead
-          </Button>
-        </div>
-      </div>
+        <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
 
-      {/* ── Stats Dashboard ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-        <div className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-sm backdrop-blur-sm flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
-            <Target className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-semibold tracking-tight font-display">{statsTotal}</div>
-            <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">Total Leads</div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-sm backdrop-blur-sm flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-semibold tracking-tight font-display">{statsIcpAvg}/10</div>
-            <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">Avg ICP Score</div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-sm backdrop-blur-sm flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-500 shrink-0">
-            <Users className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-semibold tracking-tight font-display">{statsSaasRatio}%</div>
-            <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">B2B SaaS Ratio</div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-sm backdrop-blur-sm flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
-            <CheckCircle2 className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-semibold tracking-tight font-display">{statsContactRate}%</div>
-            <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">Contact Rate</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Collapsible Integrations Config ── */}
-      {showIntegrationsConfig && (
-        <div className="mt-6 rounded-lg border border-border/60 bg-card p-6 shadow-sm relative overflow-hidden transition-all duration-300">
-          <div className="absolute right-4 top-4">
-            <Button variant="ghost" size="sm" onClick={() => setShowIntegrationsConfig(false)} className="h-8 w-8 p-0 text-muted-foreground">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <h3 className="font-display font-semibold text-lg text-foreground flex items-center gap-2">
-            <Database className="h-4 w-4 text-primary" /> Destination Settings & Auto-Push Pipeline
-          </h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-            Configure your integrations defaults. Choose where target prospects are sent, choose which database to use, and toggle auto-push to automate your entire outreach workflow.
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            {/* Notion Destination Settings */}
-            <div className="space-y-4 rounded-md border border-border/40 p-4 bg-muted/20">
-              <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  Notion Integration
-                  {integrations.some(i => i.provider === "notion" && i.status === "active") ? (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">✓ Connected</span>
-                  ) : (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600">Not connected</span>
-                  )}
-                </span>
-                {integrations.some(i => i.provider === "notion" && i.status === "active") ? (
-                  <Checkbox
-                    id="auto-notion"
-                    checked={autoNotion}
-                    onCheckedChange={(checked) => {
-                      setAutoNotion(!!checked);
-                      localStorage.setItem("atlas.sourcing.auto_notion", String(!!checked));
-                      toast.success(!!checked ? "Auto-Notion enabled" : "Auto-Notion disabled");
-                    }}
-                  />
-                ) : (
-                  <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5" onClick={connectNotion}>
-                    <ExternalLink className="h-3 w-3" /> Connect Notion
-                  </Button>
-                )}
+          {/* ── Page Header ── */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Target className="h-4 w-4 text-primary" />
+                <span className="text-[11px] uppercase font-mono tracking-widest text-primary font-semibold">Atlas HQ</span>
               </div>
-              
-              <div className="space-y-2">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Default Target Database</label>
-                <Select 
-                  value={defaultNotionDb} 
-                  onValueChange={(val) => {
-                    setDefaultNotionDb(val);
-                    localStorage.setItem("atlas.sourcing.default_notion_db", val);
-                    toast.success("Default Notion Database set");
-                  }}
-                >
-                  <SelectTrigger className="w-full h-9 bg-background text-xs">
-                    <SelectValue placeholder={notionLoading ? "Loading databases..." : "Select Notion DB"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {notionDatabases.length === 0 ? (
-                      <SelectItem value="none" disabled>No databases loaded</SelectItem>
-                    ) : (
-                      notionDatabases.map(db => (
-                        <SelectItem key={db.id} value={db.id}>{db.title}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between gap-2 mt-4 pt-1">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => loadNotionDatabasesList(false)}
-                  className="text-[11px] h-7 font-medium text-primary hover:bg-primary/5 p-0"
-                >
-                  <RefreshCw className="h-3 w-3 mr-1 inline" /> Reload Databases
-                </Button>
-                <div className="text-[10px] text-muted-foreground text-right max-w-[180px]">
-                  Turn on Notion auto-push to export newly analyzed leads.
-                </div>
-              </div>
+              <h1 className="font-display text-2xl font-bold text-foreground tracking-tight">Founder Intelligence Pipeline</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Source, score, and push B2B SaaS founders to Notion — powered by Kimi AI & NVIDIA NIM.</p>
             </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ── Sourcing Input Card ── */}
-      <div className="mt-8 rounded-lg border border-border/60 bg-card p-6 shadow-sm">
-        {/* Toggle Mode Switcher */}
-        <div className="flex border-b border-border/40 pb-4 mb-4 gap-4">
-          <button
-            type="button"
-            onClick={() => setSourcingMode("url")}
-            className={`text-xs font-semibold pb-1 border-b-2 transition-all ${
-              sourcingMode === "url" 
-                ? "border-primary text-primary" 
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            🔗 URL Scanner
-          </button>
-          <button
-            type="button"
-            onClick={() => setSourcingMode("text")}
-            className={`text-xs font-semibold pb-1 border-b-2 transition-all ${
-              sourcingMode === "text" 
-                ? "border-primary text-primary" 
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            📋 Raw Page Scraper (Paste Text)
-          </button>
-        </div>
-
-        <form onSubmit={handleSource} className="flex flex-col gap-3.5 max-w-3xl">
-          {sourcingMode === "url" ? (
-            <div className="flex flex-col gap-2 w-full">
-              <div className="flex gap-2.5 w-full">
-                <div className="relative flex-1">
-                  <Input
-                    type="text"
-                    placeholder="Paste launch URL or landing page (e.g. producthunt.com/posts/... or example.com)"
-                    value={urlInput}
-                    onChange={(e) => setUrlInput(e.target.value)}
-                    disabled={sourcing}
-                    className="pr-10 h-11 bg-background text-sm"
-                  />
-                </div>
-                <Button type="submit" size="lg" disabled={sourcing || !urlInput.trim()} className="h-11 px-5 gap-1.5 font-medium shrink-0">
-                  {sourcing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Sourcing...
-                    </>
-                  ) : (
-                    <>
-                      Analyze URL
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground leading-normal flex items-start gap-1.5 mt-1 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-md">
-                <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                <span>
-                  <strong>LinkedIn & X/Twitter Note:</strong> Direct URL scanning of social media profiles will fail and yield placeholder data due to strict anti-scraping paywalls. To source from LinkedIn or X, copy the page text and paste it into the <strong>Raw Page Scraper (Paste Text)</strong> tab above.
-                </span>
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3 w-full">
-              <Textarea
-                placeholder="Copy and paste the full page contents here (founder details, socials, SaaS status, and notes will be extracted and scored using Kimi AI)..."
-                value={rawTextInput}
-                onChange={(e) => setRawTextInput(e.target.value)}
-                disabled={sourcing}
-                className="min-h-[140px] bg-background text-sm resize-y"
-              />
-              <Button type="submit" size="lg" disabled={sourcing || !rawTextInput.trim()} className="h-11 px-5 gap-1.5 font-medium align-self-start self-start">
-                {sourcing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Analyzing Content...
-                  </>
-                ) : (
-                  <>
-                    Analyze Paste
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={downloadCSV}
+                className="text-xs h-8 gap-1.5"
+                disabled={leads.length === 0}
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" /> Export CSV
+              </Button>
+              <Button
+                onClick={() => setShowManualModal(true)}
+                size="sm"
+                className="text-xs h-8 gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Lead
               </Button>
             </div>
-          )}
-        </form>
+          </div>
 
-        {/* ── Progressive Loading UX ── */}
-        {sourcing && (
-          <div className="mt-6 border-t border-border/40 pt-5 space-y-3.5 max-w-xl">
-            <div className="text-xs text-muted-foreground/80 font-mono tracking-wider uppercase mb-1">
-              Active Pipeline Status:
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              {sourcingStep >= 1 ? (
-                sourcingStep > 1 ? <Check className="h-4 w-4 text-emerald-500 shrink-0" /> : <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
-              ) : <div className="h-4 w-4 rounded-full border border-muted shrink-0" />}
-              <span className={sourcingStep === 1 ? "font-medium text-foreground" : "text-muted-foreground"}>
-                {sourcingMode === "url" ? "1. Crawling target URL & extracting page body..." : "1. Reading raw text input block..."}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              {sourcingStep >= 2 ? (
-                sourcingStep > 2 ? <Check className="h-4 w-4 text-emerald-500 shrink-0" /> : <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
-              ) : <div className="h-4 w-4 rounded-full border border-muted shrink-0" />}
-              <span className={sourcingStep === 2 ? "font-medium text-foreground" : "text-muted-foreground"}>
-                2. Sourcing founder identities via Kimi AI...
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              {sourcingStep >= 3 ? (
-                sourcingStep > 3 ? <Check className="h-4 w-4 text-emerald-500 shrink-0" /> : <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
-              ) : <div className="h-4 w-4 rounded-full border border-muted shrink-0" />}
-              <span className={sourcingStep === 3 ? "font-medium text-foreground" : "text-muted-foreground"}>
-                3. Inspecting B2B SaaS credentials & scoring ICP index...
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              {sourcingStep >= 4 ? (
-                <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
-              ) : <div className="h-4 w-4 rounded-full border border-muted shrink-0" />}
-              <span className={sourcingStep === 4 ? "font-medium text-foreground" : "text-muted-foreground"}>
-                4. Formatting details for staging preview...
-              </span>
-            </div>
+          {/* ── Stats Row ── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            {[
+              { icon: <Target className="h-4 w-4" />, value: statsTotal, label: "Total Leads", color: "text-primary bg-primary/10" },
+              { icon: <TrendingUp className="h-4 w-4" />, value: `${statsIcpAvg}/10`, label: "Avg ICP Score", color: "text-amber-500 bg-amber-500/10" },
+              { icon: <Users className="h-4 w-4" />, value: `${statsSaasRatio}%`, label: "B2B SaaS", color: "text-sky-500 bg-sky-500/10" },
+              { icon: <CheckCircle2 className="h-4 w-4" />, value: `${statsContactRate}%`, label: "Contacted", color: "text-emerald-500 bg-emerald-500/10" },
+            ].map((s, i) => (
+              <div key={i} className="rounded-xl border border-border/50 bg-card/60 px-4 py-3 shadow-sm flex items-center gap-3">
+                <div className={`p-2 rounded-lg shrink-0 ${s.color}`}>{s.icon}</div>
+                <div>
+                  <div className="text-xl font-bold tracking-tight font-display">{s.value}</div>
+                  <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">{s.label}</div>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
 
-      {/* ── Filters and Controls Bar ── */}
-      <div className="mt-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
-        <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-xl">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground/60" />
-            <Input
-              placeholder="Search leads by company, founder, or notes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-xs bg-card"
-            />
-          </div>
-          <Select value={saasFilter} onValueChange={setSaasFilter}>
-            <SelectTrigger className="w-full sm:w-[150px] h-9 text-xs bg-card">
-              <SelectValue placeholder="B2B SaaS" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Models</SelectItem>
-              <SelectItem value="saas">B2B SaaS</SelectItem>
-              <SelectItem value="non-saas">Consumer/Other</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="text-xs text-muted-foreground flex items-center gap-1.5 shrink-0 self-end md:self-center">
-          <span>Showing <strong>{filteredLeads.length}</strong> of <strong>{leads.length}</strong> sourced accounts</span>
-          <button onClick={fetchLeads} className="p-1 text-muted-foreground/60 hover:text-foreground transition-colors" title="Refresh leads list">
-            <RefreshCw className="h-3 w-3" />
-          </button>
-        </div>
-      </div>
+          {/* ── Two-Column Layout ── */}
+          <div className="flex flex-col xl:flex-row gap-6">
 
-      {/* ── Bulk Actions Staging Banner ── */}
-      {selectedLeadIds.length > 0 && (
-        <div className="mt-6 p-3 px-4 rounded-lg border border-primary/35 bg-primary/5 flex items-center justify-between text-xs animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-2 text-foreground font-medium">
-            <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground font-mono flex items-center justify-center font-bold text-[10px]">
-              {selectedLeadIds.length}
-            </span>
-            selected prospects
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBulkExportNotion}
-              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
-            >
-              Export Notion
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleBulkMarkContacted(true)}
-              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
-            >
-              Mark Contacted
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleBulkMarkContacted(false)}
-              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5"
-            >
-              Mark Uncontacted
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBulkDelete}
-              className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-destructive/10 text-destructive"
-            >
-              Delete Selected
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedLeadIds([])}
-              className="h-8 text-[11px] px-2 text-muted-foreground hover:text-foreground"
-            >
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
+            {/* ─── LEFT: Sourcing Sidebar ─── */}
+            <div className="xl:w-80 shrink-0 space-y-4">
 
-      {/* ── Sourced Leads Table ── */}
-      <div className="mt-4 overflow-hidden rounded-lg border border-border/50 bg-card shadow-sm">
-        {loadingLeads ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="mt-3 text-sm">Synchronizing pipeline CRM...</p>
-          </div>
-        ) : filteredLeads.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-              <Target className="h-5 w-5" />
+              {/* Sourcing Input Card */}
+              <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
+                <div className="flex border-b border-border/40">
+                  <button
+                    type="button"
+                    onClick={() => setSourcingMode("url")}
+                    className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
+                      sourcingMode === "url"
+                        ? "bg-primary/5 text-primary border-b-2 border-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    🔗 URL Scanner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSourcingMode("text")}
+                    className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
+                      sourcingMode === "text"
+                        ? "bg-primary/5 text-primary border-b-2 border-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    📋 Paste Text
+                  </button>
+                </div>
+
+                <div className="p-4">
+                  <form onSubmit={handleSource} className="flex flex-col gap-3">
+                    {sourcingMode === "url" ? (
+                      <div className="flex flex-col gap-2">
+                        <Input
+                          type="text"
+                          placeholder="https://example.com or producthunt.com/posts/..."
+                          value={urlInput}
+                          onChange={(e) => setUrlInput(e.target.value)}
+                          disabled={sourcing}
+                          className="h-9 bg-background text-xs"
+                        />
+                        <p className="text-[10px] text-amber-600 leading-normal flex items-start gap-1 bg-amber-500/5 border border-amber-500/20 p-2 rounded-md">
+                          <Info className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
+                          LinkedIn & X/Twitter block crawlers — use Paste Text instead.
+                        </p>
+                      </div>
+                    ) : (
+                      <Textarea
+                        placeholder="Paste page text here — Kimi AI will extract founder details, socials, ICP score, and outreach notes..."
+                        value={rawTextInput}
+                        onChange={(e) => setRawTextInput(e.target.value)}
+                        disabled={sourcing}
+                        className="min-h-[120px] bg-background text-xs resize-none"
+                      />
+                    )}
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={sourcing || (sourcingMode === "url" ? !urlInput.trim() : !rawTextInput.trim())}
+                      className="h-9 gap-1.5 font-medium w-full"
+                    >
+                      {sourcing ? (
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing...</>
+                      ) : (
+                        <><ArrowRight className="h-3.5 w-3.5" /> {sourcingMode === "url" ? "Analyze URL" : "Extract Intelligence"}</>
+                      )}
+                    </Button>
+                  </form>
+
+                  {/* AI Pipeline Steps */}
+                  {sourcing && (
+                    <div className="mt-4 pt-4 border-t border-border/40 space-y-2.5">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Pipeline Status</p>
+                      {[
+                        sourcingMode === "url" ? "Crawling target URL..." : "Reading raw text block...",
+                        "Sourcing founder identities via AI...",
+                        "Scoring ICP index...",
+                        "Staging preview data...",
+                      ].map((step, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          {sourcingStep > i + 1 ? (
+                            <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          ) : sourcingStep === i + 1 ? (
+                            <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
+                          ) : (
+                            <div className="h-3.5 w-3.5 rounded-full border border-muted shrink-0" />
+                          )}
+                          <span className={sourcingStep === i + 1 ? "text-foreground font-medium" : "text-muted-foreground"}>{i + 1}. {step}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Notion Settings Card */}
+              <div className="rounded-xl border border-border/60 bg-card shadow-sm p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Database className="h-3.5 w-3.5 text-primary" /> Notion CRM
+                  </span>
+                  {integrations.some(i => i.provider === "notion" && i.status === "active") ? (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">✓ Connected</span>
+                  ) : (
+                    <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1 px-2" onClick={connectNotion}>
+                      <ExternalLink className="h-2.5 w-2.5" /> Connect
+                    </Button>
+                  )}
+                </div>
+
+                {integrations.some(i => i.provider === "notion" && i.status === "active") && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Target Database</label>
+                      <Select
+                        value={defaultNotionDb}
+                        onValueChange={(val) => {
+                          setDefaultNotionDb(val);
+                          localStorage.setItem("atlas.sourcing.default_notion_db", val);
+                          toast.success("Default Notion Database set");
+                        }}
+                      >
+                        <SelectTrigger className="w-full h-8 bg-background text-xs">
+                          <SelectValue placeholder={notionLoading ? "Loading..." : "Select database"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {notionDatabases.length === 0 ? (
+                            <SelectItem value="none" disabled>No databases found</SelectItem>
+                          ) : (
+                            notionDatabases.map(db => (
+                              <SelectItem key={db.id} value={db.id}>{db.title}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="auto-notion"
+                          checked={autoNotion}
+                          onCheckedChange={(checked) => {
+                            setAutoNotion(!!checked);
+                            localStorage.setItem("atlas.sourcing.auto_notion", String(!!checked));
+                            toast.success(!!checked ? "Auto-push enabled" : "Auto-push disabled");
+                          }}
+                        />
+                        <label htmlFor="auto-notion" className="text-[11px] text-muted-foreground cursor-pointer">Auto-push leads</label>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => loadNotionDatabasesList(false)}
+                        className="text-[10px] h-6 text-primary hover:bg-primary/5 gap-1 px-2"
+                      >
+                        <RefreshCw className="h-2.5 w-2.5" /> Reload
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+
             </div>
-            <h3 className="mt-4 text-base font-semibold">No prospects sourced</h3>
-            <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-              Analyze startup landing pages above, or add manual items to seed your outreach schedule.
-            </p>
-          </div>
-        ) : (
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow>
-                <TableHead className="w-[40px] py-3 text-center">
-                  <Checkbox 
-                    checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedLeadIds(filteredLeads.map(l => l.id));
-                      } else {
-                        setSelectedLeadIds([]);
-                      }
-                    }}
-                  />
-                </TableHead>
+
+            {/* ─── RIGHT: Pipeline Table ─── */}
+            <div className="flex-1 min-w-0">
+
+              {/* ── Filters and Controls Bar ── */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground/60" />
+                    <Input
+                      placeholder="Search leads by company, founder, or notes..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 h-9 text-xs bg-card"
+                    />
+                  </div>
+                  <Select value={saasFilter} onValueChange={setSaasFilter}>
+                    <SelectTrigger className="w-full sm:w-[140px] h-9 text-xs bg-card">
+                      <SelectValue placeholder="Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Models</SelectItem>
+                      <SelectItem value="saas">B2B SaaS</SelectItem>
+                      <SelectItem value="non-saas">Consumer/Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5 shrink-0">
+                  <span><strong>{filteredLeads.length}</strong> of <strong>{leads.length}</strong> leads</span>
+                  <button onClick={fetchLeads} className="p-1 text-muted-foreground/60 hover:text-foreground transition-colors" title="Refresh">
+                    <RefreshCw className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Bulk Actions Banner ── */}
+              {selectedLeadIds.length > 0 && (
+                <div className="mb-3 p-3 px-4 rounded-lg border border-primary/35 bg-primary/5 flex items-center justify-between text-xs animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex items-center gap-2 text-foreground font-medium">
+                    <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground font-mono flex items-center justify-center font-bold text-[10px]">{selectedLeadIds.length}</span>
+                    selected prospects
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleBulkExportNotion} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Export Notion</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleBulkMarkContacted(true)} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Mark Contacted</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleBulkMarkContacted(false)} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Uncontacted</Button>
+                    <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-destructive/10 text-destructive">Delete</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedLeadIds([])} className="h-8 text-[11px] px-2 text-muted-foreground hover:text-foreground">Clear</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Sourced Leads Table ── */}
+              <div className="overflow-hidden rounded-lg border border-border/50 bg-card shadow-sm">
+                {loadingLeads ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="mt-3 text-sm">Synchronizing pipeline CRM...</p>
+                  </div>
+                ) : filteredLeads.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <Target className="h-5 w-5" />
+                    </div>
+                    <h3 className="mt-4 text-base font-semibold">No prospects sourced</h3>
+                    <p className="mt-1 text-xs text-muted-foreground max-w-sm">
+                      Analyze startup landing pages, or add manual items to seed your outreach pipeline.
+                    </p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      <TableRow>
+                        <TableHead className="w-[40px] py-3 text-center">
+                          <Checkbox
+                            checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
+                            onCheckedChange={(checked) => {
+                              if (checked) { setSelectedLeadIds(filteredLeads.map(l => l.id)); }
+                              else { setSelectedLeadIds([]); }
+                            }}
+                          />
+                        </TableHead>
+
                 <TableHead className="w-[180px] font-mono text-[10px] tracking-wider uppercase py-3">Company</TableHead>
                 <TableHead className="w-[160px] font-mono text-[10px] tracking-wider uppercase py-3">Founder</TableHead>
                 <TableHead className="w-[80px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Socials</TableHead>
@@ -1540,12 +1418,17 @@ export default function Sourcing() {
                 );
               })}
             </TableBody>
-          </Table>
-        )}
-      </div>
+            </Table>
+          )}
+        </div>
+      </div> {/* end right column */}
+      </div> {/* end two-column layout */}
+        </div> {/* end page content */}
+      </main>
 
       {/* ── Dialog: Add Lead Manually ── */}
       <Dialog open={showManualModal} onOpenChange={setShowManualModal}>
+
         <DialogContent className="sm:max-w-[480px] bg-card border border-border/80">
           <form onSubmit={handleAddManual}>
             <DialogHeader>
@@ -1964,8 +1847,6 @@ export default function Sourcing() {
           </form>
         </DialogContent>
       </Dialog>
-        </div>
-      </main>
     </div>
   );
 }
