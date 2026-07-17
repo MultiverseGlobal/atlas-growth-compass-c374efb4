@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Atlas HQ Sourcing Assistant",
+  "version": "1.0",
+  "description": "Bypass anti-scraping blocks to import LinkedIn and X profile intelligence into Atlas HQ.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:5173/*",
+    "https://atlas-scale.vercel.app/*",
+    "https://sqthvliapkauoxieiwfb.supabase.co/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
