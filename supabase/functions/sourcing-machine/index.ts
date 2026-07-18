@@ -7,8 +7,9 @@ const corsHeaders = {
 };
 
 interface SourcingRequest {
-  action: "source" | "export-notion" | "list-notion-databases" | "validate-notion-database";
+  action: "source" | "bulk-source" | "export-notion" | "list-notion-databases" | "validate-notion-database";
   url?: string;
+  urls?: string[];
   raw_text?: string;
   lead?: {
     id?: string;
@@ -625,6 +626,176 @@ Parsed profile data for **${founder}** at **${company}**.
 
       return new Response(JSON.stringify(leadResult), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── BULK SOURCE ──────────────────────────────────────────────────────────────
+    if (body.action === "bulk-source") {
+      const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
+
+      if (!kimiApiKey && !nimApiKey) {
+        return new Response(JSON.stringify({
+          error: "No AI API key configured. Please set MOONSHOT_API_KEY or NVIDIA_NIM_API_KEY in Supabase secrets."
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const callAi = async (systemPrompt: string, userPrompt: string): Promise<any> => {
+        if (kimiApiKey) {
+          try { return await callKimi(systemPrompt, userPrompt, kimiApiKey); } catch (_) {}
+        }
+        if (nimApiKey) {
+          return await callNvidiaNim(systemPrompt, userPrompt, nimApiKey);
+        }
+        throw new Error("All AI providers failed");
+      };
+
+      // ── CASE A: Batch URLs ──────────────────────────────────────────────────
+      if (body.urls && body.urls.length > 0) {
+        const MAX_URLS = 20;
+        const urls = body.urls.slice(0, MAX_URLS).map(u => {
+          u = u.trim();
+          if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+          return u;
+        }).filter(Boolean);
+
+        const singleSystemPrompt = `You are Atlas HQ — an intelligent sales machine designed to identify early-stage B2B SaaS founders.
+Given the HTML scraping or raw page text of a website, extract or infer the following details:
+1. Company Name
+2. Founder Name (or null)
+3. Founder's LinkedIn profile URL (or null)
+4. Founder's X (Twitter) handle (or null)
+5. Estimated number of employees (integer, default 5 if unclear)
+6. Whether it is a B2B SaaS product (boolean)
+7. ICP score 1–10: B2B SaaS = +4, team <15 = +3, founder decision-maker = +3
+8. Notes in structured markdown with headings: ## Summary, ## ICP Reasoning, ## Founder Signals, ## Recommended Outreach
+
+Return ONLY a valid JSON object:
+{ "company_name": "string", "founder_name": "string or null", "linkedin_url": "string or null", "twitter_url": "string or null", "employee_count": number or null, "is_b2b_saas": boolean, "icp_score": number, "notes": "string" }`;
+
+        const results: any[] = [];
+        for (const url of urls) {
+          try {
+            const isSocial = url.includes("linkedin.com") || url.includes("x.com") || url.includes("twitter.com");
+            let contentToAnalyze = "";
+            if (!isSocial) {
+              const scraped = await scrapeUrl(url);
+              contentToAnalyze = `URL: ${url}\nTitle: ${scraped.title}\nMeta Description: ${scraped.description}\nPage Content:\n${scraped.content}`;
+            } else {
+              contentToAnalyze = `URL: ${url}\nNote: Social media profile — extract from URL patterns only.`;
+            }
+            const lead = await callAi(singleSystemPrompt, contentToAnalyze);
+            lead.product_hunt_url = url;
+            results.push(lead);
+          } catch (err: any) {
+            console.warn(`Failed to source URL ${url}:`, err.message);
+            results.push({
+              company_name: new URL(url).hostname.replace("www.", ""),
+              founder_name: null,
+              linkedin_url: null,
+              twitter_url: null,
+              employee_count: 5,
+              is_b2b_saas: false,
+              icp_score: 1,
+              notes: `## Summary\nFailed to extract data from ${url}.\n\n## ICP Reasoning\nNo data available.\n\n## Founder Signals\nN/A\n\n## Recommended Outreach\nVisit the site manually.`,
+              product_hunt_url: url,
+              _error: err.message
+            });
+          }
+        }
+
+        return new Response(JSON.stringify({ leads: results, total: results.length }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // ── CASE B: Bulk raw text ───────────────────────────────────────────────
+      if (body.raw_text) {
+        const bulkSystemPrompt = `You are Atlas HQ — an intelligent B2B SaaS founder intelligence engine.
+You will receive a block of text that may contain information about ONE or MULTIPLE startup companies or founders.
+For EACH distinct company or founder profile you find in the text, extract:
+1. Company Name
+2. Founder Name (or null)
+3. Founder's LinkedIn URL (or null)
+4. Founder's X/Twitter handle or URL (or null)
+5. Estimated employee count (integer, default 5)
+6. Whether it is B2B SaaS (boolean)
+7. ICP score 1–10: B2B SaaS = +4, team <15 = +3, founder decision-maker = +3
+8. Notes in structured markdown: ## Summary, ## ICP Reasoning, ## Founder Signals, ## Recommended Outreach
+
+IMPORTANT: If the text mentions multiple companies/founders, extract ALL of them.
+Return ONLY a valid JSON array (even if there is only one result):
+[{ "company_name": "string", "founder_name": "string or null", "linkedin_url": "string or null", "twitter_url": "string or null", "employee_count": number or null, "is_b2b_saas": boolean, "icp_score": number, "notes": "string" }]`;
+
+        let parsed: any[] = [];
+        try {
+          const raw = await callAi(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`);
+          // callAi extracts first JSON object — but we need an array, so re-parse
+          // The helpers use regex /{...}/ — override with array detection
+          parsed = Array.isArray(raw) ? raw : [raw];
+        } catch (_) {
+          // Try to extract JSON array directly
+          try {
+            const aiRaw = body.raw_text; // fallback placeholder
+            const arrMatch = aiRaw.match(/\[[\s\S]*\]/);
+            if (arrMatch) parsed = JSON.parse(arrMatch[0]);
+          } catch (_2) {}
+        }
+
+        // Fix: callAi helpers return first {} match — redo with array-aware version
+        // We call the AI models directly here for array support
+        let arrayResult: any[] = [];
+        try {
+          const callWithArraySupport = async (apiUrl: string, authKey: string, model: string, maxTokens?: number): Promise<any[]> => {
+            const reqBody: any = {
+              model,
+              temperature: 0.3,
+              messages: [
+                { role: "system", content: bulkSystemPrompt },
+                { role: "user", content: `Raw Text:\n${body.raw_text}` }
+              ]
+            };
+            if (maxTokens) reqBody.max_tokens = maxTokens;
+            const res = await fetch(apiUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authKey}` },
+              body: JSON.stringify(reqBody)
+            });
+            if (!res.ok) throw new Error(`AI error ${res.status}`);
+            const data = await res.json();
+            const text = data.choices[0].message.content;
+            // Try to find JSON array first, then fall back to single object
+            const arrMatch = text.match(/\[[\s\S]*\]/);
+            if (arrMatch) return JSON.parse(arrMatch[0]);
+            const objMatch = text.match(/\{[\s\S]*\}/);
+            if (objMatch) return [JSON.parse(objMatch[0])];
+            throw new Error("No JSON found in response");
+          };
+
+          if (kimiApiKey) {
+            try {
+              arrayResult = await callWithArraySupport("https://api.moonshot.cn/v1/chat/completions", kimiApiKey, "moonshot-v1-8k");
+            } catch (e: any) {
+              console.warn("Kimi bulk failed:", e.message);
+            }
+          }
+          if (!arrayResult.length && nimApiKey) {
+            arrayResult = await callWithArraySupport("https://integrate.api.nvidia.com/v1/chat/completions", nimApiKey, "meta/llama-3.1-70b-instruct", 2048);
+          }
+        } catch (err: any) {
+          console.error("Bulk text AI failed:", err.message);
+          return new Response(JSON.stringify({ error: "AI extraction failed: " + err.message }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        return new Response(JSON.stringify({ leads: arrayResult, total: arrayResult.length }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "urls[] or raw_text is required for bulk-source" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 

@@ -75,11 +75,18 @@ export default function Sourcing() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
-  const [urlInput, setUrlInput] = useState("");
+  const [urlsInput, setUrlsInput] = useState("");
   const [sourcing, setSourcing] = useState(false);
   const [sourcingStep, setSourcingStep] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [saasFilter, setSaasFilter] = useState("all"); // all, saas, non-saas
+
+  // Bulk sourcing state
+  const [bulkPreviewLeads, setBulkPreviewLeads] = useState<Partial<Lead>[]>([]);
+  const [showBulkPreviewModal, setShowBulkPreviewModal] = useState(false);
+  const [bulkSelectedIndices, setBulkSelectedIndices] = useState<number[]>([]);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
   
   // Manual add form state
   const [showManualModal, setShowManualModal] = useState(false);
@@ -229,73 +236,115 @@ export default function Sourcing() {
   // Sourcing pipeline execution
   const handleSource = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const isUrlMode = sourcingMode === "url";
-    const input = isUrlMode ? urlInput.trim() : rawTextInput.trim();
+    const input = isUrlMode ? urlsInput.trim() : rawTextInput.trim();
     if (!input) return;
 
-    let targetUrl = "";
-    if (isUrlMode) {
-      targetUrl = input;
-      if (!/^https?:\/\//i.test(targetUrl)) {
-        targetUrl = "https://" + targetUrl;
+    // Parse URLs — split on newlines, filter empty
+    const parsedUrls = isUrlMode
+      ? input.split(/\n/).map(u => u.trim()).filter(Boolean)
+      : [];
+
+    const isMultiUrl = isUrlMode && parsedUrls.length > 1;
+    const isSingleUrl = isUrlMode && parsedUrls.length === 1;
+
+    // ── SINGLE URL → use existing single-preview flow ────────────────────────
+    if (isSingleUrl) {
+      let targetUrl = parsedUrls[0];
+      if (!/^https?:\/\//i.test(targetUrl)) targetUrl = "https://" + targetUrl;
+
+      setSourcing(true);
+      setUrlsInput("");
+      setSourcingStep(1);
+      const stepInterval = setInterval(() => {
+        setSourcingStep(prev => (prev < 3 ? prev + 1 : prev));
+      }, 600);
+
+      try {
+        const { data: parsedLead, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+          body: { action: "source", url: targetUrl }
+        });
+        if (invokeError) throw new Error(invokeError.message ?? "Failed to source lead");
+        if (parsedLead?.error) throw new Error(parsedLead.error);
+        if (!parsedLead) throw new Error("No data returned from sourcing service");
+        clearInterval(stepInterval);
+        setSourcingStep(4);
+        await new Promise(r => setTimeout(r, 200));
+        setPreviewLead(parsedLead);
+        setShowPreviewModal(true);
+        toast.success(`Parsed ${parsedLead.company_name || "lead"} — review before saving.`);
+      } catch (err: any) {
+        toast.error("Sourcing failed: " + err.message);
+      } finally {
+        clearInterval(stepInterval);
+        setSourcing(false);
+        setSourcingStep(0);
       }
+      return;
     }
 
-    setSourcing(true);
-    if (isUrlMode) {
-      setUrlInput("");
-    } else {
+    // ── MULTIPLE URLS → bulk-source with progress ─────────────────────────────
+    if (isMultiUrl) {
+      setSourcing(true);
+      setUrlsInput("");
+      setBulkProgress({ current: 0, total: parsedUrls.length });
+      setSourcingStep(1);
+
+      try {
+        const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+          body: { action: "bulk-source", urls: parsedUrls }
+        });
+        if (invokeError) throw new Error(invokeError.message ?? "Bulk sourcing failed");
+        if (data?.error) throw new Error(data.error);
+        const leads: Partial<Lead>[] = data?.leads || [];
+        if (leads.length === 0) throw new Error("No leads extracted from URLs");
+        setBulkPreviewLeads(leads);
+        setBulkSelectedIndices(leads.map((_, i) => i));
+        setShowBulkPreviewModal(true);
+        toast.success(`Extracted ${leads.length} prospects — select which to save.`);
+      } catch (err: any) {
+        toast.error("Bulk sourcing failed: " + err.message);
+      } finally {
+        setSourcing(false);
+        setSourcingStep(0);
+        setBulkProgress(null);
+      }
+      return;
+    }
+
+    // ── TEXT MODE → always use bulk-source (AI returns array) ─────────────────
+    if (!isUrlMode) {
+      setSourcing(true);
       setRawTextInput("");
-    }
-    
-    // Simulate steps in UI for beautiful UX
-    setSourcingStep(1); // Scrape/Input
-    
-    const stepInterval = setInterval(() => {
-      setSourcingStep(prev => {
-        if (prev < 3) return prev + 1;
-        return prev;
-      });
-    }, 600);
+      setSourcingStep(1);
+      const stepInterval = setInterval(() => {
+        setSourcingStep(prev => (prev < 3 ? prev + 1 : prev));
+      }, 600);
 
-    try {
-      const { data: parsedLead, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-        body: isUrlMode ? {
-          action: "source",
-          url: targetUrl
-        } : {
-          action: "source",
-          raw_text: input
-        }
-      });
-
-      if (invokeError) {
-        throw new Error(invokeError.message ?? "Failed to source lead");
+      try {
+        const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+          body: { action: "bulk-source", raw_text: input }
+        });
+        if (invokeError) throw new Error(invokeError.message ?? "Bulk text extraction failed");
+        if (data?.error) throw new Error(data.error);
+        const leads: Partial<Lead>[] = data?.leads || [];
+        if (leads.length === 0) throw new Error("No leads found in pasted text");
+        clearInterval(stepInterval);
+        setSourcingStep(4);
+        await new Promise(r => setTimeout(r, 200));
+        setBulkPreviewLeads(leads);
+        setBulkSelectedIndices(leads.map((_, i) => i));
+        setShowBulkPreviewModal(true);
+        toast.success(`Extracted ${leads.length} prospect${leads.length === 1 ? "" : "s"} — select which to save.`);
+      } catch (err: any) {
+        toast.error("Extraction failed: " + err.message);
+      } finally {
+        clearInterval(stepInterval);
+        setSourcing(false);
+        setSourcingStep(0);
       }
-
-      if (parsedLead && parsedLead.error) {
-        throw new Error(parsedLead.error);
-      }
-
-      if (!parsedLead) {
-        throw new Error("No data returned from sourcing service");
-      }
-
-      clearInterval(stepInterval);
-      setSourcingStep(4);
-      await new Promise(r => setTimeout(r, 200));
-
-      // Store in preview state instead of directly saving to DB
-      setPreviewLead(parsedLead);
-      setShowPreviewModal(true);
-      toast.success(`Successfully parsed ${parsedLead.company_name || "lead"}! Please review before saving.`);
-    } catch (err: any) {
-      toast.error("Sourcing failed: " + err.message);
-    } finally {
-      clearInterval(stepInterval);
-      setSourcing(false);
-      setSourcingStep(0);
+      return;
     }
   };
 
@@ -574,6 +623,69 @@ export default function Sourcing() {
       setManualUrl("");
     } catch (err: any) {
       toast.error("Failed to add lead: " + err.message);
+    }
+  };
+
+  // Save bulk-preview leads to Supabase
+  const handleBulkSave = async () => {
+    const toSave = bulkPreviewLeads.filter((_, i) => bulkSelectedIndices.includes(i));
+    if (toSave.length === 0) return;
+
+    setBulkSaving(true);
+    const toastId = toast.loading(`Saving ${toSave.length} prospect${toSave.length === 1 ? "" : "s"}...`);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const rows = toSave.map(l => ({
+        user_id: user.id,
+        company_name: (l.company_name || "Unknown").trim(),
+        founder_name: l.founder_name?.trim() || null,
+        linkedin_url: l.linkedin_url?.trim() || null,
+        twitter_url: l.twitter_url?.trim() || null,
+        employee_count: l.employee_count ?? null,
+        is_b2b_saas: l.is_b2b_saas ?? false,
+        icp_score: l.icp_score ?? null,
+        product_hunt_url: l.product_hunt_url?.trim() || null,
+        notes: l.notes?.trim() || null,
+        exported_to_notion: false,
+        exported_to_airtable: false
+      }));
+
+      const { data: saved, error } = await supabase
+        .from("leads")
+        .insert(rows)
+        .select();
+
+      if (error) throw error;
+
+      setLeads(prev => [...(saved || []), ...prev]);
+      setShowBulkPreviewModal(false);
+      setBulkPreviewLeads([]);
+      setBulkSelectedIndices([]);
+      toast.dismiss(toastId);
+      toast.success(`✓ Saved ${toSave.length} prospect${toSave.length === 1 ? "" : "s"} to pipeline!`);
+
+      // Auto-push to Notion if enabled
+      if (autoNotion && saved && saved.length > 0) {
+        const notionDb = defaultNotionDb || (notionDatabases.length > 0 ? notionDatabases[0].id : null);
+        if (notionDb) {
+          toast.loading(`Auto-pushing ${saved.length} leads to Notion...`);
+          const results = await Promise.allSettled(
+            saved.map(lead => performExportToNotion(lead, notionDb))
+          );
+          const failed = results.filter(r => r.status === "rejected" || (r.status === "fulfilled" && !r.value.success)).length;
+          toast.dismiss();
+          if (failed === 0) toast.success("All leads auto-pushed to Notion!");
+          else toast.error(`${failed} Notion push(es) failed — check individually.`);
+        }
+      }
+    } catch (err: any) {
+      toast.dismiss(toastId);
+      toast.error("Failed to save leads: " + err.message);
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -1342,43 +1454,60 @@ export default function Sourcing() {
                   <form onSubmit={handleSource} className="flex flex-col gap-3">
                     {sourcingMode === "url" ? (
                       <div className="flex flex-col gap-2">
-                        <Input
-                          type="url"
-                          placeholder="https://example.com or producthunt.co"
-                          value={urlInput}
-                          onChange={(e) => setUrlInput(e.target.value)}
-                          className="text-xs h-9 bg-background"
+                        <Textarea
+                          placeholder={`One URL per line:\nhttps://stripe.com\nhttps://linear.app`}
+                          value={urlsInput}
+                          onChange={(e) => setUrlsInput(e.target.value)}
+                          className="min-h-[100px] text-xs bg-background font-sans resize-y"
                           required={sourcingMode === "url"}
                         />
+                        {/* Batch mode indicator */}
+                        {(() => {
+                          const count = urlsInput.trim().split(/\n/).map(u => u.trim()).filter(Boolean).length;
+                          return count > 1 ? (
+                            <div className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 flex items-center gap-1.5">
+                              <Play className="h-3 w-3 text-primary shrink-0" />
+                              <span className="text-[10px] text-primary font-semibold font-mono">{count} URLs detected — batch mode</span>
+                            </div>
+                          ) : null;
+                        })()}
                         <div className="rounded-md border border-amber-500/10 bg-amber-500/[0.02] p-2 flex gap-1.5 items-start">
                           <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
                           <p className="text-[10px] text-muted-foreground leading-normal">
-                            LinkedIn & X/Twitter block crawlers — use Paste Text instead.
+                            LinkedIn &amp; X/Twitter block crawlers — use Paste Text instead. Max 20 URLs per batch.
                           </p>
                         </div>
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
                         <Textarea
-                          placeholder="Paste raw startup information, product descriptions, or founder profiles..."
+                          placeholder="Paste raw startup information, product descriptions, or founder profiles — multiple companies OK..."
                           value={rawTextInput}
                           onChange={(e) => setRawTextInput(e.target.value)}
                           className="min-h-[140px] text-xs bg-background font-sans resize-y"
                           required={sourcingMode === "text"}
                         />
+                        <div className="rounded-md border border-primary/10 bg-primary/[0.02] p-2 flex gap-1.5 items-start">
+                          <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                          <p className="text-[10px] text-muted-foreground leading-normal">
+                            Paste text about multiple founders — AI will extract all profiles at once.
+                          </p>
+                        </div>
                       </div>
                     )}
 
                     <Button 
                       type="submit"
-                      disabled={sourcing || (sourcingMode === "url" ? !urlInput.trim() : !rawTextInput.trim())}
+                      disabled={sourcing || (sourcingMode === "url" ? !urlsInput.trim() : !rawTextInput.trim())}
                       className="h-9 gap-1.5 font-medium w-full"
                     >
                       {sourcing ? (
-                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing...</>
-                      ) : (
-                        <><ArrowRight className="h-3.5 w-3.5" /> {sourcingMode === "url" ? "Analyze URL" : "Extract Intelligence"}</>
-                      )}
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {bulkProgress ? `Processing ${bulkProgress.current}/${bulkProgress.total}...` : "Analyzing..."}</>
+                      ) : (() => {
+                        const urlCount = sourcingMode === "url" ? urlsInput.trim().split(/\n/).filter(Boolean).length : 0;
+                        if (urlCount > 1) return <><Play className="h-3.5 w-3.5" /> Batch Analyze {urlCount} URLs</>;
+                        return <><ArrowRight className="h-3.5 w-3.5" /> {sourcingMode === "url" ? "Analyze URL" : "Extract All Profiles"}</>;
+                      })()}
                     </Button>
                   </form>
 
@@ -2022,6 +2151,185 @@ export default function Sourcing() {
         </DialogContent>
       </Dialog>
 
+
+      {/* ── Dialog: Bulk Preview & Save ── */}
+      <Dialog open={showBulkPreviewModal} onOpenChange={(open) => {
+        if (!open && !bulkSaving) {
+          setShowBulkPreviewModal(false);
+          setBulkPreviewLeads([]);
+          setBulkSelectedIndices([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[820px] bg-card border border-border/80 max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Play className="h-5 w-5 text-primary" />
+              Bulk Extract Preview
+              <span className="text-sm font-normal text-muted-foreground ml-1">
+                — {bulkPreviewLeads.length} prospect{bulkPreviewLeads.length === 1 ? "" : "s"} extracted
+              </span>
+            </DialogTitle>
+            <DialogDescription>
+              Select which prospects to add to your pipeline. You can edit names inline before saving.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Select-All Controls */}
+          <div className="flex items-center gap-3 px-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => setBulkSelectedIndices(bulkPreviewLeads.map((_, i) => i))}
+              className="text-[11px] font-mono text-primary hover:underline"
+            >
+              Select All
+            </button>
+            <span className="text-muted-foreground text-xs">·</span>
+            <button
+              type="button"
+              onClick={() => setBulkSelectedIndices([])}
+              className="text-[11px] font-mono text-muted-foreground hover:text-foreground hover:underline"
+            >
+              Deselect All
+            </button>
+            <span className="ml-auto text-[11px] font-mono text-muted-foreground">
+              {bulkSelectedIndices.length} of {bulkPreviewLeads.length} selected
+            </span>
+          </div>
+
+          {/* Leads Table */}
+          <div className="flex-1 overflow-y-auto rounded-lg border border-border/50 min-h-0">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-muted/60 backdrop-blur-sm border-b border-border/50 z-10">
+                <tr>
+                  <th className="w-8 py-2.5 px-3"></th>
+                  <th className="py-2.5 px-3 text-left font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">Company</th>
+                  <th className="py-2.5 px-3 text-left font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">Founder</th>
+                  <th className="py-2.5 px-3 text-center font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">ICP</th>
+                  <th className="py-2.5 px-3 text-center font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">SaaS</th>
+                  <th className="py-2.5 px-3 text-center font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">Emp.</th>
+                  <th className="py-2.5 px-3 text-left font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {bulkPreviewLeads.map((lead, i) => {
+                  const isSelected = bulkSelectedIndices.includes(i);
+                  const hasError = !!(lead as any)._error;
+                  return (
+                    <tr
+                      key={i}
+                      onClick={() => setBulkSelectedIndices(prev =>
+                        prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
+                      )}
+                      className={`cursor-pointer transition-colors ${
+                        isSelected
+                          ? "bg-primary/5 hover:bg-primary/8"
+                          : "bg-transparent hover:bg-muted/30 opacity-50"
+                      } ${hasError ? "bg-rose-500/5" : ""}`}
+                    >
+                      <td className="py-2.5 px-3">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            setBulkSelectedIndices(prev =>
+                              checked ? [...prev, i] : prev.filter(x => x !== i)
+                            );
+                          }}
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          className="w-full bg-transparent text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 rounded px-1 -mx-1"
+                          value={lead.company_name || ""}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => setBulkPreviewLeads(prev => {
+                            const next = [...prev];
+                            next[i] = { ...next[i], company_name: e.target.value };
+                            return next;
+                          })}
+                        />
+                        {hasError && (
+                          <span className="text-[9px] text-rose-500 font-mono block mt-0.5">extraction failed</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          className="w-full bg-transparent text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 rounded px-1 -mx-1"
+                          value={lead.founder_name || ""}
+                          placeholder="Unknown"
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => setBulkPreviewLeads(prev => {
+                            const next = [...prev];
+                            next[i] = { ...next[i], founder_name: e.target.value };
+                            return next;
+                          })}
+                        />
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className={`font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded border ${getIcpBadgeClass(lead.icp_score ?? null)}`}>
+                          {lead.icp_score ?? "—"}/10
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {lead.is_b2b_saas
+                          ? <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Yes</span>
+                          : <span className="text-[10px] text-muted-foreground">No</span>
+                        }
+                      </td>
+                      <td className="py-2.5 px-3 text-center text-muted-foreground">
+                        {lead.employee_count ?? "—"}
+                      </td>
+                      <td className="py-2.5 px-3 max-w-[150px]">
+                        {lead.product_hunt_url ? (
+                          <a
+                            href={lead.product_hunt_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="text-primary hover:underline truncate block text-[10px] font-mono"
+                            title={lead.product_hunt_url}
+                          >
+                            {lead.product_hunt_url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 28)}…
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground/40 italic">Text paste</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <DialogFooter className="shrink-0 flex-row gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={bulkSaving}
+              onClick={() => {
+                setShowBulkPreviewModal(false);
+                setBulkPreviewLeads([]);
+                setBulkSelectedIndices([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={bulkSelectedIndices.length === 0 || bulkSaving}
+              onClick={handleBulkSave}
+              className="gap-1.5"
+            >
+              {bulkSaving ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+              ) : (
+                <><CheckCircle2 className="h-3.5 w-3.5" /> Save {bulkSelectedIndices.length} of {bulkPreviewLeads.length} to Pipeline</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Dialog: Preview & Edit Sourced Lead ── */}
       <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
