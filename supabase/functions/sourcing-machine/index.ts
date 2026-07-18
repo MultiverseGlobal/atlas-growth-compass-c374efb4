@@ -79,13 +79,16 @@ async function scrapeUrl(url: string): Promise<{ title: string; description: str
 
 // Robust JSON extractor — strips markdown code fences and uses balanced-brace scanning
 // to avoid the "Unexpected non-whitespace character" error caused by greedy regex.
-function extractJson(raw: string): any {
+// When expectArray=true it locates the outermost [ ... ] instead of { ... }.
+function extractJson(raw: string, expectArray = false): any {
   // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
   let text = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
 
-  // 2. Find the first '{' and walk balanced braces to get the exact JSON object
-  const start = text.indexOf("{");
-  if (start === -1) throw new Error("No JSON object found in AI response");
+  // 2. Find the outermost opener ({ or [) and walk balanced delimiters
+  const openChar  = expectArray ? "[" : "{";
+  const closeChar = expectArray ? "]" : "}";
+  const start = text.indexOf(openChar);
+  if (start === -1) throw new Error(`No JSON ${expectArray ? "array" : "object"} found in AI response`);
 
   let depth = 0;
   let inString = false;
@@ -98,76 +101,84 @@ function extractJson(raw: string): any {
     if (ch === "\\" && inString) { escape = true; continue; }
     if (ch === '"') { inString = !inString; continue; }
     if (inString) continue;
-    if (ch === "{") depth++;
-    else if (ch === "}") {
+    if (ch === openChar) depth++;
+    else if (ch === closeChar) {
       depth--;
       if (depth === 0) { end = i; break; }
     }
   }
 
-  if (end === -1) throw new Error("Unterminated JSON object in AI response");
+  if (end === -1) throw new Error(`Unterminated JSON ${expectArray ? "array" : "object"} in AI response`);
 
   const jsonStr = text.slice(start, end + 1);
   try {
     return JSON.parse(jsonStr);
   } catch (e: any) {
+    // If array parse fails, attempt fallback to object parse
+    if (expectArray) {
+      try { return [extractJson(jsonStr, false)]; } catch (_) {}
+    }
     throw new Error(`JSON parse failed after extraction: ${e.message}\nExtracted: ${jsonStr.slice(0, 200)}`);
   }
 }
 
-// Call Kimi AI
-async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string): Promise<any> {
-  const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "moonshot-v1-8k",
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Kimi AI error: ${res.status} ${await res.text()}`);
+// Call Kimi AI — with 25 s hard timeout so the function never hangs indefinitely
+async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25_000);
+  try {
+    const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
+      signal: ctrl.signal,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "moonshot-v1-8k",
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`Kimi AI error: ${res.status} ${await res.text()}`);
+    const data = await res.json();
+    return extractJson(data.choices[0].message.content, expectArray);
+  } finally {
+    clearTimeout(timer);
   }
-
-  const data = await res.json();
-  const text = data.choices[0].message.content;
-  return extractJson(text);
 }
 
-// Call NVIDIA NIM (OpenAI-compatible, llama-3.1-70b-instruct)
-async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: string): Promise<any> {
-  const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "meta/llama-3.1-70b-instruct",
-      temperature: 0.3,
-      max_tokens: 1024,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`NVIDIA NIM error: ${res.status} ${await res.text()}`);
+// Call NVIDIA NIM — with 25 s hard timeout
+async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25_000);
+  try {
+    const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      signal: ctrl.signal,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "meta/llama-3.1-70b-instruct",
+        temperature: 0.3,
+        max_tokens: 1024,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`NVIDIA NIM error: ${res.status} ${await res.text()}`);
+    const data = await res.json();
+    return extractJson(data.choices[0].message.content, expectArray);
+  } finally {
+    clearTimeout(timer);
   }
-
-  const data = await res.json();
-  const text = data.choices[0].message.content;
-  return extractJson(text);
 }
 
 // Parse structured markdown notes into Notion block formats
@@ -680,9 +691,9 @@ Return ONLY a valid JSON object matching this exact schema:
           return u;
         }).filter(Boolean);
 
-        const results: any[] = [];
-        for (const url of urls) {
-          try {
+        // Process all URLs in parallel (capped at MAX_URLS) for speed
+        const settled = await Promise.allSettled(
+          urls.map(async (url) => {
             const isSocial = url.includes("linkedin.com") || url.includes("x.com") || url.includes("twitter.com");
             let contentToAnalyze = "";
             if (!isSocial) {
@@ -691,15 +702,19 @@ Return ONLY a valid JSON object matching this exact schema:
             } else {
               contentToAnalyze = `URL: ${url}\nNote: Social media profile — extract from URL patterns only.`;
             }
-            const rawLead = await callAi(singleSystemPrompt, contentToAnalyze);
-            const evaluation = validateAndEvaluateLead(rawLead, url);
-            if (!evaluation.disqualified) {
-              results.push(evaluation.evaluatedLead);
-            }
-          } catch (err: any) {
-            console.warn(`Failed to source URL ${url}:`, err.message);
+            return callAi(singleSystemPrompt, contentToAnalyze);
+          })
+        );
+
+        const results: any[] = [];
+        settled.forEach((r, i) => {
+          if (r.status === "fulfilled") {
+            const evaluation = validateAndEvaluateLead(r.value, urls[i]);
+            if (!evaluation.disqualified) results.push(evaluation.evaluatedLead);
+          } else {
+            console.warn(`Failed to source URL ${urls[i]}:`, r.reason?.message);
           }
-        }
+        });
 
         return new Response(JSON.stringify({ leads: results, total: results.length }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -756,40 +771,16 @@ Return ONLY a valid JSON array matching this exact schema:
 
         let arrayResult: any[] = [];
         try {
-          const callWithArraySupport = async (apiUrl: string, authKey: string, model: string, maxTokens?: number): Promise<any[]> => {
-            const reqBody: any = {
-              model,
-              temperature: 0.3,
-              messages: [
-                { role: "system", content: bulkSystemPrompt },
-                { role: "user", content: `Raw Text:\n${body.raw_text}` }
-              ]
-            };
-            if (maxTokens) reqBody.max_tokens = maxTokens;
-            const res = await fetch(apiUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authKey}` },
-              body: JSON.stringify(reqBody)
-            });
-            if (!res.ok) throw new Error(`AI error ${res.status}`);
-            const data = await res.json();
-            const text = data.choices[0].message.content;
-            const arrMatch = text.match(/\[[\s\S]*\]/);
-            if (arrMatch) return JSON.parse(arrMatch[0]);
-            const objMatch = text.match(/\{[\s\S]*\}/);
-            if (objMatch) return [JSON.parse(objMatch[0])];
-            throw new Error("No JSON found in response");
-          };
-
+          // Use the same robust extractJson with expectArray=true — handles fences and balanced brackets
           if (kimiApiKey) {
             try {
-              arrayResult = await callWithArraySupport("https://api.moonshot.cn/v1/chat/completions", kimiApiKey, "moonshot-v1-8k");
+              arrayResult = await callKimi(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`, kimiApiKey, true);
             } catch (e: any) {
               console.warn("Kimi bulk failed:", e.message);
             }
           }
           if (!arrayResult.length && nimApiKey) {
-            arrayResult = await callWithArraySupport("https://integrate.api.nvidia.com/v1/chat/completions", nimApiKey, "meta/llama-3.1-70b-instruct", 2048);
+            arrayResult = await callNvidiaNim(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`, nimApiKey, true);
           }
         } catch (err: any) {
           console.error("Bulk text AI failed:", err.message);
