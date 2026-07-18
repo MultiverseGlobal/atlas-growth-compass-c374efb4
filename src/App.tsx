@@ -20,6 +20,10 @@ import PublicPagePreview from "./pages/app/PublicPagePreview";
 import Settings from "./pages/app/Settings";
 import Notifications from "./pages/app/Notifications";
 import Sourcing from "./pages/app/Sourcing";
+import HqShell from "./components/atlas/HqShell";
+import HqDashboard from "./pages/hq/HqDashboard";
+import HqSettings from "./pages/hq/HqSettings";
+import HqTeam from "./pages/hq/HqTeam";
 import PublicProfile from "./pages/PublicProfile";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
@@ -53,7 +57,13 @@ const App = () => (
               <Route path="notifications" element={<Notifications />} />
               <Route path="sourcing" element={<Navigate to="/hq" replace />} />
             </Route>
-            <Route path="/hq" element={<Sourcing />} />
+            <Route path="/hq" element={<HqShell />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<HqDashboard />} />
+              <Route path="prospects" element={<Sourcing />} />
+              <Route path="settings" element={<HqSettings />} />
+              <Route path="team" element={<HqTeam />} />
+            </Route>
             <Route path="/:handle" element={<PublicProfile />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />

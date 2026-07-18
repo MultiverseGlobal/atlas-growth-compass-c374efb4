@@ -3,6 +3,7 @@ const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
 
 // State references
 let sessionToken = "";
+let userId = "";
 let notionDbId = "";
 let notionDbName = "";
 let autoNotion = false;
@@ -17,9 +18,18 @@ const btnPush = document.getElementById("btn-push");
 const footerMsg = document.getElementById("footer-msg");
 
 // Load stored session details on popup open
-chrome.storage.local.get(["token", "notion_db_id", "notion_db_name", "auto_notion"], (data) => {
+chrome.storage.local.get(["token", "user_id", "notion_db_id", "notion_db_name", "auto_notion"], (data) => {
   if (data.token) {
     sessionToken = data.token;
+    userId = data.user_id || "";
+    if (sessionToken && !userId) {
+      try {
+        const payload = JSON.parse(atob(sessionToken.split('.')[1]));
+        userId = payload.sub || "";
+      } catch (err) {
+        console.error("Failed to decode user_id from token:", err);
+      }
+    }
     statusDot.className = "status-dot status-connected";
     statusText.innerText = "Connected";
     footerMsg.innerText = "Ready to parse profile text.";
@@ -81,18 +91,27 @@ btnSyncSession.addEventListener("click", async () => {
       const autoNotion = localStorage.getItem("atlas.sourcing.auto_notion") === "true";
       
       let token = "";
+      let uid = "";
       if (sessionDataRaw) {
         try {
           const parsed = JSON.parse(sessionDataRaw);
           token = parsed.access_token || "";
+          uid = parsed.user?.id || "";
+        } catch (_) {}
+      }
+
+      if (token && !uid) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          uid = payload.sub || "";
         } catch (_) {}
       }
       
-      return { token, defaultDb, autoNotion };
+      return { token, userId: uid, defaultDb, autoNotion };
     }
   }, (results) => {
     if (results && results[0] && results[0].result) {
-      const { token, defaultDb, autoNotion } = results[0].result;
+      const { token, userId: uid, defaultDb, autoNotion } = results[0].result;
       if (!token) {
         alert("Found Atlas tab, but you are not logged in. Please log in and retry.");
         return;
@@ -101,11 +120,13 @@ btnSyncSession.addEventListener("click", async () => {
       // Store token and settings
       chrome.storage.local.set({
         token: token,
+        user_id: uid,
         notion_db_id: defaultDb,
         notion_db_name: defaultDb ? "Loaded from Atlas HQ" : "None selected",
         auto_notion: autoNotion
       }, () => {
         sessionToken = token;
+        userId = uid;
         notionDbId = defaultDb;
         notionDbTitleEl.innerText = defaultDb ? "Loaded from Atlas HQ" : "None selected";
         statusDot.className = "status-dot status-connected";
@@ -128,6 +149,16 @@ btnPush.addEventListener("click", async () => {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab) throw new Error("No active tab found");
+
+    // Ensure content script is injected first dynamically
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["content.js"]
+      });
+    } catch (injectErr) {
+      console.warn("Dynamic content script injection failed or script already loaded:", injectErr);
+    }
 
     // Grab text from content script
     const response = await new Promise((resolve) => {
@@ -178,6 +209,7 @@ btnPush.addEventListener("click", async () => {
         "Prefer": "return=representation"
       },
       body: JSON.stringify({
+        user_id: userId,
         company_name: leadInfo.company_name,
         founder_name: leadInfo.founder_name,
         linkedin_url: leadInfo.linkedin_url || (response.url.includes("linkedin.com") ? response.url : null),
@@ -188,7 +220,7 @@ btnPush.addEventListener("click", async () => {
         product_hunt_url: response.url,
         notes: leadInfo.notes,
         is_contacted: false,
-        reply_status: "No Response"
+        reply_status: "none"
       })
     });
 

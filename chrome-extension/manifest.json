@@ -13,6 +13,16 @@
     "https://atlas-scale.vercel.app/*",
     "https://sqthvliapkauoxieiwfb.supabase.co/*"
   ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.linkedin.com/*",
+        "*://*.x.com/*",
+        "*://*.twitter.com/*"
+      ],
+      "js": ["content.js"]
+    }
+  ],
   "action": {
     "default_popup": "popup.html"
   }

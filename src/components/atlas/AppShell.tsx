@@ -10,7 +10,6 @@ import { useTheme } from "@/hooks/useTheme";
 
 const nav = [
   { to: "/app", end: true, icon: Compass, label: "Today" },
-  { to: "/hq", icon: Target, label: "Atlas HQ" },
   { to: "/app/timeline", icon: Activity, label: "Timeline" },
   { to: "/app/notifications", icon: Bell, label: "Notifications" },
   { to: "/app/reports", icon: FileText, label: "Reports" },
@@ -235,7 +234,7 @@ export default function AppShell() {
 
       {!isFocusMode && (
         <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border/70 bg-sidebar/95 px-2 py-2 backdrop-blur md:hidden">
-          {nav.filter(n => n.to !== "/hq" || user?.email?.toLowerCase() === "multiverseglobals@gmail.com").slice(0, 5).map((n) => (
+          {nav.slice(0, 5).map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
@@ -261,8 +260,6 @@ export default function AppShell() {
   );
 }
 
-const ADMIN_EMAIL = "multiverseglobals@gmail.com";
-
 function SidebarNav({ collapsed, unreadCount, email }: { collapsed: boolean; unreadCount: number; email?: string }) {
   const location = useLocation();
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -270,9 +267,7 @@ function SidebarNav({ collapsed, unreadCount, email }: { collapsed: boolean; unr
     top: 0, height: 0, visible: false,
   });
 
-  const visibleNav = nav.filter(n =>
-    n.to !== "/hq" || (email?.toLowerCase() === ADMIN_EMAIL)
-  );
+  const visibleNav = nav;
 
   useLayoutEffect(() => {
     const list = listRef.current;

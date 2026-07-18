@@ -211,6 +211,9 @@ export type Database = {
           updated_at: string
           exported_to_notion: boolean
           exported_to_airtable: boolean
+          notion_sync_status: string
+          notion_page_id: string | null
+          notion_sync_error: string | null
         }
         Insert: {
           id?: string
@@ -230,6 +233,9 @@ export type Database = {
           updated_at?: string
           exported_to_notion?: boolean
           exported_to_airtable?: boolean
+          notion_sync_status?: string
+          notion_page_id?: string | null
+          notion_sync_error?: string | null
         }
         Update: {
           id?: string
@@ -249,6 +255,9 @@ export type Database = {
           updated_at?: string
           exported_to_notion?: boolean
           exported_to_airtable?: boolean
+          notion_sync_status?: string
+          notion_page_id?: string | null
+          notion_sync_error?: string | null
         }
         Relationships: []
       }

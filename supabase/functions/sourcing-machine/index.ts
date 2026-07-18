@@ -451,41 +451,159 @@ Return ONLY a valid JSON object matching this exact schema:
       // Fallback Mock if key is missing or call failed
       if (!leadResult) {
         console.log("Using smart fallback parser/mock...");
-        // Extract host name as company name
-        let company = "Startup";
-        if (body.url) {
-          try {
-            const parsed = new URL(body.url);
-            const parts = parsed.hostname.replace("www.", "").split(".");
-            company = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-          } catch (_) {}
-        } else {
-          const firstLine = body.raw_text?.split("\n")[0] || "";
-          company = firstLine.slice(0, 20).trim() || "Startup";
+        
+        // 1. Get Title and URL
+        const titleLine = contentToAnalyze.match(/^Title:\s*(.*)$/m);
+        const pageTitle = titleLine ? titleLine[1].trim() : "";
+        const urlLine = contentToAnalyze.match(/^URL:\s*(.*)$/m);
+        const pageUrl = urlLine ? urlLine[1].trim() : (sourceUrl || "");
+
+        // 2. Parse Founder Name
+        let founder = "";
+        
+        // Try to parse from Title (typically: "Name (@handle) / X", "Name | LinkedIn", "Name - Profile")
+        if (pageTitle) {
+          if (pageTitle.includes("(@")) {
+            founder = pageTitle.split("(@")[0].trim();
+          } else if (pageTitle.includes(" / X")) {
+            founder = pageTitle.split(" / X")[0].trim();
+          } else if (pageTitle.includes("| LinkedIn")) {
+            founder = pageTitle.split("| LinkedIn")[0].trim();
+          } else if (pageTitle.includes("- LinkedIn")) {
+            founder = pageTitle.split("- LinkedIn")[0].trim();
+          } else if (pageTitle.includes(" - ")) {
+            founder = pageTitle.split(" - ")[0].trim();
+          } else if (pageTitle.includes(" | ")) {
+            founder = pageTitle.split(" | ")[0].trim();
+          }
         }
 
-        const lowercaseTitle = contentToAnalyze.toLowerCase();
-        const isB2B = lowercaseTitle.includes("b2b") || lowercaseTitle.includes("saas") || lowercaseTitle.includes("business") || lowercaseTitle.includes("workflow") || lowercaseTitle.includes("api") || lowercaseTitle.includes("tool") || lowercaseTitle.includes("platform");
+        // Clean up founder name if it contains noise (like "Log in or sign up")
+        if (founder && (founder.toLowerCase().includes("log in") || founder.toLowerCase().includes("sign up") || founder.toLowerCase().includes("twitter") || founder.toLowerCase().includes("linkedin"))) {
+          founder = "";
+        }
+
+        // If title parsing failed, look for common profile title patterns in content text
+        if (!founder) {
+          const firstLine = (body.raw_text || "").split("\n")[0] || "";
+          if (firstLine && firstLine.length < 40 && !firstLine.includes("http")) {
+            founder = firstLine.trim();
+          } else {
+            founder = "Founder / Lead";
+          }
+        }
+
+        // 3. Parse Company Name
+        let company = "Startup";
         
-        // Generate a random-looking but realistic founder name
-        const firstNames = ["James", "Sarah", "Alex", "Emily", "Michael", "Jessica", "David", "Sophia", "Daniel", "Chloe"];
-        const lastNames = ["Chen", "Smith", "Johnson", "Rodriguez", "Lee", "Taylor", "Gomez", "Patel", "Kim", "Wilson"];
-        const randomFirst = firstNames[Math.floor(Math.random() * firstNames.length)];
-        const randomLast = lastNames[Math.floor(Math.random() * lastNames.length)];
-        const founder = `${randomFirst} ${randomLast}`;
+        // Try to extract from URL hostname
+        if (pageUrl) {
+          try {
+            const parsed = new URL(pageUrl);
+            const host = parsed.hostname.replace("www.", "");
+            if (host.includes("linkedin.com") || host.includes("x.com") || host.includes("twitter.com")) {
+              // It's a social profile. Check for company keywords in content
+              const companyRegexes = [
+                /(?:founder|co-founder|ceo|creator)\s+(?:of|at)\s+([a-zA-Z0-9_\-\.]+)/i,
+                /building\s+([a-zA-Z0-9_\-\.]+)/i,
+                /(?:founder|co-founder)\s+@\s*([a-zA-Z0-9_\-\.]+)/i
+              ];
+              for (const regex of companyRegexes) {
+                const match = contentToAnalyze.match(regex);
+                if (match && match[1]) {
+                  const cleaned = match[1].replace(/[\.,\s]+$/, "").trim();
+                  if (cleaned && cleaned.length > 2 && !["the", "a", "my", "our", "new", "this"].includes(cleaned.toLowerCase())) {
+                    company = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+                    break;
+                  }
+                }
+              }
+            } else {
+              // Direct company website URL: e.g. stripe.com -> Stripe
+              const parts = host.split(".");
+              company = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+            }
+          } catch (_) {}
+        }
+
+        // 4. Parse Social URLs
+        let linkedinUrl = null;
+        let twitterUrl = null;
+
+        if (pageUrl.includes("linkedin.com")) {
+          linkedinUrl = pageUrl;
+        } else if (pageUrl.includes("x.com") || pageUrl.includes("twitter.com")) {
+          twitterUrl = pageUrl;
+        }
+
+        // Search in text for the other social link
+        if (!linkedinUrl) {
+          const match = contentToAnalyze.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9\-\_]+/i);
+          if (match) linkedinUrl = match[0];
+        }
+        if (!twitterUrl) {
+          const match = contentToAnalyze.match(/https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/[a-zA-Z0-9\-\_]+/i);
+          if (match) twitterUrl = match[0];
+        }
+
+        // 5. Deduce B2B SaaS status & Employee count
+        const contentLower = contentToAnalyze.toLowerCase();
+        const isB2B = contentLower.includes("b2b") || 
+                      contentLower.includes("saas") || 
+                      contentLower.includes("business") || 
+                      contentLower.includes("workflow") || 
+                      contentLower.includes("api") || 
+                      contentLower.includes("tool") || 
+                      contentLower.includes("platform") || 
+                      contentLower.includes("software") ||
+                      contentLower.includes("enterprise");
+
+        // Parse employee count or team size
+        let empCount = 5; // default
+        const empMatches = contentLower.match(/(?:team size|employees|team of|size of|staff of)\s*[:\-\s]*\s*(\d+)/i);
+        if (empMatches && empMatches[1]) {
+          empCount = parseInt(empMatches[1]);
+        } else {
+          if (contentLower.includes("solopreneur") || contentLower.includes("indie hacker") || contentLower.includes("individual builder")) {
+            empCount = 1;
+          }
+        }
+
+        // 6. Compute ICP Score
+        let score = 0;
+        if (isB2B) score += 4;
+        if (empCount < 15) score += 3;
         
-        const empCount = Math.floor(Math.random() * 8) + 2; // 2 to 9
-        const score = 7 + (isB2B ? 2 : 0) + (empCount < 10 ? 1 : 0);
+        const isFounderDecisionMaker = empCount < 50 && !contentLower.includes("enterprise corporate");
+        if (isFounderDecisionMaker) score += 3;
+
+        // 7. Notes Generation
+        const notes = `## Summary
+Parsed profile data for **${founder}** at **${company}**.
+
+## ICP Reasoning
+* B2B SaaS Fit: ${isB2B ? "Yes (+4 points)" : "No (+0 points)"}
+* Estimated Team Size: ${empCount} (${empCount < 15 ? "Under 15 (+3 points)" : "Over 15 (+0 points)"})
+* Founder Decision Maker: ${isFounderDecisionMaker ? "Yes (+3 points)" : "No (+0 points)"}
+* **Total ICP Score**: ${score}/10
+
+## Founder Signals
+* Scraped from: ${pageUrl || "Direct Text"}
+* ${linkedinUrl ? `LinkedIn: ${linkedinUrl}` : "LinkedIn profile not detected in text"}
+* ${twitterUrl ? `X/Twitter: ${twitterUrl}` : "X/Twitter handle not detected in text"}
+
+## Recommended Outreach
+* Connect via social accounts and introduce Atlas workflow solutions optimized for team sizes around ${empCount}.`;
 
         leadResult = {
           company_name: company,
           founder_name: founder,
-          linkedin_url: `https://linkedin.com/in/${randomFirst.toLowerCase()}-${randomLast.toLowerCase()}-${company.toLowerCase()}`,
-          twitter_url: `@${randomFirst.toLowerCase()}_${company.toLowerCase()}`,
+          linkedin_url: linkedinUrl,
+          twitter_url: twitterUrl,
           employee_count: empCount,
           is_b2b_saas: isB2B,
-          icp_score: Math.min(score, 10),
-          notes: `## Summary\nA workspace and collaboration tool called ${company}. Sourced automatically.\n## ICP Reasoning\nStrong B2B SaaS fit (+4 points).\nEstimated team size of ${empCount} is under 15 (+3 points).\n## Founder Signals\nActive founder with social links detected.\n## Recommended Outreach\nDiscuss workspace automation solutions.`,
+          icp_score: score,
+          notes: notes,
         };
       }
 
