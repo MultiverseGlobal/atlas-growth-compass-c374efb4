@@ -9,6 +9,8 @@ import {
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { LogoMark } from "@/components/atlas/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
