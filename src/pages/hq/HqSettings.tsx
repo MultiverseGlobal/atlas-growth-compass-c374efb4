@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { 
   Database, RefreshCw, CheckCircle2, AlertTriangle, 
-  Settings, Loader2, Link2, Info, Palette, Compass, Moon, Sun
+  Settings, Loader2, Link2, Info, Palette, Compass, Moon, Sun, SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,6 +27,8 @@ export default function HqSettings() {
 
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+
+  const [prospectsLayout, setProspectsLayout] = useState(() => localStorage.getItem("atlas.hq.prospects_layout") || "table");
 
   const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
 
@@ -104,6 +106,12 @@ export default function HqSettings() {
       });
     }
     toast.success(checked ? "Auto-push to Notion enabled" : "Auto-push to Notion disabled");
+  };
+
+  const handleSelectLayout = (layout: string) => {
+    setProspectsLayout(layout);
+    localStorage.setItem("atlas.hq.prospects_layout", layout);
+    toast.success(`Prospects view layout set to: ${layout}`);
   };
 
   return (
@@ -207,6 +215,65 @@ export default function HqSettings() {
                 </Button>
               </div>
             )}
+          </div>
+
+          {/* Prospects View Layout */}
+          <div className="rounded-xl border border-border/60 bg-card p-6 space-y-6 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center border border-border/60">
+                <SlidersHorizontal className="h-5 w-5 text-amber-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">Prospects View Layout</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Choose how pipeline entries are displayed inside the Prospects explorer tab.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 pt-1">
+              {[
+                { 
+                  id: "table", 
+                  name: "Table List", 
+                  desc: "Widescreen grid with customizable columns." 
+                },
+                { 
+                  id: "kanban", 
+                  name: "Kanban Board", 
+                  desc: "Group prospects by pipeline outreach stages." 
+                },
+                { 
+                  id: "split", 
+                  name: "Split Pane", 
+                  desc: "Detailed profile inspector with inline editing." 
+                },
+                { 
+                  id: "grid", 
+                  name: "Card Grid", 
+                  desc: "Compact modular cards showing key metrics." 
+                }
+              ].map((l) => {
+                const isActive = prospectsLayout === l.id;
+                return (
+                  <div
+                    key={l.id}
+                    onClick={() => handleSelectLayout(l.id)}
+                    className={`cursor-pointer rounded-lg border p-4 transition-all hover:border-primary/50 relative ${
+                      isActive 
+                        ? "border-primary bg-primary/[0.02] shadow-[0_0_12px_rgba(var(--primary),0.05)]" 
+                        : "border-border/60 bg-card/50"
+                    }`}
+                  >
+                    {isActive && (
+                      <span className="absolute top-2 right-2 text-[8px] font-mono uppercase bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-full">
+                        Active
+                      </span>
+                    )}
+                    <div className="text-xs font-semibold text-foreground mt-2">{l.name}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 leading-normal">{l.desc}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Theme Preference Settings */}

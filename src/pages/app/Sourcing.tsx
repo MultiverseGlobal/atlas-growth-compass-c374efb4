@@ -97,6 +97,10 @@ export default function Sourcing() {
   const [activeNotesLead, setActiveNotesLead] = useState<Lead | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
 
+  // Layout preference & split pane selector state
+  const [prospectsLayout, setProspectsLayout] = useState(() => localStorage.getItem("atlas.hq.prospects_layout") || "table");
+  const [selectedSplitLeadId, setSelectedSplitLeadId] = useState<string | null>(null);
+
   // Export Notion Modal State
   const [showNotionModal, setShowNotionModal] = useState(false);
   const [notionLoading, setNotionLoading] = useState(false);
@@ -861,6 +865,403 @@ export default function Sourcing() {
     ? Math.round((statsContactedCount / leads.length) * 100)
     : 0;
 
+  const renderKanbanColumn = (title: string, leadsList: Lead[], borderClass: string, badgeClass: string) => {
+    return (
+      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-4 shadow-sm flex flex-col max-h-[750px] min-w-[250px] overflow-hidden flex-1">
+        <div className="flex items-center justify-between border-b border-border/40 pb-3">
+          <span className="font-display font-bold text-sm text-foreground">{title}</span>
+          <Badge className={`text-[10px] font-semibold px-2 py-0.5 border ${badgeClass}`}>{leadsList.length}</Badge>
+        </div>
+        <div className="space-y-3 overflow-y-auto flex-1 pr-1 pb-2">
+          {leadsList.length === 0 ? (
+            <div className="text-center py-8 text-xs text-muted-foreground italic bg-muted/10 rounded-lg border border-dashed border-border/40">
+              No leads in this stage
+            </div>
+          ) : (
+            leadsList.map(lead => (
+              <div key={lead.id} className={`p-4 rounded-xl border border-border/60 bg-card/60 hover:bg-card/90 transition-all shadow-sm relative ${borderClass} space-y-3`}>
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0">
+                    <span className="font-semibold text-sm text-foreground block truncate">{lead.company_name}</span>
+                    <span className="text-xs text-muted-foreground block truncate">{lead.founder_name || "Unknown founder"}</span>
+                  </div>
+                  <Badge variant="outline" className={`font-mono text-[10px] shrink-0 font-semibold px-1.5 py-0 border ${getIcpBadgeClass(lead.icp_score)}`}>
+                    {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
+                  </Badge>
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] text-muted-foreground border-t border-border/30 pt-2.5">
+                  <div className="flex items-center gap-1.5">
+                    {lead.employee_count ? <span>{lead.employee_count} emp</span> : <span>Untracked size</span>}
+                    {lead.is_b2b_saas && <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    {lead.linkedin_url && (
+                      <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                        <Link2 className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                    {lead.twitter_url && (
+                      <a href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                        <span className="text-[9px] font-bold font-mono">X</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {lead.notes && (
+                  <div 
+                    onClick={() => {
+                      setActiveNotesLead(lead);
+                      setNotesDraft(lead.notes || "");
+                    }}
+                    className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed bg-muted/20 hover:bg-muted/40 p-2 rounded cursor-pointer transition-colors border border-border/30"
+                    title="Click to view full strategy"
+                  >
+                    {stripMarkdown(lead.notes)}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between border-t border-border/30 pt-2.5 mt-1">
+                  <div className="flex items-center gap-1">
+                    {lead.notion_sync_status === "synced" ? (
+                      <span className="text-[9px] font-mono text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                    ) : (
+                      <button 
+                        onClick={() => syncSingleLeadWithProgress(lead)} 
+                        className="text-[9px] font-mono text-muted-foreground hover:text-primary bg-secondary/50 px-1.5 py-0.5 rounded border border-border/60 hover:bg-secondary transition-colors"
+                      >
+                        Push Notion
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => toggleContacted(lead.id, lead.is_contacted)}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground"
+                      title={lead.is_contacted ? "Mark uncontacted" : "Mark contacted"}
+                    >
+                      <CheckSquare className={`h-3.5 w-3.5 ${lead.is_contacted ? "text-primary fill-primary/10" : "text-muted-foreground/45"}`} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteLead(lead.id, lead.company_name)}
+                      className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      title="Delete lead"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderKanban = () => {
+    return (
+      <div className="flex flex-col lg:flex-row gap-4 items-start pb-4 overflow-x-auto w-full">
+        {renderKanbanColumn(
+          "New Leads", 
+          filteredLeads.filter(l => !l.is_contacted), 
+          "border-t-3 border-t-amber-500", 
+          "bg-amber-500/10 text-amber-500 border-amber-500/20"
+        )}
+        {renderKanbanColumn(
+          "Outreached", 
+          filteredLeads.filter(l => l.is_contacted && (l.reply_status === "none" || l.reply_status === "pending")), 
+          "border-t-3 border-t-primary", 
+          "bg-primary/10 text-primary border-primary/20"
+        )}
+        {renderKanbanColumn(
+          "Replied", 
+          filteredLeads.filter(l => l.is_contacted && l.reply_status === "replied"), 
+          "border-t-3 border-t-emerald-500", 
+          "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+        )}
+        {renderKanbanColumn(
+          "No Reply", 
+          filteredLeads.filter(l => l.is_contacted && l.reply_status === "ignored"), 
+          "border-t-3 border-t-rose-500", 
+          "bg-rose-500/10 text-rose-500 border-rose-500/20"
+        )}
+      </div>
+    );
+  };
+
+  const renderSplitPane = () => {
+    const activeSplitLead = filteredLeads.find(l => l.id === selectedSplitLeadId) || filteredLeads[0] || null;
+
+    return (
+      <div className="rounded-xl border border-border/60 bg-card overflow-hidden flex flex-col md:flex-row h-[700px] shadow-sm animate-in fade-in duration-200 w-full">
+        {/* Left pane: list */}
+        <div className="w-full md:w-[280px] shrink-0 border-r border-border/50 flex flex-col bg-muted/10 h-full overflow-hidden">
+          <div className="p-3 border-b border-border/45 bg-card font-mono text-[10px] tracking-wider uppercase text-muted-foreground">
+            Pipeline Leads ({filteredLeads.length})
+          </div>
+          <div className="divide-y divide-border/30 overflow-y-auto flex-1">
+            {filteredLeads.length === 0 ? (
+              <div className="text-center py-10 text-xs text-muted-foreground italic">No prospects found</div>
+            ) : (
+              filteredLeads.map(lead => {
+                const isSelected = activeSplitLead?.id === lead.id;
+                return (
+                  <div
+                    key={lead.id}
+                    onClick={() => setSelectedSplitLeadId(lead.id)}
+                    className={`p-3.5 cursor-pointer transition-all flex items-start justify-between gap-2 border-l-2 ${
+                      isSelected 
+                        ? "bg-card border-l-primary" 
+                        : "hover:bg-card/40 border-l-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <span className="font-semibold text-xs text-foreground block truncate">{lead.company_name}</span>
+                      <span className="text-[10px] text-muted-foreground block truncate">{lead.founder_name || "Unknown founder"}</span>
+                    </div>
+                    <Badge variant="outline" className={`font-mono text-[9px] shrink-0 font-semibold px-1 py-0 border ${getIcpBadgeClass(lead.icp_score)}`}>
+                      {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
+                    </Badge>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right pane: inspector */}
+        <div className="flex-1 overflow-y-auto h-full p-6 bg-card flex flex-col justify-between">
+          {activeSplitLead ? (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-border/40 pb-5">
+                <div>
+                  <h3 className="font-display font-bold text-2xl text-foreground leading-none">{activeSplitLead.company_name}</h3>
+                  <div className="flex items-center gap-2 mt-2.5">
+                    {activeSplitLead.product_hunt_url && (
+                      <a href={activeSplitLead.product_hunt_url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1 font-mono">
+                        {activeSplitLead.product_hunt_url.replace("https://", "").slice(0, 30)}...
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {activeSplitLead.notion_sync_status === "synced" ? (
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2.5 py-1.5 text-xs">
+                      Synced to Notion
+                    </Badge>
+                  ) : (
+                    <Button 
+                      onClick={() => syncSingleLeadWithProgress(activeSplitLead)}
+                      size="sm"
+                      className="bg-primary text-primary-foreground text-xs font-semibold gap-1.5"
+                    >
+                      <Database className="h-3.5 w-3.5" /> Push to Notion
+                    </Button>
+                  )}
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleDeleteLead(activeSplitLead.id, activeSplitLead.company_name)}
+                    className="text-xs text-destructive hover:bg-destructive/10 border-border hover:border-destructive/20 gap-1.5"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-1">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Founder Name</span>
+                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.founder_name || "Unknown"}</span>
+                </div>
+                <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-1">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Employee Size</span>
+                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.employee_count || "Size untracked"}</span>
+                </div>
+                <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-1">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">ICP SCORE</span>
+                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.icp_score !== null ? `${activeSplitLead.icp_score}/10` : "TBD"}</span>
+                </div>
+                <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-1">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">B2B SaaS Model</span>
+                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.is_b2b_saas ? "Yes" : "No"}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-border/50 p-4 space-y-3 bg-card/60">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider block">Pipeline Contacts & Socials</span>
+                  <div className="flex gap-2">
+                    {activeSplitLead.linkedin_url ? (
+                      <a href={activeSplitLead.linkedin_url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-secondary px-3 py-1.5 rounded border border-border/80 transition-colors">
+                        <Link2 className="h-3.5 w-3.5 text-primary" /> LinkedIn Profile
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/40 italic">No LinkedIn link</span>
+                    )}
+
+                    {activeSplitLead.twitter_url ? (
+                      <a href={activeSplitLead.twitter_url.startsWith("http") ? activeSplitLead.twitter_url : `https://x.com/${activeSplitLead.twitter_url.replace("@", "")}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-secondary px-3 py-1.5 rounded border border-border/80 transition-colors">
+                        <span className="text-xs font-bold font-mono text-primary">X</span> Twitter/X Profile
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/40 italic">No Twitter link</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/50 p-4 space-y-3 bg-card/60">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider block">Outreach Status Configuration</span>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
+                      <Checkbox 
+                        checked={activeSplitLead.is_contacted} 
+                        onCheckedChange={() => toggleContacted(activeSplitLead.id, activeSplitLead.is_contacted)} 
+                      />
+                      <span>Contacted</span>
+                    </label>
+
+                    <Select 
+                      value={activeSplitLead.reply_status} 
+                      onValueChange={(val) => handleUpdateReplyStatus(activeSplitLead.id, val)}
+                    >
+                      <SelectTrigger className="h-8 text-xs border-border/50 bg-card w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none"><span className="text-muted-foreground">- No status -</span></SelectItem>
+                        <SelectItem value="pending">⏳ Pending</SelectItem>
+                        <SelectItem value="replied">✅ Replied</SelectItem>
+                        <SelectItem value="ignored">❌ No Reply</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Outreach & Strategy Notes (Editable)</span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      setActiveNotesLead(activeSplitLead);
+                      setNotesDraft(activeSplitLead.notes || "");
+                    }}
+                    className="h-6 text-[10px] text-primary gap-1"
+                  >
+                    <Edit2 className="h-2.5 w-2.5" /> Open Full Editor
+                  </Button>
+                </div>
+                <div className="rounded-lg border border-border/50 bg-muted/5 p-4 min-h-[160px] max-h-[220px] overflow-y-auto text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap font-sans border-dashed">
+                  {activeSplitLead.notes || "No strategic outreach notes written yet. Click 'Open Full Editor' to generate details."}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-20 text-muted-foreground italic">
+              Select a prospect to view full analytics.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderCardGrid = () => {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-4 animate-in fade-in duration-200 w-full">
+        {filteredLeads.map(lead => (
+          <div key={lead.id} className="rounded-xl border border-border/60 bg-card p-5 space-y-4 shadow-sm flex flex-col justify-between hover:border-primary/40 transition-colors">
+            <div className="space-y-3">
+              <div className="flex justify-between items-start gap-2 border-b border-border/30 pb-3">
+                <div className="min-w-0">
+                  <span className="font-semibold text-sm text-foreground block truncate">{lead.company_name}</span>
+                  <span className="text-xs text-muted-foreground block truncate">{lead.founder_name || "Unknown founder"}</span>
+                </div>
+                <Badge variant="outline" className={`font-mono text-xs shrink-0 font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
+                  {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5">
+                <div className="flex items-center gap-1.5">
+                  {lead.employee_count ? <span>{lead.employee_count} emp</span> : <span>Untracked size</span>}
+                  {lead.is_b2b_saas && <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                </div>
+                <div className="flex items-center gap-1">
+                  {lead.linkedin_url && (
+                    <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                      <Link2 className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  {lead.twitter_url && (
+                    <a href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                      <span className="text-[10px] font-bold font-mono">X</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {lead.notes && (
+                <div 
+                  onClick={() => {
+                    setActiveNotesLead(lead);
+                    setNotesDraft(lead.notes || "");
+                  }}
+                  className="text-xs text-muted-foreground line-clamp-3 leading-relaxed bg-muted/20 hover:bg-muted/40 p-2.5 rounded cursor-pointer transition-colors border border-border/30"
+                  title="Click to view full notes"
+                >
+                  {stripMarkdown(lead.notes)}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border/30 pt-3 mt-1 text-xs">
+              <div className="flex items-center gap-2">
+                {lead.notion_sync_status === "synced" ? (
+                  <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                ) : (
+                  <button 
+                    onClick={() => syncSingleLeadWithProgress(lead)} 
+                    className="text-[10px] font-mono text-muted-foreground hover:text-primary bg-secondary/50 px-2 py-0.5 rounded border border-border/60 hover:bg-secondary transition-colors"
+                  >
+                    Push Notion
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => toggleContacted(lead.id, lead.is_contacted)}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground"
+                  title={lead.is_contacted ? "Mark uncontacted" : "Mark contacted"}
+                >
+                  <CheckSquare className={`h-4 w-4 ${lead.is_contacted ? "text-primary fill-primary/10" : "text-muted-foreground/45"}`} />
+                </button>
+                <button 
+                  onClick={() => handleDeleteLead(lead.id, lead.company_name)}
+                  className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  title="Delete prospect"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="p-4 md:p-6 lg:p-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       <div className="w-full space-y-6">
@@ -1124,6 +1525,20 @@ export default function Sourcing() {
                       <SelectItem value="non-saas">Consumer/Other</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={prospectsLayout} onValueChange={(val) => {
+                    setProspectsLayout(val);
+                    localStorage.setItem("atlas.hq.prospects_layout", val);
+                  }}>
+                    <SelectTrigger className="w-full sm:w-[130px] h-9 text-xs bg-card">
+                      <SelectValue placeholder="Layout" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="table">Table List</SelectItem>
+                      <SelectItem value="kanban">Kanban Board</SelectItem>
+                      <SelectItem value="split">Split Pane</SelectItem>
+                      <SelectItem value="grid">Card Grid</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5 shrink-0">
                   <span><strong>{filteredLeads.length}</strong> of <strong>{leads.length}</strong> leads</span>
@@ -1150,28 +1565,34 @@ export default function Sourcing() {
                 </div>
               )}
 
-              {/* ── Sourced Leads Table ── */}
-              <div className="overflow-hidden rounded-lg border border-border/50 bg-card shadow-sm">
-                {loadingLeads ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="mt-3 text-sm">Synchronizing pipeline CRM...</p>
+              {/* ── Sourced Leads Explorer Content ── */}
+              {loadingLeads ? (
+                <div className="overflow-hidden rounded-lg border border-border/50 bg-card shadow-sm flex flex-col items-center justify-center py-20 text-muted-foreground">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="mt-3 text-sm">Synchronizing pipeline CRM...</p>
+                </div>
+              ) : filteredLeads.length === 0 ? (
+                <div className="overflow-hidden rounded-lg border border-border/50 bg-card shadow-sm flex flex-col items-center justify-center py-20 text-center px-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                    <Target className="h-5 w-5" />
                   </div>
-                ) : filteredLeads.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <Target className="h-5 w-5" />
-                    </div>
-                    <h3 className="mt-4 text-base font-semibold">No prospects sourced</h3>
-                    <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-                      Analyze startup landing pages, or add manual items to seed your outreach pipeline.
-                    </p>
-                  </div>
-                ) : (
+                  <h3 className="mt-4 text-base font-semibold">No prospects sourced</h3>
+                  <p className="mt-1 text-xs text-muted-foreground max-w-sm">
+                    Analyze startup landing pages, or add manual items to seed your outreach pipeline.
+                  </p>
+                </div>
+              ) : prospectsLayout === "kanban" ? (
+                renderKanban()
+              ) : prospectsLayout === "split" ? (
+                renderSplitPane()
+              ) : prospectsLayout === "grid" ? (
+                renderCardGrid()
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-border/50 bg-card shadow-sm">
                   <Table>
                     <TableHeader className="bg-muted/40">
                       <TableRow>
-                        <TableHead className="w-[40px] py-3 text-center">
+                        <TableHead className="w-[40px] py-3 text-center min-w-[40px]">
                           <Checkbox
                             checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
                             onCheckedChange={(checked) => {
@@ -1181,239 +1602,239 @@ export default function Sourcing() {
                           />
                         </TableHead>
 
-                <TableHead className="w-[200px] font-mono text-[10px] tracking-wider uppercase py-3">Company</TableHead>
-                <TableHead className="w-[180px] font-mono text-[10px] tracking-wider uppercase py-3">Founder</TableHead>
-                <TableHead className="w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Socials</TableHead>
-                <TableHead className="w-[100px] text-center font-mono text-[10px] tracking-wider uppercase py-3">ICP Score</TableHead>
-                <TableHead className="w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Contacted</TableHead>
-                <TableHead className="w-[120px] font-mono text-[10px] tracking-wider uppercase py-3">Reply Status</TableHead>
-                <TableHead className="w-[110px] font-mono text-[10px] tracking-wider uppercase py-3">Notion Sync</TableHead>
-                <TableHead className="min-w-[250px] font-mono text-[10px] tracking-wider uppercase py-3">Outreach Notes / Strategy</TableHead>
-                <TableHead className="w-[120px] text-right font-mono text-[10px] tracking-wider uppercase py-3">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLeads.map((lead) => {
-                const parsedDomain = lead.product_hunt_url ? 
-                  (() => {
-                    try {
-                      return new URL(lead.product_hunt_url).hostname.replace("www.", "");
-                    } catch (_) { return ""; }
-                  })() : "";
+                        <TableHead className="w-[200px] min-w-[180px] font-mono text-[10px] tracking-wider uppercase py-3">Company</TableHead>
+                        <TableHead className="w-[180px] min-w-[160px] font-mono text-[10px] tracking-wider uppercase py-3">Founder</TableHead>
+                        <TableHead className="w-[90px] min-w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Socials</TableHead>
+                        <TableHead className="w-[100px] min-w-[100px] text-center font-mono text-[10px] tracking-wider uppercase py-3">ICP Score</TableHead>
+                        <TableHead className="w-[90px] min-w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Contacted</TableHead>
+                        <TableHead className="w-[140px] min-w-[140px] font-mono text-[10px] tracking-wider uppercase py-3">Reply Status</TableHead>
+                        <TableHead className="w-[120px] min-w-[120px] font-mono text-[10px] tracking-wider uppercase py-3">Notion Sync</TableHead>
+                        <TableHead className="min-w-[300px] font-mono text-[10px] tracking-wider uppercase py-3">Outreach Notes / Strategy</TableHead>
+                        <TableHead className="w-[120px] min-w-[100px] text-right font-mono text-[10px] tracking-wider uppercase py-3">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredLeads.map((lead) => {
+                        const parsedDomain = lead.product_hunt_url ? 
+                          (() => {
+                            try {
+                              return new URL(lead.product_hunt_url).hostname.replace("www.", "");
+                            } catch (_) { return ""; }
+                          })() : "";
 
-                return (
-                  <TableRow key={lead.id} className="hover:bg-muted/10 transition-colors">
-                    <TableCell className="align-middle text-center">
-                      <Checkbox 
-                        checked={selectedLeadIds.includes(lead.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedLeadIds(prev => [...prev, lead.id]);
-                          } else {
-                            setSelectedLeadIds(prev => prev.filter(id => id !== lead.id));
-                          }
-                        }}
-                      />
-                    </TableCell>
-                    {/* Company */}
-                    <TableCell className="font-medium align-middle">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-foreground leading-normal">{lead.company_name}</span>
-                        {parsedDomain && (
-                          <a 
-                            href={lead.product_hunt_url!} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="text-[11px] font-mono text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5"
-                          >
-                            {parsedDomain}
-                            <ExternalLink className="h-2.5 w-2.5 inline" />
-                          </a>
-                        )}
-                      </div>
-                    </TableCell>
+                        return (
+                          <TableRow key={lead.id} className="hover:bg-muted/10 transition-colors">
+                            <TableCell className="align-middle text-center min-w-[40px]">
+                              <Checkbox 
+                                checked={selectedLeadIds.includes(lead.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedLeadIds(prev => [...prev, lead.id]);
+                                  } else {
+                                    setSelectedLeadIds(prev => prev.filter(id => id !== lead.id));
+                                  }
+                                }}
+                              />
+                            </TableCell>
+                            {/* Company */}
+                            <TableCell className="font-medium align-middle min-w-[180px] max-w-[220px]">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-foreground leading-normal">{lead.company_name}</span>
+                                {parsedDomain && (
+                                  <a 
+                                    href={lead.product_hunt_url!} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="text-[11px] font-mono text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5"
+                                  >
+                                    {parsedDomain}
+                                    <ExternalLink className="h-2.5 w-2.5 inline" />
+                                  </a>
+                                )}
+                              </div>
+                            </TableCell>
 
-                    {/* Founder & Team size */}
-                    <TableCell className="align-middle">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-foreground">{lead.founder_name || "Unknown"}</span>
-                        <span className="text-[11px] text-muted-foreground mt-0.5">
-                          {lead.employee_count ? `${lead.employee_count} employees` : "Size untracked"}
-                          {lead.is_b2b_saas && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
-                        </span>
-                      </div>
-                    </TableCell>
+                            {/* Founder & Team size */}
+                            <TableCell className="align-middle min-w-[160px]">
+                              <div className="flex flex-col">
+                                <span className="text-sm text-foreground">{lead.founder_name || "Unknown"}</span>
+                                <span className="text-[11px] text-muted-foreground mt-0.5">
+                                  {lead.employee_count ? `${lead.employee_count} employees` : "Size untracked"}
+                                  {lead.is_b2b_saas && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                                </span>
+                              </div>
+                            </TableCell>
 
-                    {/* Socials links */}
-                    <TableCell className="align-middle text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {lead.linkedin_url ? (
-                          <a 
-                            href={lead.linkedin_url} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
-                            title="LinkedIn profile"
-                          >
-                            <Link2 className="h-3.5 w-3.5" />
-                          </a>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/40 font-mono" title="No LinkedIn URL found">-</span>
-                        )}
-                        {lead.twitter_url ? (
-                          <a 
-                            href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
-                            title={`Twitter/X profile: ${lead.twitter_url}`}
-                          >
-                            <span className="text-[10px] font-bold font-mono">X</span>
-                          </a>
-                        ) : null}
-                      </div>
-                    </TableCell>
+                            {/* Socials links */}
+                            <TableCell className="align-middle text-center min-w-[90px]">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {lead.linkedin_url ? (
+                                  <a 
+                                    href={lead.linkedin_url} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
+                                    title="LinkedIn profile"
+                                  >
+                                    <Link2 className="h-3.5 w-3.5" />
+                                  </a>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground/40 font-mono" title="No LinkedIn URL found">-</span>
+                                )}
+                                {lead.twitter_url ? (
+                                  <a 
+                                    href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
+                                    title={`Twitter/X profile: ${lead.twitter_url}`}
+                                  >
+                                    <span className="text-[10px] font-bold font-mono">X</span>
+                                  </a>
+                                ) : null}
+                              </div>
+                            </TableCell>
 
-                    {/* ICP Score */}
-                    <TableCell className="align-middle text-center">
-                      <Badge variant="outline" className={`font-mono text-xs font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                        {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
-                      </Badge>
-                    </TableCell>
+                            {/* ICP Score */}
+                            <TableCell className="align-middle text-center min-w-[100px]">
+                              <Badge variant="outline" className={`font-mono text-xs font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
+                                {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
+                              </Badge>
+                            </TableCell>
 
-                    {/* Contacted checkbox */}
-                    <TableCell className="align-middle text-center">
-                      <div className="flex items-center justify-center">
-                        <button 
-                          onClick={() => toggleContacted(lead.id, lead.is_contacted)}
-                          className={`rounded border p-1 transition-all ${
-                            lead.is_contacted 
-                              ? "bg-primary border-primary text-primary-foreground" 
-                              : "border-border/60 hover:border-primary/60 text-transparent"
-                          }`}
-                          aria-label="Toggle outreach contacted"
-                        >
-                          <Check className="h-3 w-3 stroke-[3]" />
-                        </button>
-                      </div>
-                    </TableCell>
+                            {/* Contacted checkbox */}
+                            <TableCell className="align-middle text-center min-w-[90px]">
+                              <div className="flex items-center justify-center">
+                                <button 
+                                  onClick={() => toggleContacted(lead.id, lead.is_contacted)}
+                                  className={`rounded border p-1 transition-all ${
+                                    lead.is_contacted 
+                                      ? "bg-primary border-primary text-primary-foreground" 
+                                      : "border-border/60 hover:border-primary/60 text-transparent"
+                                  }`}
+                                  aria-label="Toggle outreach contacted"
+                                >
+                                  <Check className="h-3 w-3 stroke-[3]" />
+                                </button>
+                              </div>
+                            </TableCell>
 
-                    {/* Reply dropdown */}
-                    <TableCell className="align-middle">
-                      <Select 
-                        value={lead.reply_status} 
-                        onValueChange={(val) => handleUpdateReplyStatus(lead.id, val)}
-                      >
-                        <SelectTrigger className="h-8 text-xs border-border/50 bg-card">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none"><span className="text-muted-foreground">- No status -</span></SelectItem>
-                          <SelectItem value="pending">⏳ Pending</SelectItem>
-                          <SelectItem value="replied">✅ Replied</SelectItem>
-                          <SelectItem value="ignored">❌ No Reply</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
+                            {/* Reply dropdown */}
+                            <TableCell className="align-middle min-w-[140px]">
+                              <Select 
+                                value={lead.reply_status} 
+                                onValueChange={(val) => handleUpdateReplyStatus(lead.id, val)}
+                              >
+                                <SelectTrigger className="h-8 text-xs border-border/50 bg-card">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none"><span className="text-muted-foreground">- No status -</span></SelectItem>
+                                  <SelectItem value="pending">⏳ Pending</SelectItem>
+                                  <SelectItem value="replied">✅ Replied</SelectItem>
+                                  <SelectItem value="ignored">❌ No Reply</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
 
-                    {/* Notion Sync Status */}
-                    <TableCell className="align-middle">
-                      <div className="flex items-center gap-1.5">
-                        {lead.notion_sync_status === "synced" && (
-                          <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 font-medium text-[10px] px-1.5 py-0.5">
-                            Synced
-                          </Badge>
-                        )}
-                        {lead.notion_sync_status === "syncing" && (
-                          <Badge variant="outline" className="border-primary/25 bg-primary/5 text-primary font-medium text-[10px] px-1.5 py-0.5 flex items-center gap-1">
-                            <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing
-                          </Badge>
-                        )}
-                        {lead.notion_sync_status === "failed" && (
-                          <div className="flex items-center gap-1" title={lead.notion_sync_error || "Sync failed"}>
-                            <Badge variant="outline" className="border-destructive/25 bg-destructive/5 text-destructive font-medium text-[10px] px-1.5 py-0.5">
-                              Failed
-                            </Badge>
-                            <button 
-                              onClick={() => syncSingleLeadWithProgress(lead)}
-                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                              title="Retry Sync"
-                            >
-                              <RefreshCw className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-                        {(lead.notion_sync_status === "not_synced" || !lead.notion_sync_status) && (
-                          <div className="flex items-center gap-1">
-                            <Badge variant="outline" className="border-border/60 bg-muted/20 text-muted-foreground font-medium text-[10px] px-1.5 py-0.5">
-                              Unsynced
-                            </Badge>
-                            <button 
-                              onClick={() => syncSingleLeadWithProgress(lead)}
-                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-primary"
-                              title="Sync to Notion"
-                            >
-                              <Play className="h-3 w-3 fill-current" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
+                            {/* Notion Sync Status */}
+                            <TableCell className="align-middle min-w-[120px]">
+                              <div className="flex items-center gap-1.5">
+                                {lead.notion_sync_status === "synced" && (
+                                  <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 font-medium text-[10px] px-1.5 py-0.5">
+                                    Synced
+                                  </Badge>
+                                )}
+                                {lead.notion_sync_status === "syncing" && (
+                                  <Badge variant="outline" className="border-primary/25 bg-primary/5 text-primary font-medium text-[10px] px-1.5 py-0.5 flex items-center gap-1">
+                                    <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing
+                                  </Badge>
+                                )}
+                                {lead.notion_sync_status === "failed" && (
+                                  <div className="flex items-center gap-1" title={lead.notion_sync_error || "Sync failed"}>
+                                    <Badge variant="outline" className="border-destructive/25 bg-destructive/5 text-destructive font-medium text-[10px] px-1.5 py-0.5">
+                                      Failed
+                                    </Badge>
+                                    <button 
+                                      onClick={() => syncSingleLeadWithProgress(lead)}
+                                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                      title="Retry Sync"
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )}
+                                {(lead.notion_sync_status === "not_synced" || !lead.notion_sync_status) && (
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="border-border/60 bg-muted/20 text-muted-foreground font-medium text-[10px] px-1.5 py-0.5">
+                                      Unsynced
+                                    </Badge>
+                                    <button 
+                                      onClick={() => syncSingleLeadWithProgress(lead)}
+                                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-primary"
+                                      title="Sync to Notion"
+                                    >
+                                      <Play className="h-3 w-3 fill-current" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
 
-                    {/* Notes (Clean display, click to open full dialog editor) */}
-                    <TableCell className="align-middle text-xs max-w-[280px]">
-                      <div 
-                        onClick={() => {
-                          setActiveNotesLead(lead);
-                          setNotesDraft(lead.notes || "");
-                        }}
-                        className="cursor-pointer group flex items-start justify-between gap-1 hover:bg-muted/30 p-1.5 rounded transition-colors min-h-[24px]"
-                        title="Click to view/edit outreach notes"
-                      >
-                        <span className="text-muted-foreground line-clamp-2 leading-tight">
-                          {lead.notes ? (
-                            stripMarkdown(lead.notes)
-                          ) : (
-                            <span className="text-muted-foreground/30 italic font-sans">Add strategic notes...</span>
-                          )}
-                        </span>
-                        <Edit2 className="h-2.5 w-2.5 text-muted-foreground/0 group-hover:text-muted-foreground/60 shrink-0 mt-0.5 transition-opacity" />
-                      </div>
-                    </TableCell>
+                            {/* Notes (Clean display, click to open full dialog editor) */}
+                            <TableCell className="align-middle text-xs min-w-[300px]">
+                              <div 
+                                onClick={() => {
+                                  setActiveNotesLead(lead);
+                                  setNotesDraft(lead.notes || "");
+                                }}
+                                className="cursor-pointer group flex items-start justify-between gap-1 hover:bg-muted/30 p-1.5 rounded transition-colors min-h-[24px]"
+                                title="Click to view/edit outreach notes"
+                              >
+                                <span className="text-muted-foreground line-clamp-2 leading-tight">
+                                  {lead.notes ? (
+                                    stripMarkdown(lead.notes)
+                                  ) : (
+                                    <span className="text-muted-foreground/30 italic font-sans">Add strategic notes...</span>
+                                  )}
+                                </span>
+                                <Edit2 className="h-2.5 w-2.5 text-muted-foreground/0 group-hover:text-muted-foreground/60 shrink-0 mt-0.5 transition-opacity" />
+                              </div>
+                            </TableCell>
 
-                    {/* Integrations & Delete actions */}
-                    <TableCell className="align-middle text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                          onClick={() => syncSingleLeadWithProgress(lead)}
-                          title="Export to Notion"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                            <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
-                          </svg>
-                        </Button>
+                            {/* Integrations & Delete actions */}
+                            <TableCell className="align-middle text-right min-w-[100px]">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                                  onClick={() => syncSingleLeadWithProgress(lead)}
+                                  title="Export to Notion"
+                                >
+                                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                                    <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
+                                  </svg>
+                                </Button>
 
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDeleteLead(lead.id, lead.company_name)}
-                          title="Delete prospect"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-            </Table>
-          )}
-        </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleDeleteLead(lead.id, lead.company_name)}
+                                  title="Delete prospect"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
       </div> {/* end right column */}
       </div> {/* end two-column layout */}
       </div> {/* end page content */}
