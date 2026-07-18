@@ -122,8 +122,8 @@ function extractJson(raw: string, expectArray = false): any {
   }
 }
 
-// Call Kimi AI
-async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
+// Call Kimi AI — model defaults to 8k for single-profile calls; pass 32k for bulk arrays
+async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false, model = "moonshot-v1-8k"): Promise<any> {
   const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -131,7 +131,7 @@ async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "moonshot-v1-8k",
+      model,
       temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },
@@ -760,7 +760,8 @@ Return ONLY a valid JSON array matching this exact schema:
           // Use the same robust extractJson with expectArray=true — handles fences and balanced brackets
           if (kimiApiKey) {
             try {
-              arrayResult = await callKimi(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`, kimiApiKey, true);
+              // Use moonshot-v1-32k for bulk arrays — 8k context overflows with long pastes
+              arrayResult = await callKimi(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`, kimiApiKey, true, "moonshot-v1-32k");
             } catch (e: any) {
               console.warn("Kimi bulk failed:", e.message);
             }
