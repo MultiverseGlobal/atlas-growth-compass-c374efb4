@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
-  LayoutDashboard, Users, Database, Shield, Compass, 
+  LayoutDashboard, Users, Shield, Compass, 
   LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon, Lock,
-  Palette, Moon, Sun
+  Settings as SettingsIcon
 } from "lucide-react";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,7 +15,7 @@ import { useTheme } from "@/hooks/useTheme";
 const hqNav = [
   { to: "/hq/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/hq/prospects", icon: Users, label: "Prospects" },
-  { to: "/hq/settings", icon: Database, label: "CRM Mappings" },
+  { to: "/hq/settings", icon: SettingsIcon, label: "Settings" },
   { to: "/hq/team", icon: Shield, label: "Team & Health" },
 ];
 
@@ -120,35 +120,6 @@ export default function HqShell() {
 
         {/* Sidebar Footer Operations */}
         <div className="p-3 border-t border-border/60 space-y-1">
-          {/* Theme cycling toggle */}
-          <button
-            onClick={cycleTheme}
-            aria-label="Cycle theme"
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
-              collapsed ? "justify-center" : ""
-            }`}
-          >
-            {theme === "dark" ? (
-              <Moon className="h-4 w-4 text-amber-400" />
-            ) : theme === "paper" ? (
-              <Palette className="h-4 w-4 text-amber-500" />
-            ) : (
-              <Sun className="h-4 w-4 text-primary" />
-            )}
-            {!collapsed && <span>Theme: {theme === "clean" ? "Clean" : theme === "paper" ? "Paper" : "Dark"}</span>}
-          </button>
-
-          {/* Back to Client App */}
-          <button
-            onClick={() => navigate("/app")}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
-              collapsed ? "justify-center" : ""
-            }`}
-            title="Back to client workspace"
-          >
-            <Compass className="h-4 w-4 text-emerald-500" />
-            {!collapsed && <span>Return to App</span>}
-          </button>
 
           {/* Toggle sidebar state */}
           <button

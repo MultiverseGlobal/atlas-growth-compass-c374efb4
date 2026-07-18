@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { 
   Database, RefreshCw, CheckCircle2, AlertTriangle, 
-  Settings, Loader2, Link2, Info, Plus
+  Settings, Loader2, Link2, Info, Palette, Compass, Moon, Sun
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTheme } from "@/hooks/useTheme";
+import { useNavigate } from "react-router-dom";
 
 interface NotionDatabase {
   id: string;
@@ -22,6 +24,9 @@ export default function HqSettings() {
   const [notionLoading, setNotionLoading] = useState(false);
   const [defaultNotionDb, setDefaultNotionDb] = useState(() => localStorage.getItem("atlas.sourcing.default_notion_db") || "");
   const [autoNotion, setAutoNotion] = useState(() => localStorage.getItem("atlas.sourcing.auto_notion") === "true");
+
+  const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
 
   const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
 
@@ -105,13 +110,14 @@ export default function HqSettings() {
     <div className="p-6 md:p-8 space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       {/* Header */}
       <div className="border-b border-border/60 pb-5">
-        <h1 className="text-3xl font-bold tracking-tight font-display">CRM Mappings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Configure your outbound Notion database pipelines and automation rules.</p>
+        <h1 className="text-3xl font-bold tracking-tight font-display">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">Configure outbound pipeline integrations, visual preferences, and portal context transition settings.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Connection Setup */}
+        {/* Connection Setup & Preferences */}
         <div className="lg:col-span-2 space-y-6">
+          {/* CRM Connection */}
           <div className="rounded-xl border border-border/60 bg-card p-6 space-y-6 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center border border-border/60">
@@ -201,6 +207,88 @@ export default function HqSettings() {
                 </Button>
               </div>
             )}
+          </div>
+
+          {/* Theme Preference Settings */}
+          <div className="rounded-xl border border-border/60 bg-card p-6 space-y-6 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center border border-border/60">
+                <Palette className="h-5 w-5 text-amber-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">HQ Console Theme Preference</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Select a personalized aesthetic style for your administration dashboard.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+              {[
+                { 
+                  id: "clean", 
+                  name: "Clean Light", 
+                  desc: "Minimalist, sleek, light theme.", 
+                  icon: Sun 
+                },
+                { 
+                  id: "paper", 
+                  name: "Paper Sepia", 
+                  desc: "Nordic warm parchment theme.", 
+                  icon: Palette 
+                },
+                { 
+                  id: "dark", 
+                  name: "Midnight Dark", 
+                  desc: "Carbon theme with glow highlights.", 
+                  icon: Moon 
+                }
+              ].map((t) => {
+                const isActive = theme === t.id;
+                const IconComponent = t.icon;
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => setTheme(t.id as any)}
+                    className={`cursor-pointer rounded-lg border p-4 transition-all hover:border-primary/50 relative ${
+                      isActive 
+                        ? "border-primary bg-primary/[0.02] shadow-[0_0_12px_rgba(var(--primary),0.05)]" 
+                        : "border-border/60 bg-card/50"
+                    }`}
+                  >
+                    {isActive && (
+                      <span className="absolute top-2 right-2 text-[8px] font-mono uppercase bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-full">
+                        Active
+                      </span>
+                    )}
+                    <IconComponent className={`h-4.5 w-4.5 mb-2.5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                    <div className="text-xs font-semibold text-foreground">{t.name}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 leading-normal">{t.desc}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Context Transitions */}
+          <div className="rounded-xl border border-border/60 bg-card p-6 space-y-6 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center border border-border/60">
+                <Compass className="h-5 w-5 text-amber-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">App Portal Switcher</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Return back to the main client growth compass app workspace.</p>
+              </div>
+            </div>
+
+            <div className="pt-1">
+              <Button 
+                onClick={() => navigate("/app")} 
+                className="h-9 px-4 gap-2 bg-primary text-primary-foreground hover:bg-primary/95 font-semibold text-xs"
+              >
+                <Compass className="h-4 w-4" />
+                Return to Growth Compass Workspace
+              </Button>
+            </div>
           </div>
         </div>
 
