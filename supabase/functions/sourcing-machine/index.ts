@@ -77,24 +77,26 @@ async function scrapeUrl(url: string): Promise<{ title: string; description: str
   }
 }
 
-// Robust JSON extractor — strips markdown code fences and uses balanced-brace scanning
-// to avoid the "Unexpected non-whitespace character" error caused by greedy regex.
-// When expectArray=true it locates the outermost [ ... ] instead of { ... }.
+// Robust JSON extractor — strips markdown code fences and uses balanced-brace scanning.
+// When expectArray=true and the array is TRUNCATED (no closing ]), it falls back to
+// truncation recovery: salvages every complete {...} object before the cutoff.
 function extractJson(raw: string, expectArray = false): any {
-  // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
-  let text = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+  // 1. Strip markdown code fences
+  const text = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
 
-  // 2. Find the outermost opener ({ or [) and walk balanced delimiters
+  // 2. Find the outermost opener and walk balanced delimiters
   const openChar  = expectArray ? "[" : "{";
   const closeChar = expectArray ? "]" : "}";
   const start = text.indexOf(openChar);
-  if (start === -1) throw new Error(`No JSON ${expectArray ? "array" : "object"} found in AI response`);
+  if (start === -1) {
+    // No array? Try extracting a single object and wrapping it
+    if (expectArray) {
+      try { return [extractJson(raw, false)]; } catch (_) {}
+    }
+    throw new Error(`No JSON ${expectArray ? "array" : "object"} found in AI response`);
+  }
 
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  let end = -1;
-
+  let depth = 0, inString = false, escape = false, end = -1;
   for (let i = start; i < text.length; i++) {
     const ch = text[i];
     if (escape) { escape = false; continue; }
@@ -108,13 +110,57 @@ function extractJson(raw: string, expectArray = false): any {
     }
   }
 
-  if (end === -1) throw new Error(`Unterminated JSON ${expectArray ? "array" : "object"} in AI response`);
+  // ── TRUNCATION RECOVERY (array only) ────────────────────────────────────────
+  if (end === -1 && expectArray) {
+    const recovered: any[] = [];
+    let pos = start + 1; // skip opening [
+    while (pos < text.length) {
+      // Skip whitespace, commas, newlines between objects
+      while (pos < text.length && /[\s,]/.test(text[pos])) pos++;
+      if (pos >= text.length || text[pos] !== "{") break;
 
+      // Find the matching } for this object
+      let d = 0, inS = false, esc2 = false, objEnd = -1;
+      for (let i = pos; i < text.length; i++) {
+        const ch = text[i];
+        if (esc2) { esc2 = false; continue; }
+        if (ch === "\\" && inS) { esc2 = true; continue; }
+        if (ch === '"') { inS = !inS; continue; }
+        if (inS) continue;
+        if (ch === "{") d++;
+        else if (ch === "}") { d--; if (d === 0) { objEnd = i; break; } }
+      }
+
+      if (objEnd === -1) {
+        // This object is cut off — stop here
+        console.warn(`[extractJson] Array truncated after ${recovered.length} complete object(s). Returning what was recovered.`);
+        break;
+      }
+
+      try {
+        recovered.push(JSON.parse(text.slice(pos, objEnd + 1)));
+      } catch (parseErr: any) {
+        console.warn(`[extractJson] Skipping malformed object at pos ${pos}: ${parseErr.message}`);
+      }
+      pos = objEnd + 1;
+    }
+
+    if (recovered.length > 0) {
+      console.log(`[extractJson] Truncation recovery: salvaged ${recovered.length} complete profile(s) from truncated array.`);
+      return recovered;
+    }
+    throw new Error(`Unterminated JSON array in AI response (0 complete objects recovered — response may be empty)`);
+  }
+
+  if (end === -1) {
+    throw new Error(`Unterminated JSON object in AI response`);
+  }
+
+  // ── NORMAL PATH ─────────────────────────────────────────────────────────────
   const jsonStr = text.slice(start, end + 1);
   try {
     return JSON.parse(jsonStr);
   } catch (e: any) {
-    // If array parse fails, attempt fallback to object parse
     if (expectArray) {
       try { return [extractJson(jsonStr, false)]; } catch (_) {}
     }
