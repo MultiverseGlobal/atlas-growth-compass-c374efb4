@@ -635,6 +635,24 @@ Parsed profile data for **${founder}** at **${company}**.
       const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
 
       if (!kimiApiKey && !nimApiKey) {
+        // No AI key — for raw_text, attempt rule-based single extraction
+        if (body.raw_text) {
+          const firstLine = body.raw_text.split("\n")[0]?.trim() || "Startup";
+          const fallbackLead = {
+            company_name: firstLine.length < 40 && !firstLine.includes("http") ? firstLine : "Startup",
+            founder_name: null,
+            linkedin_url: (body.raw_text.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9\-_]+/i) || [])[0] || null,
+            twitter_url: (body.raw_text.match(/https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/[a-zA-Z0-9\-_]+/i) || [])[0] || null,
+            employee_count: 5,
+            is_b2b_saas: /\b(saas|b2b|api|platform|software|workflow|tool)\b/i.test(body.raw_text),
+            icp_score: 5,
+            notes: "## Summary\nNo AI key configured — limited extraction.\n\n## ICP Reasoning\nProvide MOONSHOT_API_KEY or NVIDIA_NIM_API_KEY for full scoring.\n\n## Founder Signals\nN/A\n\n## Recommended Outreach\nReview profile manually.",
+            product_hunt_url: null
+          };
+          return new Response(JSON.stringify({ leads: [fallbackLead], total: 1 }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
         return new Response(JSON.stringify({
           error: "No AI API key configured. Please set MOONSHOT_API_KEY or NVIDIA_NIM_API_KEY in Supabase secrets."
         }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -795,7 +813,7 @@ Return ONLY a valid JSON array (even if there is only one result):
       }
 
       return new Response(JSON.stringify({ error: "urls[] or raw_text is required for bulk-source" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
