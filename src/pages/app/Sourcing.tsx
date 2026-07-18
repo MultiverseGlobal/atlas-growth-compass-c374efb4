@@ -1296,24 +1296,6 @@ export default function Sourcing() {
             </div>
           </div>
 
-          {/* ── Stats Row ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            {[
-              { icon: <Target className="h-4 w-4" />, value: statsTotal, label: "Total Leads", color: "text-primary bg-primary/10" },
-              { icon: <TrendingUp className="h-4 w-4" />, value: `${statsIcpAvg}/10`, label: "Avg ICP Score", color: "text-amber-500 bg-amber-500/10" },
-              { icon: <Users className="h-4 w-4" />, value: `${statsSaasRatio}%`, label: "B2B SaaS", color: "text-sky-500 bg-sky-500/10" },
-              { icon: <CheckCircle2 className="h-4 w-4" />, value: `${statsContactRate}%`, label: "Contacted", color: "text-emerald-500 bg-emerald-500/10" },
-            ].map((s, i) => (
-              <div key={i} className="rounded-xl border border-border/50 bg-card/60 px-4 py-3 shadow-sm flex items-center gap-3">
-                <div className={`p-2 rounded-lg shrink-0 ${s.color}`}>{s.icon}</div>
-                <div>
-                  <div className="text-xl font-bold tracking-tight font-display">{s.value}</div>
-                  <div className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">{s.label}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
           {/* ── Two-Column Layout ── */}
           <div className="flex flex-col xl:flex-row gap-6">
 

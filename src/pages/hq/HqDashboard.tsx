@@ -15,6 +15,8 @@ interface DashboardStats {
   notionSyncedCount: number;
   notionPendingCount: number;
   notionFailedCount: number;
+  saasRatio: number;
+  contactRate: number;
 }
 
 export default function HqDashboard() {
@@ -32,7 +34,7 @@ export default function HqDashboard() {
     try {
       const { data, error } = await supabase
         .from("leads")
-        .select("icp_score, is_contacted, exported_to_notion, notion_sync_status");
+        .select("icp_score, is_contacted, exported_to_notion, notion_sync_status, is_b2b_saas");
 
       if (error) throw error;
       const leads = data as any[];
@@ -40,6 +42,7 @@ export default function HqDashboard() {
       const total = leads?.length || 0;
       let sumIcp = 0;
       let contacted = 0;
+      let saasCount = 0;
       let synced = 0;
       let pending = 0;
       let failed = 0;
@@ -47,6 +50,7 @@ export default function HqDashboard() {
       leads?.forEach((l) => {
         sumIcp += l.icp_score || 0;
         if (l.is_contacted) contacted++;
+        if (l.is_b2b_saas) saasCount++;
         if (l.exported_to_notion || l.notion_sync_status === "synced") synced++;
         else if (l.notion_sync_status === "syncing" || l.notion_sync_status === "not_synced") pending++;
         else if (l.notion_sync_status === "failed") failed++;
@@ -58,7 +62,9 @@ export default function HqDashboard() {
         contactedCount: contacted,
         notionSyncedCount: synced,
         notionPendingCount: pending,
-        notionFailedCount: failed
+        notionFailedCount: failed,
+        saasRatio: total > 0 ? Math.round((saasCount / total) * 100) : 0,
+        contactRate: total > 0 ? Math.round((contacted / total) * 100) : 0
       });
     } catch (err: any) {
       console.error(err);
@@ -71,23 +77,10 @@ export default function HqDashboard() {
   const diagnoseEdgeFunction = async () => {
     setCheckingSecrets(true);
     try {
-      // Calling sourcing-machine action: 'validate-notion-database' or diagnostic ping.
-      // We can just verify if the keys are set on backend by invoking with an empty request
-      // and checking response error codes. Let's see if sourcing-machine has a validation action.
-      // In indexing of sourcing-machine we saw:
-      // action: "source" | "export-notion" | "list-notion-databases" | "validate-notion-database"
       const { data, error } = await supabase.functions.invoke("sourcing-machine", {
         body: { action: "list-notion-databases" }
       });
       
-      // If we got databases list or an integration error, the function successfully ran.
-      // If we got "No AI API key configured" error, we know the keys status.
-      // Wait, let's check what keys are loaded:
-      // In sourcing-machine, if both are missing, it throws "No AI API key configured"
-      const hasKey = error || (data && data.error === "No AI API key configured") ? false : true;
-      
-      // Let's check from the environment. Since Vite cannot read Deno env, we just mock check
-      // based on whether the endpoint succeeds without "no api key configured" error
       const keysSet = !error && (!data || data.error !== "No AI API key configured");
       setSecretsStatus({
         moonshot: keysSet,
@@ -133,45 +126,52 @@ export default function HqDashboard() {
       </div>
 
       {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {[
           {
-            title: "Total Prospects Sourced",
+            title: "Total Leads",
             value: stats?.totalLeads ?? 0,
             description: "Profiles extracted and indexed",
             icon: Users,
             color: "text-amber-500 bg-amber-500/10 border-amber-500/20"
           },
           {
-            title: "Average ICP Score",
+            title: "Avg ICP Score",
             value: `${stats?.avgIcp ?? 0}/10`,
             description: "Ideal Customer Profile fit match",
             icon: TrendingUp,
-            color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+            color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/25"
           },
           {
-            title: "Prospects Contacted",
-            value: stats?.contactedCount ?? 0,
-            description: `Outreach progress: ${stats?.totalLeads ? Math.round(((stats.contactedCount) / stats.totalLeads) * 100) : 0}%`,
+            title: "B2B SaaS",
+            value: `${stats?.saasRatio ?? 0}%`,
+            description: "Product model classification",
+            icon: Database,
+            color: "text-sky-500 bg-sky-500/10 border-sky-500/20"
+          },
+          {
+            title: "Contacted",
+            value: `${stats?.contactRate ?? 0}%`,
+            description: `${stats?.contactedCount ?? 0} outreach attempts`,
             icon: CheckSquare,
             color: "text-cyan-500 bg-cyan-500/10 border-cyan-500/20"
           },
           {
-            title: "Synced to Notion CRM",
+            title: "Synced Notion",
             value: stats?.notionSyncedCount ?? 0,
             description: `${stats?.notionPendingCount ?? 0} pending, ${stats?.notionFailedCount ?? 0} failed`,
-            icon: Database,
+            icon: CheckCircle2,
             color: "text-purple-500 bg-purple-500/10 border-purple-500/20"
           }
         ].map((c, i) => (
           <div key={i} className="rounded-xl border border-border/60 bg-card p-5 flex items-center justify-between shadow-lg">
-            <div className="space-y-1.5">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider font-mono">{c.title}</span>
-              <div className="text-3xl font-bold font-display">{c.value}</div>
-              <p className="text-[11px] text-muted-foreground font-mono">{c.description}</p>
+            <div className="space-y-1.5 min-w-0">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono block truncate">{c.title}</span>
+              <div className="text-2xl font-bold font-display leading-none">{c.value}</div>
+              <p className="text-[10px] text-muted-foreground font-mono truncate mt-1">{c.description}</p>
             </div>
-            <div className={`h-11 w-11 rounded-lg flex items-center justify-center border ${c.color} shadow-sm shrink-0`}>
-              <c.icon className="h-5 w-5" />
+            <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${c.color} shadow-sm shrink-0 ml-3`}>
+              <c.icon className="h-4.5 w-4.5" />
             </div>
           </div>
         ))}
