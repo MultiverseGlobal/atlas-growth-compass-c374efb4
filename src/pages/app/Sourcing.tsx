@@ -100,6 +100,15 @@ export default function Sourcing() {
   // Layout preference & split pane selector state
   const [prospectsLayout, setProspectsLayout] = useState(() => localStorage.getItem("atlas.hq.prospects_layout") || "table");
   const [selectedSplitLeadId, setSelectedSplitLeadId] = useState<string | null>(null);
+  const [showSidebar, setShowSidebar] = useState(() => localStorage.getItem("atlas.hq.prospects_sidebar") !== "false");
+
+  const toggleSidebar = () => {
+    setShowSidebar(prev => {
+      const next = !prev;
+      localStorage.setItem("atlas.hq.prospects_sidebar", String(next));
+      return next;
+    });
+  };
 
   // Export Notion Modal State
   const [showNotionModal, setShowNotionModal] = useState(false);
@@ -1300,7 +1309,7 @@ export default function Sourcing() {
           <div className="flex flex-col xl:flex-row gap-6">
 
             {/* ─── LEFT: Sourcing Sidebar ─── */}
-            <div className="xl:w-80 shrink-0 space-y-4">
+            <div className={`xl:w-80 shrink-0 space-y-4 transition-all duration-300 ${showSidebar ? "block" : "hidden"}`}>
 
               {/* Sourcing Input Card */}
               <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
@@ -1334,30 +1343,34 @@ export default function Sourcing() {
                     {sourcingMode === "url" ? (
                       <div className="flex flex-col gap-2">
                         <Input
-                          type="text"
-                          placeholder="https://example.com or producthunt.com/posts/..."
+                          type="url"
+                          placeholder="https://example.com or producthunt.co"
                           value={urlInput}
                           onChange={(e) => setUrlInput(e.target.value)}
-                          disabled={sourcing}
-                          className="h-9 bg-background text-xs"
+                          className="text-xs h-9 bg-background"
+                          required={sourcingMode === "url"}
                         />
-                        <p className="text-[10px] text-amber-600 leading-normal flex items-start gap-1 bg-amber-500/5 border border-amber-500/20 p-2 rounded-md">
-                          <Info className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
-                          LinkedIn & X/Twitter block crawlers — use Paste Text instead.
-                        </p>
+                        <div className="rounded-md border border-amber-500/10 bg-amber-500/[0.02] p-2 flex gap-1.5 items-start">
+                          <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                          <p className="text-[10px] text-muted-foreground leading-normal">
+                            LinkedIn & X/Twitter block crawlers — use Paste Text instead.
+                          </p>
+                        </div>
                       </div>
                     ) : (
-                      <Textarea
-                        placeholder="Paste page text here — Kimi AI will extract founder details, socials, ICP score, and outreach notes..."
-                        value={rawTextInput}
-                        onChange={(e) => setRawTextInput(e.target.value)}
-                        disabled={sourcing}
-                        className="min-h-[120px] bg-background text-xs resize-none"
-                      />
+                      <div className="flex flex-col gap-2">
+                        <Textarea
+                          placeholder="Paste raw startup information, product descriptions, or founder profiles..."
+                          value={rawTextInput}
+                          onChange={(e) => setRawTextInput(e.target.value)}
+                          className="min-h-[140px] text-xs bg-background font-sans resize-y"
+                          required={sourcingMode === "text"}
+                        />
+                      </div>
                     )}
-                    <Button
+
+                    <Button 
                       type="submit"
-                      size="sm"
                       disabled={sourcing || (sourcingMode === "url" ? !urlInput.trim() : !rawTextInput.trim())}
                       className="h-9 gap-1.5 font-medium w-full"
                     >
@@ -1394,92 +1407,6 @@ export default function Sourcing() {
                   )}
                 </div>
               </div>
-
-              {/* Notion Settings Card */}
-              <div className="rounded-xl border border-border/60 bg-card shadow-sm p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                    <Database className="h-3.5 w-3.5 text-primary" /> Notion CRM
-                  </span>
-                  {integrations.some(i => i.provider === "notion" && i.status === "active") ? (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">✓ Connected</span>
-                  ) : (
-                    <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1 px-2" onClick={connectNotion}>
-                      <ExternalLink className="h-2.5 w-2.5" /> Connect
-                    </Button>
-                  )}
-                </div>
-
-                {integrations.some(i => i.provider === "notion" && i.status === "active") && (
-                  <>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Target Database</label>
-                      <Select
-                        value={defaultNotionDb}
-                        onValueChange={(val) => {
-                          setDefaultNotionDb(val);
-                          localStorage.setItem("atlas.sourcing.default_notion_db", val);
-                          
-                          // Save to integrations settings table in Supabase
-                          const db = notionDatabases.find(d => d.id === val);
-                          const dbTitle = db ? db.title : "Notion Database";
-                          const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
-                          if (notionIntegration) {
-                            updateSettings.mutate({
-                              integrationId: notionIntegration.id,
-                              settings: {
-                                ...notionIntegration.settings,
-                                notion_database_id: val,
-                                notion_database_name: dbTitle
-                              }
-                            });
-                            toast.success(`Active export database set to: ${dbTitle}`);
-                          } else {
-                            toast.success("Default database selected locally");
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="w-full h-8 bg-background text-xs">
-                          <SelectValue placeholder={notionLoading ? "Loading..." : "Select database"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {notionDatabases.length === 0 ? (
-                            <SelectItem value="none" disabled>No databases found</SelectItem>
-                          ) : (
-                            notionDatabases.map(db => (
-                              <SelectItem key={db.id} value={db.id}>{db.title}</SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="auto-notion"
-                          checked={autoNotion}
-                          onCheckedChange={(checked) => {
-                            setAutoNotion(!!checked);
-                            localStorage.setItem("atlas.sourcing.auto_notion", String(!!checked));
-                            toast.success(!!checked ? "Auto-push enabled" : "Auto-push disabled");
-                          }}
-                        />
-                        <label htmlFor="auto-notion" className="text-[11px] text-muted-foreground cursor-pointer">Auto-push leads</label>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => loadNotionDatabasesList(false)}
-                        className="text-[10px] h-6 text-primary hover:bg-primary/5 gap-1 px-2"
-                      >
-                        <RefreshCw className="h-2.5 w-2.5" /> Reload
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-
             </div>
 
             {/* ─── RIGHT: Pipeline Table ─── */}
@@ -1521,6 +1448,16 @@ export default function Sourcing() {
                       <SelectItem value="grid">Card Grid</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={toggleSidebar} 
+                    className="w-full sm:w-auto h-9 text-xs gap-1.5 border-border/60 bg-card font-medium"
+                    title={showSidebar ? "Hide sourcing inputs panel" : "Show sourcing inputs panel"}
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    <span>{showSidebar ? "Hide Scanner" : "Show Scanner"}</span>
+                  </Button>
                 </div>
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5 shrink-0">
                   <span><strong>{filteredLeads.length}</strong> of <strong>{leads.length}</strong> leads</span>
