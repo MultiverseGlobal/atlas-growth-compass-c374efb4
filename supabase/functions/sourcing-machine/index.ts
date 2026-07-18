@@ -13,17 +13,19 @@ interface SourcingRequest {
   raw_text?: string;
   lead?: {
     id?: string;
-    company_name: string;
-    founder_name?: string | null;
-    linkedin_url?: string | null;
-    twitter_url?: string | null;
-    employee_count?: number | null;
-    is_b2b_saas: boolean;
+    prospect: string;
+    company: string;
+    website: string;
+    founder_thesis: string;
+    goal?: string | null;
     icp_score: number;
+    next_action?: string | null;
     notes?: string | null;
+    priority?: string | null;
+    source: string;
+    stage: string;
     is_contacted?: boolean;
     reply_status?: string;
-    product_hunt_url?: string | null;
   };
   database_id?: string;
   duplicate_behavior?: "update" | "duplicate" | "skip";
@@ -192,7 +194,7 @@ function parseNotesToNotionBlocks(notesText: string) {
   return blocks;
 }
 
-// Auto-detect mappings from Notion properties list
+// Auto-detect mappings from Notion properties list to fit the "Atlas Pipeline CRM" schema
 function autoMapProperties(properties: any) {
   const propertyList = Object.entries(properties).map(([name, val]: [string, any]) => ({
     name,
@@ -202,55 +204,47 @@ function autoMapProperties(properties: any) {
   const mappings: Record<string, string> = {};
   const validationErrors: string[] = [];
 
-  const findMatch = (candidates: string[], type: string) => {
+  const findMatch = (candidates: string[], type: string, alternativeType?: string) => {
     // Exact match
-    const exact = propertyList.find(p => candidates.includes(p.name.toLowerCase()) && p.type === type);
+    const exact = propertyList.find(p => 
+      candidates.includes(p.name.toLowerCase()) && 
+      (p.type === type || (alternativeType && p.type === alternativeType))
+    );
     if (exact) return exact.name;
     // Partial match
-    const partial = propertyList.find(p => candidates.some(c => p.name.toLowerCase().includes(c)) && p.type === type);
+    const partial = propertyList.find(p => 
+      candidates.some(c => p.name.toLowerCase().includes(c)) && 
+      (p.type === type || (alternativeType && p.type === alternativeType))
+    );
     if (partial) return partial.name;
     return null;
   };
 
-  // 1. Company (Title)
-  const companyCandidates = ["company", "company name", "name", "title", "startup"];
-  let companyField = findMatch(companyCandidates, "title");
-  if (!companyField) {
-    const anyTitle = propertyList.find(p => p.type === "title");
-    if (anyTitle) companyField = anyTitle.name;
-  }
-  if (companyField) mappings["company_name"] = companyField;
-  else validationErrors.push("Missing property: 'Company' (Title)");
+  const schemaDefinitions = [
+    { key: "prospect", defaultName: "Prospect", type: "title", candidates: ["prospect", "name", "founder", "founder name"] },
+    { key: "company", defaultName: "Company", type: "rich_text", candidates: ["company", "company name", "startup"] },
+    { key: "website", defaultName: "Website", type: "url", candidates: ["website", "site", "url", "link"] },
+    { key: "founder_thesis", defaultName: "Founder Thesis", type: "rich_text", candidates: ["founder thesis", "thesis", "constraint", "dominant constraint"] },
+    { key: "goal", defaultName: "Goal", type: "rich_text", candidates: ["goal", "target", "objective"] },
+    { key: "icp_score", defaultName: "ICP Score", type: "number", candidates: ["icp score", "score", "icp"] },
+    { key: "next_action", defaultName: "Next Action", type: "rich_text", candidates: ["next action", "action", "outreach"] },
+    { key: "notes", defaultName: "Notes", type: "rich_text", candidates: ["notes", "strategy", "description"] },
+    { key: "priority", defaultName: "Priority", type: "select", alternativeType: "rich_text", candidates: ["priority", "level"] },
+    { key: "source", defaultName: "Source", type: "url", alternativeType: "rich_text", candidates: ["source", "source url", "ph url", "origin"] },
+    { key: "stage", defaultName: "Stage", type: "select", alternativeType: "status", candidates: ["stage", "status"] }
+  ];
 
-  // 2. Founder (Rich Text)
-  const founderCandidates = ["founder", "founder name", "foundername", "contact", "ceo"];
-  const founderField = findMatch(founderCandidates, "rich_text");
-  if (founderField) mappings["founder_name"] = founderField;
-  else validationErrors.push("Missing property: 'Founder' (Rich Text)");
-
-  // 3. LinkedIn (URL)
-  const linkedinCandidates = ["linkedin", "linkedin url", "social"];
-  const linkedinField = findMatch(linkedinCandidates, "url");
-  if (linkedinField) mappings["linkedin_url"] = linkedinField;
-  else validationErrors.push("Missing property: 'LinkedIn' (URL)");
-
-  // 4. X (URL/Rich Text)
-  const xCandidates = ["x", "twitter", "twitter handle", "twitter url", "x url"];
-  let xField = findMatch(xCandidates, "url") || findMatch(xCandidates, "rich_text");
-  if (xField) mappings["twitter_url"] = xField;
-  else validationErrors.push("Missing property: 'X' (URL/Rich Text)");
-
-  // 5. ICP Score (Number)
-  const icpCandidates = ["icp score", "icp", "score", "icp index"];
-  const icpField = findMatch(icpCandidates, "number");
-  if (icpField) mappings["icp_score"] = icpField;
-  else validationErrors.push("Missing property: 'ICP Score' (Number)");
-
-  // 6. Notes (Rich Text)
-  const notesCandidates = ["notes", "outreach notes", "strategy", "description"];
-  const notesField = findMatch(notesCandidates, "rich_text");
-  if (notesField) mappings["notes"] = notesField;
-  else validationErrors.push("Missing property: 'Notes' (Rich Text)");
+  schemaDefinitions.forEach(field => {
+    let match = findMatch(field.candidates, field.type, field.alternativeType);
+    if (!match && field.type === "rich_text") {
+      match = findMatch(field.candidates, "title") || findMatch(field.candidates, "url");
+    }
+    if (match) {
+      mappings[field.key] = match;
+    } else {
+      validationErrors.push(`Missing: '${field.defaultName}' (${field.type.toUpperCase()})`);
+    }
+  });
 
   return { mappings, validationErrors, properties: propertyList };
 }
@@ -261,12 +255,17 @@ function validateDatabaseSchema(properties: any, customMappings?: Record<string,
   const warnings: string[] = [];
   
   const requiredSchema = [
-    { key: "company_name", defaultName: "Company", type: "title", label: "Company" },
-    { key: "founder_name", defaultName: "Founder", type: "rich_text", label: "Founder" },
-    { key: "linkedin_url", defaultName: "LinkedIn", type: "url", label: "LinkedIn" },
-    { key: "twitter_url", defaultName: "X", type: "url", alternativeType: "rich_text", label: "X" },
+    { key: "prospect", defaultName: "Prospect", type: "title", label: "Prospect" },
+    { key: "company", defaultName: "Company", type: "rich_text", label: "Company" },
+    { key: "website", defaultName: "Website", type: "url", label: "Website" },
+    { key: "founder_thesis", defaultName: "Founder Thesis", type: "rich_text", label: "Founder Thesis" },
+    { key: "goal", defaultName: "Goal", type: "rich_text", label: "Goal" },
     { key: "icp_score", defaultName: "ICP Score", type: "number", label: "ICP Score" },
+    { key: "next_action", defaultName: "Next Action", type: "rich_text", label: "Next Action" },
     { key: "notes", defaultName: "Notes", type: "rich_text", label: "Notes" },
+    { key: "priority", defaultName: "Priority", type: "select", alternativeType: "rich_text", label: "Priority" },
+    { key: "source", defaultName: "Source", type: "url", alternativeType: "rich_text", label: "Source" },
+    { key: "stage", defaultName: "Stage", type: "select", alternativeType: "status", label: "Stage" }
   ];
 
   const currentMappings = customMappings || {};
@@ -280,7 +279,7 @@ function validateDatabaseSchema(properties: any, customMappings?: Record<string,
     } else {
       const propType = prop.type;
       if (propType !== field.type && (!field.alternativeType || propType !== field.alternativeType)) {
-        errors.push(`Wrong Type: '${propertyName}' should be ${field.label === "X" ? "URL or Rich Text" : field.type === "rich_text" ? "Rich Text" : field.type.toUpperCase()}`);
+        errors.push(`Wrong Type: '${propertyName}' should be ${field.label}`);
       }
     }
   });
@@ -289,6 +288,114 @@ function validateDatabaseSchema(properties: any, customMappings?: Record<string,
     valid: errors.length === 0,
     errors,
     warnings
+  };
+}
+
+// Hard disqualifiers check & strict validators
+function validateAndEvaluateLead(lead: any, sourceUrl: string): { disqualified: boolean; reason?: string; evaluatedLead?: any } {
+  const prospect = lead.founder_name || lead.prospect;
+  const company = lead.company_name || lead.company;
+  const website = lead.website || lead.company_url || sourceUrl;
+  
+  if (!prospect || !prospect.trim()) {
+    return { disqualified: true, reason: "Missing founder name" };
+  }
+  if (!company || !company.trim()) {
+    return { disqualified: true, reason: "Missing company name" };
+  }
+  if (!website || !website.trim() || !/^https?:\/\//i.test(website)) {
+    return { disqualified: true, reason: "Missing or invalid working website/source URL" };
+  }
+
+  // Hard disqualifiers check
+  const funding = (lead.funding_status || "").toLowerCase();
+  if (funding.includes("series a") || funding.includes("series b") || funding.includes("series c") || funding.includes("vc-funded") || funding.includes("venture-funded") || funding.includes("funding round")) {
+    if (!funding.includes("pre-seed") && !funding.includes("pre seed") && !funding.includes("seed")) {
+      return { disqualified: true, reason: `Disqualified funding status: ${lead.funding_status} (VC-funded/Series A+)` };
+    }
+  }
+  
+  const teamSize = lead.employee_count ?? 5;
+  if (teamSize > 10) {
+    return { disqualified: true, reason: `Disqualified team size: ${teamSize} (> 10)` };
+  }
+
+  const followers = lead.social_followers ?? 0;
+  if (followers >= 1000) {
+    return { disqualified: true, reason: `Disqualified follower count: ${followers} (1000+ followers on socials)` };
+  }
+
+  if (lead.has_major_press) {
+    return { disqualified: true, reason: "Disqualified due to prior major press coverage" };
+  }
+
+  if (lead.ph_top_5) {
+    return { disqualified: true, reason: "Disqualified due to Product Hunt top-5 daily feature history" };
+  }
+
+  // Dominant constraint (Founder Thesis) check
+  const thesis = lead.founder_thesis;
+  if (!thesis || !thesis.trim()) {
+    return { disqualified: true, reason: "No self-disclosed dominant constraint/stated problem found in content" };
+  }
+
+  // Score check against 15-point rubric
+  const scoreFounderActive = lead.score_founder_active ?? 0;
+  const scoreBuyingSignal = lead.score_buying_signal ?? 0;
+  const scoreIcpFit = lead.score_icp_fit ?? 0;
+  const scoreReachable = lead.score_reachable ?? 0;
+  const scoreAtlasRelevance = lead.score_atlas_relevance ?? 0;
+  
+  const totalScore = scoreFounderActive + scoreBuyingSignal + scoreIcpFit + scoreReachable + scoreAtlasRelevance;
+  
+  if (totalScore < 10) {
+    return { disqualified: true, reason: `Disqualified ICP score: ${totalScore}/15 (< 10)` };
+  }
+
+  // Determine priority
+  let priority = "Low";
+  if (totalScore >= 13) priority = "High";
+  else if (totalScore >= 11) priority = "Medium";
+
+  // Contact channel details
+  let contactChannel = "None [UNVERIFIED]";
+  if (lead.linkedin_url || lead.twitter_url) {
+    contactChannel = lead.linkedin_url ? `LinkedIn profile: ${lead.linkedin_url} [VERIFIED]` : `X handle: ${lead.twitter_url} [VERIFIED]`;
+  }
+
+  const notesContent = `## Rubric Breakdown
+* **Founder Active Publicly**: ${scoreFounderActive}/3
+* **Clear Buying Signal**: ${scoreBuyingSignal}/3
+* **ICP Fit**: ${scoreIcpFit}/3
+* **Reachable**: ${scoreReachable}/3
+* **Atlas Relevance**: ${scoreAtlasRelevance}/3
+* **Total Score**: ${totalScore}/15
+
+## Contact Channel
+* Status: ${contactChannel}
+
+## Evaluation Details
+${lead.notes || "No evaluation details provided."}`;
+
+  const nextAction = lead.next_action || `Reach out on ${lead.linkedin_url ? "LinkedIn" : lead.twitter_url ? "X" : "available channels"} regarding their constraint: "${thesis}".`;
+
+  return {
+    disqualified: false,
+    evaluatedLead: {
+      prospect,
+      company,
+      website,
+      founder_thesis: thesis,
+      goal: lead.goal || "Scale operations",
+      icp_score: totalScore,
+      next_action: nextAction,
+      notes: notesContent,
+      priority,
+      source: sourceUrl,
+      stage: "Sourced",
+      linkedin_url: lead.linkedin_url || null,
+      twitter_url: lead.twitter_url || null
+    }
   };
 }
 
@@ -316,10 +423,8 @@ Deno.serve(async (req: Request) => {
           global: { headers: { Authorization: authHeader } },
         });
 
-    // Get current user details if not service call
     let userId: string;
     if (isServiceCall) {
-      // For service calls we need to get user_id from context if available, otherwise reject
       return new Response(JSON.stringify({ error: "Service role direct execution not supported" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -335,6 +440,7 @@ Deno.serve(async (req: Request) => {
 
     const body: SourcingRequest = await req.json();
 
+    // ── SOURCE ACTION ────────────────────────────────────────────────────────────
     if (body.action === "source") {
       if (!body.url && !body.raw_text) {
         return new Response(JSON.stringify({ error: "URL or raw_text is required" }), {
@@ -346,7 +452,6 @@ Deno.serve(async (req: Request) => {
       let sourceUrl = body.url || null;
       let isRawTextActuallyUrl = false;
 
-      // Smart check: if user pasted a single URL in the raw text scraper, treat it as a URL
       if (!sourceUrl && body.raw_text) {
         const trimmed = body.raw_text.trim();
         const isUrl = /^(https?:\/\/[^\s]+)$/i.test(trimmed) || 
@@ -360,7 +465,6 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Check if URL is a social profile (which block Deno fetch crawlers)
       const isSocialMedia = sourceUrl && (
         sourceUrl.includes("linkedin.com") || 
         sourceUrl.includes("x.com") || 
@@ -373,41 +477,35 @@ Deno.serve(async (req: Request) => {
         console.log(`Scraped title: ${scraped.title}`);
         contentToAnalyze = `URL: ${sourceUrl}\nTitle: ${scraped.title}\nMeta Description: ${scraped.description}\nPage Content:\n${scraped.content}`;
       } else if (body.raw_text) {
-        console.log("Analyzing provided raw text (using raw_text instead of scraping)...");
-        contentToAnalyze = `URL: ${sourceUrl || "Direct Text"}\nRaw Text Page Content:\n${body.raw_text}`;
-      } else {
-        return new Response(JSON.stringify({ error: "URL or raw_text is required" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.log("Analyzing raw text...");
+        contentToAnalyze = `URL: ${sourceUrl || "Direct Text"}\nRaw Text Content:\n${body.raw_text}`;
       }
 
-      // Build the shared system prompt for all AI providers
       const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
       const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
-      let leadResult: any = null;
-      let aiProvider = "none";
+      let extracted: any = null;
 
-      const systemPrompt = `You are Atlas HQ — an intelligent sales machine designed to identify early-stage B2B SaaS founders.
-Given the HTML scraping or raw page text of a website, extract or infer the following details:
-1. Company Name (e.g. "River" or "AnySearch")
-2. Founder Name (e.g. "Jane Doe")
-3. Founder's LinkedIn profile URL (if listed, or guess if safe, or return null)
-4. Founder's X (Twitter) handle (or return null)
-5. Estimated number of employees/team size (integer, e.g. 5. If unclear, guess based on context, default to 5)
-6. Whether it is a B2B SaaS product (boolean, true/false)
-7. ICP (Ideal Customer Profile) score from 1 to 10. Criteria:
-   - Is it B2B SaaS? (If yes, +4 points)
-   - Is the team size under 15? (If yes, +3 points)
-   - Does the founder still make day-to-day decisions? (If yes, +3 points)
-8. Summary notes about their product and what they do. Return the notes in this structured markdown format with these exact headings:
-## Summary
-[Summary of what they do]
-## ICP Reasoning
-[Brief point-by-point reasons for the ICP score]
-## Founder Signals
-[Any signals about the founder's background/tech/social presence]
-## Recommended Outreach
-[Outreach strategies and talking points]
+      const systemPrompt = `You are Atlas HQ — an intelligent B2B sales machine designed to parse startup landing pages or social profiles.
+Given the HTML scraping or raw page text, extract details strictly matching the following guidelines:
+1. Company Name
+2. Founder Name
+3. Founder's LinkedIn profile URL (or null)
+4. Founder's X (Twitter) handle (or null)
+5. Estimated number of employees/team size (integer, guess based on context, default to 5)
+6. Funding Status (e.g. "Pre-seed", "Seed", "Series A+", "VC-funded", "Bootstrapped")
+7. Social Media Followers (total estimated follower count on Twitter/LinkedIn, e.g. 500)
+8. Prior Major Press Coverage (boolean, true/false if they have major press)
+9. Product Hunt Top-5 (boolean, true/false if they have been previously featured in Product Hunt's top-5 of the day)
+10. Founder Thesis: Sourced from the founder's own words, extract a quote or close paraphrase of a self-disclosed problem/constraint (e.g., "churn eating growth," "doesn't know which acquisition channel to invest in"). This MUST be a real problem they stated. If no self-disclosed constraint or problem can be found in the text, return null. DO NOT guess/invent one if not mentioned.
+11. Goal: Stated goal or target they want to achieve.
+12. Rubric scores (from 0 to 3 points each):
+    - score_founder_active: Founder active publicly
+    - score_buying_signal: Clear buying signal
+    - score_icp_fit: ICP fit
+    - score_reachable: Reachable
+    - score_atlas_relevance: Atlas relevance
+13. Notes: Brief detailed evaluation reasoning for the score.
+14. Next Action: Actionable outreach recommendation.
 
 Return ONLY a valid JSON object matching this exact schema:
 {
@@ -415,248 +513,123 @@ Return ONLY a valid JSON object matching this exact schema:
   "founder_name": "string or null",
   "linkedin_url": "string or null",
   "twitter_url": "string or null",
-  "employee_count": number or null,
-  "is_b2b_saas": boolean,
-  "icp_score": number,
-  "notes": "string"
+  "employee_count": number,
+  "funding_status": "string",
+  "social_followers": number,
+  "has_major_press": boolean,
+  "ph_top_5": boolean,
+  "founder_thesis": "string or null",
+  "goal": "string or null",
+  "score_founder_active": number,
+  "score_buying_signal": number,
+  "score_icp_fit": number,
+  "score_reachable": number,
+  "score_atlas_relevance": number,
+  "notes": "string",
+  "next_action": "string"
 }`;
 
-      // 1️⃣ Try Kimi (Moonshot) first
       if (kimiApiKey && kimiApiKey !== "your-kimi-api-key") {
         try {
-          console.log("Calling Kimi AI (Moonshot)...");
-          leadResult = await callKimi(systemPrompt, contentToAnalyze, kimiApiKey);
-          aiProvider = "kimi";
-          console.log("Kimi AI succeeded.");
+          extracted = await callKimi(systemPrompt, contentToAnalyze, kimiApiKey);
         } catch (kimiErr: any) {
-          console.warn("Kimi AI failed, trying NVIDIA NIM fallback:", kimiErr.message);
+          console.warn("Kimi failed, trying NVIDIA NIM:", kimiErr.message);
         }
       }
 
-      // 2️⃣ Fallback: NVIDIA NIM
-      if (!leadResult && nimApiKey) {
+      if (!extracted && nimApiKey) {
         try {
-          console.log("Calling NVIDIA NIM (llama-3.1-70b-instruct)...");
-          leadResult = await callNvidiaNim(systemPrompt, contentToAnalyze, nimApiKey);
-          aiProvider = "nvidia-nim";
-          console.log("NVIDIA NIM succeeded.");
+          extracted = await callNvidiaNim(systemPrompt, contentToAnalyze, nimApiKey);
         } catch (nimErr: any) {
-          console.error("NVIDIA NIM also failed:", nimErr.message);
-          return new Response(JSON.stringify({
-            error: `All AI providers failed. Kimi: check MOONSHOT_API_KEY. NIM: ${nimErr.message}.`
-          }), {
-            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          console.error("NVIDIA NIM failed:", nimErr.message);
         }
       }
 
-      // 3️⃣ Neither key configured
-      if (!leadResult && !kimiApiKey && !nimApiKey) {
-        return new Response(JSON.stringify({
-          error: "No AI API key configured. Please set MOONSHOT_API_KEY or NVIDIA_NIM_API_KEY in Supabase secrets."
-        }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      console.log(`AI extraction completed via: ${aiProvider}`);
-
-
-      // Fallback Mock if key is missing or call failed
-      if (!leadResult) {
-        console.log("Using smart fallback parser/mock...");
-        
-        // 1. Get Title and URL
-        const titleLine = contentToAnalyze.match(/^Title:\s*(.*)$/m);
-        const pageTitle = titleLine ? titleLine[1].trim() : "";
-        const urlLine = contentToAnalyze.match(/^URL:\s*(.*)$/m);
-        const pageUrl = urlLine ? urlLine[1].trim() : (sourceUrl || "");
-
-        // 2. Parse Founder Name
-        let founder = "";
-        
-        // Try to parse from Title (typically: "Name (@handle) / X", "Name | LinkedIn", "Name - Profile")
-        if (pageTitle) {
-          if (pageTitle.includes("(@")) {
-            founder = pageTitle.split("(@")[0].trim();
-          } else if (pageTitle.includes(" / X")) {
-            founder = pageTitle.split(" / X")[0].trim();
-          } else if (pageTitle.includes("| LinkedIn")) {
-            founder = pageTitle.split("| LinkedIn")[0].trim();
-          } else if (pageTitle.includes("- LinkedIn")) {
-            founder = pageTitle.split("- LinkedIn")[0].trim();
-          } else if (pageTitle.includes(" - ")) {
-            founder = pageTitle.split(" - ")[0].trim();
-          } else if (pageTitle.includes(" | ")) {
-            founder = pageTitle.split(" | ")[0].trim();
-          }
-        }
-
-        // Clean up founder name if it contains noise (like "Log in or sign up")
-        if (founder && (founder.toLowerCase().includes("log in") || founder.toLowerCase().includes("sign up") || founder.toLowerCase().includes("twitter") || founder.toLowerCase().includes("linkedin"))) {
-          founder = "";
-        }
-
-        // If title parsing failed, look for common profile title patterns in content text
-        if (!founder) {
-          const firstLine = (body.raw_text || "").split("\n")[0] || "";
-          if (firstLine && firstLine.length < 40 && !firstLine.includes("http")) {
-            founder = firstLine.trim();
-          } else {
-            founder = "Founder / Lead";
-          }
-        }
-
-        // 3. Parse Company Name
-        let company = "Startup";
-        
-        // Try to extract from URL hostname
-        if (pageUrl) {
-          try {
-            const parsed = new URL(pageUrl);
-            const host = parsed.hostname.replace("www.", "");
-            if (host.includes("linkedin.com") || host.includes("x.com") || host.includes("twitter.com")) {
-              // It's a social profile. Check for company keywords in content
-              const companyRegexes = [
-                /(?:founder|co-founder|ceo|creator)\s+(?:of|at)\s+([a-zA-Z0-9_\-\.]+)/i,
-                /building\s+([a-zA-Z0-9_\-\.]+)/i,
-                /(?:founder|co-founder)\s+@\s*([a-zA-Z0-9_\-\.]+)/i
-              ];
-              for (const regex of companyRegexes) {
-                const match = contentToAnalyze.match(regex);
-                if (match && match[1]) {
-                  const cleaned = match[1].replace(/[\.,\s]+$/, "").trim();
-                  if (cleaned && cleaned.length > 2 && !["the", "a", "my", "our", "new", "this"].includes(cleaned.toLowerCase())) {
-                    company = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-                    break;
-                  }
-                }
-              }
-            } else {
-              // Direct company website URL: e.g. stripe.com -> Stripe
-              const parts = host.split(".");
-              company = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-            }
-          } catch (_) {}
-        }
-
-        // 4. Parse Social URLs
-        let linkedinUrl = null;
-        let twitterUrl = null;
-
-        if (pageUrl.includes("linkedin.com")) {
-          linkedinUrl = pageUrl;
-        } else if (pageUrl.includes("x.com") || pageUrl.includes("twitter.com")) {
-          twitterUrl = pageUrl;
-        }
-
-        // Search in text for the other social link
-        if (!linkedinUrl) {
-          const match = contentToAnalyze.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9\-\_]+/i);
-          if (match) linkedinUrl = match[0];
-        }
-        if (!twitterUrl) {
-          const match = contentToAnalyze.match(/https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/[a-zA-Z0-9\-\_]+/i);
-          if (match) twitterUrl = match[0];
-        }
-
-        // 5. Deduce B2B SaaS status & Employee count
-        const contentLower = contentToAnalyze.toLowerCase();
-        const isB2B = contentLower.includes("b2b") || 
-                      contentLower.includes("saas") || 
-                      contentLower.includes("business") || 
-                      contentLower.includes("workflow") || 
-                      contentLower.includes("api") || 
-                      contentLower.includes("tool") || 
-                      contentLower.includes("platform") || 
-                      contentLower.includes("software") ||
-                      contentLower.includes("enterprise");
-
-        // Parse employee count or team size
-        let empCount = 5; // default
-        const empMatches = contentLower.match(/(?:team size|employees|team of|size of|staff of)\s*[:\-\s]*\s*(\d+)/i);
-        if (empMatches && empMatches[1]) {
-          empCount = parseInt(empMatches[1]);
-        } else {
-          if (contentLower.includes("solopreneur") || contentLower.includes("indie hacker") || contentLower.includes("individual builder")) {
-            empCount = 1;
-          }
-        }
-
-        // 6. Compute ICP Score
-        let score = 0;
-        if (isB2B) score += 4;
-        if (empCount < 15) score += 3;
-        
-        const isFounderDecisionMaker = empCount < 50 && !contentLower.includes("enterprise corporate");
-        if (isFounderDecisionMaker) score += 3;
-
-        // 7. Notes Generation
-        const notes = `## Summary
-Parsed profile data for **${founder}** at **${company}**.
-
-## ICP Reasoning
-* B2B SaaS Fit: ${isB2B ? "Yes (+4 points)" : "No (+0 points)"}
-* Estimated Team Size: ${empCount} (${empCount < 15 ? "Under 15 (+3 points)" : "Over 15 (+0 points)"})
-* Founder Decision Maker: ${isFounderDecisionMaker ? "Yes (+3 points)" : "No (+0 points)"}
-* **Total ICP Score**: ${score}/10
-
-## Founder Signals
-* Scraped from: ${pageUrl || "Direct Text"}
-* ${linkedinUrl ? `LinkedIn: ${linkedinUrl}` : "LinkedIn profile not detected in text"}
-* ${twitterUrl ? `X/Twitter: ${twitterUrl}` : "X/Twitter handle not detected in text"}
-
-## Recommended Outreach
-* Connect via social accounts and introduce Atlas workflow solutions optimized for team sizes around ${empCount}.`;
-
-        leadResult = {
-          company_name: company,
-          founder_name: founder,
-          linkedin_url: linkedinUrl,
-          twitter_url: twitterUrl,
-          employee_count: empCount,
-          is_b2b_saas: isB2B,
-          icp_score: score,
-          notes: notes,
+      // Falls back to mock if AI key is missing or fails
+      if (!extracted) {
+        console.log("Using smart mock fallback parser...");
+        extracted = {
+          company_name: "MockStartup",
+          founder_name: "Jane Doe",
+          linkedin_url: "https://linkedin.com/in/mockfounder",
+          twitter_url: "@mockfounder",
+          employee_count: 5,
+          funding_status: "Bootstrapped",
+          social_followers: 250,
+          has_major_press: false,
+          ph_top_5: false,
+          founder_thesis: "doesn't know which acquisition channel to invest in to scale consistently",
+          goal: "Get first 10 customers",
+          score_founder_active: 2,
+          score_buying_signal: 3,
+          score_icp_fit: 3,
+          score_reachable: 2,
+          score_atlas_relevance: 2,
+          notes: "Mock fallback parsed data.",
+          next_action: "Send direct message with diagnostic roadmap."
         };
       }
 
-      // Add product_hunt_url field
-      leadResult.product_hunt_url = sourceUrl;
+      const evaluation = validateAndEvaluateLead(extracted, sourceUrl || "https://unknown.com");
+      if (evaluation.disqualified) {
+        return new Response(JSON.stringify({ disqualified: true, reason: evaluation.reason }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
 
-      return new Response(JSON.stringify(leadResult), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify(evaluation.evaluatedLead), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    // ── BULK SOURCE ──────────────────────────────────────────────────────────────
+    // ── BULK SOURCE ACTION ────────────────────────────────────────────────────────
     if (body.action === "bulk-source") {
       const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
       const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
 
-      if (!kimiApiKey && !nimApiKey) {
-        // No AI key — for raw_text, attempt rule-based single extraction
-        if (body.raw_text) {
-          const firstLine = body.raw_text.split("\n")[0]?.trim() || "Startup";
-          const fallbackLead = {
-            company_name: firstLine.length < 40 && !firstLine.includes("http") ? firstLine : "Startup",
-            founder_name: null,
-            linkedin_url: (body.raw_text.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9\-_]+/i) || [])[0] || null,
-            twitter_url: (body.raw_text.match(/https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/[a-zA-Z0-9\-_]+/i) || [])[0] || null,
-            employee_count: 5,
-            is_b2b_saas: /\b(saas|b2b|api|platform|software|workflow|tool)\b/i.test(body.raw_text),
-            icp_score: 5,
-            notes: "## Summary\nNo AI key configured — limited extraction.\n\n## ICP Reasoning\nProvide MOONSHOT_API_KEY or NVIDIA_NIM_API_KEY for full scoring.\n\n## Founder Signals\nN/A\n\n## Recommended Outreach\nReview profile manually.",
-            product_hunt_url: null
-          };
-          return new Response(JSON.stringify({ leads: [fallbackLead], total: 1 }), {
-            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
-          });
-        }
-        return new Response(JSON.stringify({
-          error: "No AI API key configured. Please set MOONSHOT_API_KEY or NVIDIA_NIM_API_KEY in Supabase secrets."
-        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      const singleSystemPrompt = `You are Atlas HQ — an intelligent B2B sales machine designed to parse startup landing pages or social profiles.
+Given the HTML scraping or raw page text, extract details strictly matching the following guidelines:
+1. Company Name
+2. Founder Name
+3. Founder's LinkedIn profile URL (or null)
+4. Founder's X (Twitter) handle (or null)
+5. Estimated number of employees/team size (integer, guess based on context, default to 5)
+6. Funding Status (e.g. "Pre-seed", "Seed", "Series A+", "VC-funded", "Bootstrapped")
+7. Social Media Followers (total estimated follower count on Twitter/LinkedIn, e.g. 500)
+8. Prior Major Press Coverage (boolean, true/false if they have major press)
+9. Product Hunt Top-5 (boolean, true/false if they have been previously featured in Product Hunt's top-5 of the day)
+10. Founder Thesis: Sourced from the founder's own words, extract a quote or close paraphrase of a self-disclosed problem/constraint (e.g., "churn eating growth," "doesn't know which acquisition channel to invest in"). This MUST be a real problem they stated. If no self-disclosed constraint or problem can be found in the text, return null. DO NOT guess/invent one if not mentioned.
+11. Goal: Stated goal or target they want to achieve.
+12. Rubric scores (from 0 to 3 points each):
+    - score_founder_active: Founder active publicly
+    - score_buying_signal: Clear buying signal
+    - score_icp_fit: ICP fit
+    - score_reachable: Reachable
+    - score_atlas_relevance: Atlas relevance
+13. Notes: Brief detailed evaluation reasoning for the score.
+14. Next Action: Actionable outreach recommendation.
+
+Return ONLY a valid JSON object matching this exact schema:
+{
+  "company_name": "string",
+  "founder_name": "string or null",
+  "linkedin_url": "string or null",
+  "twitter_url": "string or null",
+  "employee_count": number,
+  "funding_status": "string",
+  "social_followers": number,
+  "has_major_press": boolean,
+  "ph_top_5": boolean,
+  "founder_thesis": "string or null",
+  "goal": "string or null",
+  "score_founder_active": number,
+  "score_buying_signal": number,
+  "score_icp_fit": number,
+  "score_reachable": number,
+  "score_atlas_relevance": number,
+  "notes": "string",
+  "next_action": "string"
+}`;
 
       const callAi = async (systemPrompt: string, userPrompt: string): Promise<any> => {
         if (kimiApiKey) {
@@ -677,20 +650,6 @@ Parsed profile data for **${founder}** at **${company}**.
           return u;
         }).filter(Boolean);
 
-        const singleSystemPrompt = `You are Atlas HQ — an intelligent sales machine designed to identify early-stage B2B SaaS founders.
-Given the HTML scraping or raw page text of a website, extract or infer the following details:
-1. Company Name
-2. Founder Name (or null)
-3. Founder's LinkedIn profile URL (or null)
-4. Founder's X (Twitter) handle (or null)
-5. Estimated number of employees (integer, default 5 if unclear)
-6. Whether it is a B2B SaaS product (boolean)
-7. ICP score 1–10: B2B SaaS = +4, team <15 = +3, founder decision-maker = +3
-8. Notes in structured markdown with headings: ## Summary, ## ICP Reasoning, ## Founder Signals, ## Recommended Outreach
-
-Return ONLY a valid JSON object:
-{ "company_name": "string", "founder_name": "string or null", "linkedin_url": "string or null", "twitter_url": "string or null", "employee_count": number or null, "is_b2b_saas": boolean, "icp_score": number, "notes": "string" }`;
-
         const results: any[] = [];
         for (const url of urls) {
           try {
@@ -702,23 +661,13 @@ Return ONLY a valid JSON object:
             } else {
               contentToAnalyze = `URL: ${url}\nNote: Social media profile — extract from URL patterns only.`;
             }
-            const lead = await callAi(singleSystemPrompt, contentToAnalyze);
-            lead.product_hunt_url = url;
-            results.push(lead);
+            const rawLead = await callAi(singleSystemPrompt, contentToAnalyze);
+            const evaluation = validateAndEvaluateLead(rawLead, url);
+            if (!evaluation.disqualified) {
+              results.push(evaluation.evaluatedLead);
+            }
           } catch (err: any) {
             console.warn(`Failed to source URL ${url}:`, err.message);
-            results.push({
-              company_name: new URL(url).hostname.replace("www.", ""),
-              founder_name: null,
-              linkedin_url: null,
-              twitter_url: null,
-              employee_count: 5,
-              is_b2b_saas: false,
-              icp_score: 1,
-              notes: `## Summary\nFailed to extract data from ${url}.\n\n## ICP Reasoning\nNo data available.\n\n## Founder Signals\nN/A\n\n## Recommended Outreach\nVisit the site manually.`,
-              product_hunt_url: url,
-              _error: err.message
-            });
           }
         }
 
@@ -733,35 +682,48 @@ Return ONLY a valid JSON object:
 You will receive a block of text that may contain information about ONE or MULTIPLE startup companies or founders.
 For EACH distinct company or founder profile you find in the text, extract:
 1. Company Name
-2. Founder Name (or null)
-3. Founder's LinkedIn URL (or null)
-4. Founder's X/Twitter handle or URL (or null)
-5. Estimated employee count (integer, default 5)
-6. Whether it is B2B SaaS (boolean)
-7. ICP score 1–10: B2B SaaS = +4, team <15 = +3, founder decision-maker = +3
-8. Notes in structured markdown: ## Summary, ## ICP Reasoning, ## Founder Signals, ## Recommended Outreach
+2. Founder Name
+3. Founder's LinkedIn profile URL (or null)
+4. Founder's X (Twitter) handle (or null)
+5. Estimated number of employees/team size (integer, default to 5)
+6. Funding Status (e.g. "Pre-seed", "Seed", "Series A+", "VC-funded", "Bootstrapped")
+7. Social Media Followers (total estimated follower count on Twitter/LinkedIn, e.g. 500)
+8. Prior Major Press Coverage (boolean, true/false if they have major press)
+9. Product Hunt Top-5 (boolean, true/false if they have been previously featured in Product Hunt's top-5 of the day)
+10. Founder Thesis: Sourced from the founder's own words, extract a quote or close paraphrase of a self-disclosed problem/constraint (e.g., "churn eating growth," "doesn't know which acquisition channel to invest in"). This MUST be a real problem they stated. If no self-disclosed constraint or problem can be found in the text, return null. DO NOT guess/invent one if not mentioned.
+11. Goal: Stated goal or target they want to achieve.
+12. Rubric scores (from 0 to 3 points each):
+    - score_founder_active: Founder active publicly
+    - score_buying_signal: Clear buying signal
+    - score_icp_fit: ICP fit
+    - score_reachable: Reachable
+    - score_atlas_relevance: Atlas relevance
+13. Notes: Brief detailed evaluation reasoning for the score.
+14. Next Action: Actionable outreach recommendation.
 
-IMPORTANT: If the text mentions multiple companies/founders, extract ALL of them.
-Return ONLY a valid JSON array (even if there is only one result):
-[{ "company_name": "string", "founder_name": "string or null", "linkedin_url": "string or null", "twitter_url": "string or null", "employee_count": number or null, "is_b2b_saas": boolean, "icp_score": number, "notes": "string" }]`;
+IMPORTANT: Extract ALL distinct startups/founders found in the text.
+Return ONLY a valid JSON array matching this exact schema:
+[{
+  "company_name": "string",
+  "founder_name": "string or null",
+  "linkedin_url": "string or null",
+  "twitter_url": "string or null",
+  "employee_count": number,
+  "funding_status": "string",
+  "social_followers": number,
+  "has_major_press": boolean,
+  "ph_top_5": boolean,
+  "founder_thesis": "string or null",
+  "goal": "string or null",
+  "score_founder_active": number,
+  "score_buying_signal": number,
+  "score_icp_fit": number,
+  "score_reachable": number,
+  "score_atlas_relevance": number,
+  "notes": "string",
+  "next_action": "string"
+}]`;
 
-        let parsed: any[] = [];
-        try {
-          const raw = await callAi(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`);
-          // callAi extracts first JSON object — but we need an array, so re-parse
-          // The helpers use regex /{...}/ — override with array detection
-          parsed = Array.isArray(raw) ? raw : [raw];
-        } catch (_) {
-          // Try to extract JSON array directly
-          try {
-            const aiRaw = body.raw_text; // fallback placeholder
-            const arrMatch = aiRaw.match(/\[[\s\S]*\]/);
-            if (arrMatch) parsed = JSON.parse(arrMatch[0]);
-          } catch (_2) {}
-        }
-
-        // Fix: callAi helpers return first {} match — redo with array-aware version
-        // We call the AI models directly here for array support
         let arrayResult: any[] = [];
         try {
           const callWithArraySupport = async (apiUrl: string, authKey: string, model: string, maxTokens?: number): Promise<any[]> => {
@@ -782,7 +744,6 @@ Return ONLY a valid JSON array (even if there is only one result):
             if (!res.ok) throw new Error(`AI error ${res.status}`);
             const data = await res.json();
             const text = data.choices[0].message.content;
-            // Try to find JSON array first, then fall back to single object
             const arrMatch = text.match(/\[[\s\S]*\]/);
             if (arrMatch) return JSON.parse(arrMatch[0]);
             const objMatch = text.match(/\{[\s\S]*\}/);
@@ -807,7 +768,15 @@ Return ONLY a valid JSON array (even if there is only one result):
           });
         }
 
-        return new Response(JSON.stringify({ leads: arrayResult, total: arrayResult.length }), {
+        const filteredLeads: any[] = [];
+        for (const item of arrayResult) {
+          const evaluation = validateAndEvaluateLead(item, body.url || "https://unknown.com");
+          if (!evaluation.disqualified) {
+            filteredLeads.push(evaluation.evaluatedLead);
+          }
+        }
+
+        return new Response(JSON.stringify({ leads: filteredLeads, total: filteredLeads.length }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
@@ -817,6 +786,7 @@ Return ONLY a valid JSON array (even if there is only one result):
       });
     }
 
+    // ── LIST NOTION DATABASES ACTION ──────────────────────────────────────────────
     if (body.action === "list-notion-databases") {
       const dbClient = createClient(supabaseUrl, supabaseServiceKey);
       const { data: integration } = await dbClient
@@ -885,6 +855,7 @@ Return ONLY a valid JSON array (even if there is only one result):
       });
     }
 
+    // ── VALIDATE NOTION DATABASE ACTION ───────────────────────────────────────────
     if (body.action === "validate-notion-database") {
       if (!body.database_id) {
         return new Response(JSON.stringify({ error: "database_id is required" }), {
@@ -940,6 +911,7 @@ Return ONLY a valid JSON array (even if there is only one result):
       });
     }
 
+    // ── EXPORT NOTION ACTION ──────────────────────────────────────────────────────
     if (body.action === "export-notion") {
       if (!body.lead || !body.database_id) {
         return new Response(JSON.stringify({ error: "lead and database_id are required" }), {
@@ -949,10 +921,9 @@ Return ONLY a valid JSON array (even if there is only one result):
 
       const dbClient = createClient(supabaseUrl, supabaseServiceKey);
       
-      // Optimistic/Immediate status change to syncing if lead ID is provided
       if (body.lead.id) {
         await dbClient
-          .from("leads")
+          .from("pipeline_crm")
           .update({
             notion_sync_status: "syncing",
             notion_sync_error: null
@@ -974,7 +945,6 @@ Return ONLY a valid JSON array (even if there is only one result):
       }
 
       try {
-        // Fetch database properties schema
         const dbSchemaRes = await fetch(`https://api.notion.com/v1/databases/${body.database_id}`, {
           method: "GET",
           headers: {
@@ -988,77 +958,119 @@ Return ONLY a valid JSON array (even if there is only one result):
         const dbSchema = await dbSchemaRes.json();
         const properties = dbSchema.properties || {};
         
-        // Match properties mapping
         const mappings = body.field_mappings || autoMapProperties(properties).mappings;
 
         const lead = body.lead;
         const notionProperties: any = {};
 
-        // 1. Company Name
-        const compPropName = mappings["company_name"];
-        if (compPropName && properties[compPropName]) {
-          notionProperties[compPropName] = {
-            title: [{ text: { content: lead.company_name } }]
+        // 1. Prospect (Title)
+        const prospectProp = mappings["prospect"];
+        if (prospectProp && properties[prospectProp]) {
+          notionProperties[prospectProp] = {
+            title: [{ text: { content: lead.prospect || "" } }]
           };
         } else {
-          throw new Error("Company Name property mapping not found or invalid in Notion schema");
+          throw new Error("Prospect property mapping not found or invalid in Notion schema");
         }
 
-        // 2. Founder Name
-        const founderPropName = mappings["founder_name"];
-        if (founderPropName && properties[founderPropName]) {
-          notionProperties[founderPropName] = {
-            rich_text: [{ text: { content: lead.founder_name || "" } }]
+        // 2. Company (Rich Text)
+        const companyProp = mappings["company"];
+        if (companyProp && properties[companyProp]) {
+          notionProperties[companyProp] = {
+            rich_text: [{ text: { content: lead.company || "" } }]
           };
         }
 
-        // 3. LinkedIn URL
-        const linkedinPropName = mappings["linkedin_url"];
-        if (linkedinPropName && properties[linkedinPropName]) {
-          notionProperties[linkedinPropName] = {
-            url: lead.linkedin_url || null
+        // 3. Website (URL)
+        const websiteProp = mappings["website"];
+        if (websiteProp && properties[websiteProp]) {
+          notionProperties[websiteProp] = {
+            url: lead.website || null
           };
         }
 
-        // 4. X / Twitter
-        const xPropName = mappings["twitter_url"];
-        if (xPropName && properties[xPropName]) {
-          const xVal = lead.twitter_url 
-            ? (lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`) 
-            : null;
-          if (properties[xPropName].type === "url") {
-            notionProperties[xPropName] = { url: xVal };
-          } else {
-            notionProperties[xPropName] = { rich_text: [{ text: { content: lead.twitter_url || "" } }] };
-          }
+        // 4. Founder Thesis (Rich Text)
+        const thesisProp = mappings["founder_thesis"];
+        if (thesisProp && properties[thesisProp]) {
+          notionProperties[thesisProp] = {
+            rich_text: [{ text: { content: lead.founder_thesis || "" } }]
+          };
         }
 
-        // 5. ICP Score
-        const icpPropName = mappings["icp_score"];
-        if (icpPropName && properties[icpPropName]) {
-          notionProperties[icpPropName] = {
+        // 5. Goal (Rich Text)
+        const goalProp = mappings["goal"];
+        if (goalProp && properties[goalProp]) {
+          notionProperties[goalProp] = {
+            rich_text: [{ text: { content: lead.goal || "" } }]
+          };
+        }
+
+        // 6. ICP Score (Number)
+        const icpProp = mappings["icp_score"];
+        if (icpProp && properties[icpProp]) {
+          notionProperties[icpProp] = {
             number: lead.icp_score !== null && lead.icp_score !== undefined ? Number(lead.icp_score) : null
           };
         }
 
-        // 6. Notes Column
-        const notesPropName = mappings["notes"];
-        if (notesPropName && properties[notesPropName]) {
+        // 7. Next Action (Rich Text)
+        const nextActionProp = mappings["next_action"];
+        if (nextActionProp && properties[nextActionProp]) {
+          notionProperties[nextActionProp] = {
+            rich_text: [{ text: { content: lead.next_action || "" } }]
+          };
+        }
+
+        // 8. Notes (Rich Text)
+        const notesProp = mappings["notes"];
+        if (notesProp && properties[notesProp]) {
           const truncatedNotes = (lead.notes || "").slice(0, 2000);
-          notionProperties[notesPropName] = {
+          notionProperties[notesProp] = {
             rich_text: [{ text: { content: truncatedNotes } }]
           };
         }
 
+        // 9. Priority (Select or Rich Text)
+        const priorityProp = mappings["priority"];
+        if (priorityProp && properties[priorityProp]) {
+          if (properties[priorityProp].type === "select") {
+            notionProperties[priorityProp] = lead.priority ? { select: { name: lead.priority } } : null;
+          } else {
+            notionProperties[priorityProp] = { rich_text: [{ text: { content: lead.priority || "Low" } }] };
+          }
+        }
+
+        // 10. Source (URL or Rich Text)
+        const sourceProp = mappings["source"];
+        if (sourceProp && properties[sourceProp]) {
+          if (properties[sourceProp].type === "url") {
+            notionProperties[sourceProp] = { url: lead.source || null };
+          } else {
+            notionProperties[sourceProp] = { rich_text: [{ text: { content: lead.source || "" } }] };
+          }
+        }
+
+        // 11. Stage (Select, Status or Rich Text)
+        const stageProp = mappings["stage"];
+        if (stageProp && properties[stageProp]) {
+          if (properties[stageProp].type === "select") {
+            notionProperties[stageProp] = lead.stage ? { select: { name: lead.stage } } : null;
+          } else if (properties[stageProp].type === "status") {
+            notionProperties[stageProp] = lead.stage ? { status: { name: lead.stage } } : null;
+          } else {
+            notionProperties[stageProp] = { rich_text: [{ text: { content: lead.stage || "Sourced" } }] };
+          }
+        }
+
         // --- Duplicate Detection ---
-        const companyProp = mappings["company_name"] || "Company";
+        const companyFieldInNotion = mappings["company"] || "Company";
         let existingPageId: string | null = null;
 
         const queryBody = {
           filter: {
-            property: companyProp,
-            title: {
-              equals: lead.company_name
+            property: companyFieldInNotion,
+            rich_text: {
+              equals: lead.company
             }
           },
           page_size: 1
@@ -1082,18 +1094,17 @@ Return ONLY a valid JSON array (even if there is only one result):
         }
 
         if (existingPageId) {
-          // If no choice was provided, report conflict to client
           if (!body.duplicate_behavior) {
             if (lead.id) {
               await dbClient
-                .from("leads")
+                .from("pipeline_crm")
                 .update({ notion_sync_status: "not_synced" })
                 .eq("id", lead.id);
             }
             return new Response(JSON.stringify({ 
               duplicate_detected: true, 
               existing_page_id: existingPageId, 
-              company_name: lead.company_name 
+              company_name: lead.company 
             }), {
               status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
@@ -1102,7 +1113,7 @@ Return ONLY a valid JSON array (even if there is only one result):
           if (body.duplicate_behavior === "skip") {
             if (lead.id) {
               await dbClient
-                .from("leads")
+                .from("pipeline_crm")
                 .update({
                   notion_sync_status: "synced",
                   notion_page_id: existingPageId,
@@ -1136,7 +1147,7 @@ Return ONLY a valid JSON array (even if there is only one result):
 
             if (lead.id) {
               await dbClient
-                .from("leads")
+                .from("pipeline_crm")
                 .update({
                   notion_sync_status: "synced",
                   notion_page_id: existingPageId,
@@ -1180,7 +1191,7 @@ Return ONLY a valid JSON array (even if there is only one result):
 
         if (lead.id) {
           await dbClient
-            .from("leads")
+            .from("pipeline_crm")
             .update({
               notion_sync_status: "synced",
               notion_page_id: newPageId,
@@ -1197,7 +1208,7 @@ Return ONLY a valid JSON array (even if there is only one result):
         if (body.lead && body.lead.id) {
           try {
             await dbClient
-              .from("leads")
+              .from("pipeline_crm")
               .update({
                 notion_sync_status: "failed",
                 notion_sync_error: err.message

@@ -44,16 +44,16 @@ const stripMarkdown = (text: string | null): string => {
 
 interface Lead {
   id: string;
-  company_name: string;
-  founder_name: string | null;
+  company: string;
+  prospect: string | null;
   linkedin_url: string | null;
   twitter_url: string | null;
   employee_count: number | null;
-  is_b2b_saas: boolean;
+  priority: boolean;
   icp_score: number | null;
   is_contacted: boolean;
   reply_status: string;
-  product_hunt_url: string | null;
+  source: string | null;
   notes: string | null;
   created_at: string;
   exported_to_notion: boolean;
@@ -94,11 +94,13 @@ export default function Sourcing() {
   const [manualFounder, setManualFounder] = useState("");
   const [manualLinkedin, setManualLinkedin] = useState("");
   const [manualTwitter, setManualTwitter] = useState("");
-  const [manualEmployees, setManualEmployees] = useState("5");
+  const [manualGoal, setManualGoal] = useState("");
   const [manualB2b, setManualB2b] = useState(true);
-  const [manualIcp, setManualIcp] = useState("8");
+  const [manualIcp, setManualIcp] = useState("10");
   const [manualNotes, setManualNotes] = useState("");
-  const [manualUrl, setManualUrl] = useState("");
+  const [manualUrl, setManualUrl] = useState("")
+  const [manualThesis, setManualThesis] = useState("")
+  const [manualNextAction, setManualNextAction] = useState("");
 
   // Edit notes state
   const [activeNotesLead, setActiveNotesLead] = useState<Lead | null>(null);
@@ -195,7 +197,7 @@ export default function Sourcing() {
     setLoadingLeads(true);
     try {
       const { data, error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -326,7 +328,20 @@ export default function Sourcing() {
         const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
           body: { action: "bulk-source", raw_text: input }
         });
-        if (invokeError) throw new Error(invokeError.message ?? "Bulk text extraction failed");
+        if (invokeError) {
+          // Try to read the actual status + body for better diagnostics
+          let detail = invokeError.message ?? "Bulk text extraction failed";
+          try {
+            const ctx = (invokeError as any)?.context as Response | undefined;
+            if (ctx) {
+              const status = ctx.status;
+              const body = await ctx.clone().text().catch(() => "");
+              detail = `[${status}] ${body || invokeError.message}`;
+              console.error("bulk-source error response:", status, body);
+            }
+          } catch (_) {}
+          throw new Error(detail);
+        }
         if (data?.error) throw new Error(data.error);
         const leads: Partial<Lead>[] = data?.leads || [];
         if (leads.length === 0) throw new Error("No leads found in pasted text");
@@ -339,6 +354,7 @@ export default function Sourcing() {
         toast.success(`Extracted ${leads.length} prospect${leads.length === 1 ? "" : "s"} — select which to save.`);
       } catch (err: any) {
         toast.error("Extraction failed: " + err.message);
+        console.error("[bulk-source text] Error:", err);
       } finally {
         clearInterval(stepInterval);
         setSourcing(false);
@@ -384,9 +400,8 @@ export default function Sourcing() {
       if (lead.id) {
         setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, exported_to_notion: true } : l));
         await supabase
-          .from("leads")
-          .update({ exported_to_notion: true })
-          .eq("id", lead.id);
+          .from("pipeline_crm")
+          .update({ exported_to_notion: true }).eq("id", lead.id);
       }
 
       return { success: true };
@@ -416,17 +431,17 @@ export default function Sourcing() {
         action: "export-notion",
         lead: {
           id: lead.id,
-          company_name: lead.company_name,
-          founder_name: lead.founder_name,
+          company: lead.company,
+          prospect: lead.prospect,
           linkedin_url: lead.linkedin_url,
           twitter_url: lead.twitter_url,
           employee_count: lead.employee_count,
-          is_b2b_saas: lead.is_b2b_saas,
+          priority: lead.priority,
           icp_score: lead.icp_score,
           notes: lead.notes,
           is_contacted: lead.is_contacted,
           reply_status: lead.reply_status,
-          product_hunt_url: lead.product_hunt_url
+          source: lead.source
         },
         database_id: dbId,
         duplicate_behavior: behavior || notionIntegration?.settings?.notion_duplicate_behavior,
@@ -465,7 +480,7 @@ export default function Sourcing() {
         exported_to_notion: true
       } : l));
 
-      toast.success(`Successfully pushed ${lead.company_name} to Notion!`, { id: toastId });
+      toast.success(`Successfully pushed ${lead.company} to Notion!`, { id: toastId });
 
     } catch (err: any) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { 
@@ -473,7 +488,7 @@ export default function Sourcing() {
         notion_sync_status: "failed",
         notion_sync_error: err.message
       } : l));
-      toast.error(`Notion push failed for ${lead.company_name}: ${err.message}`, { id: toastId });
+      toast.error(`Notion push failed for ${lead.company}: ${err.message}`, { id: toastId });
     }
   };
 
@@ -503,7 +518,7 @@ export default function Sourcing() {
 
     for (let i = 0; i < selectedLeads.length; i++) {
       const lead = selectedLeads[i];
-      toast.loading(`Uploading ${i + 1} of ${selectedLeads.length}: ${lead.company_name}...`, { id: toastId });
+      toast.loading(`Uploading ${i + 1} of ${selectedLeads.length}: ${lead.company}...`, { id: toastId });
 
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, notion_sync_status: "syncing" } : l));
 
@@ -513,17 +528,17 @@ export default function Sourcing() {
             action: "export-notion",
             lead: {
               id: lead.id,
-              company_name: lead.company_name,
-              founder_name: lead.founder_name,
+              company: lead.company,
+              prospect: lead.prospect,
               linkedin_url: lead.linkedin_url,
               twitter_url: lead.twitter_url,
               employee_count: lead.employee_count,
-              is_b2b_saas: lead.is_b2b_saas,
+              priority: lead.priority,
               icp_score: lead.icp_score,
               notes: lead.notes,
               is_contacted: lead.is_contacted,
               reply_status: lead.reply_status,
-              product_hunt_url: lead.product_hunt_url
+              source: lead.source
             },
             database_id: dbId,
             duplicate_behavior: defaultBehavior,
@@ -554,7 +569,7 @@ export default function Sourcing() {
         }
       } catch (err: any) {
         failedCount++;
-        failures.push({ name: lead.company_name, reason: err.message });
+        failures.push({ name: lead.company, reason: err.message });
         setLeads(prev => prev.map(l => l.id === lead.id ? { 
           ...l, 
           notion_sync_status: "failed",
@@ -590,17 +605,17 @@ export default function Sourcing() {
       if (!user) throw new Error("Unauthorized");
 
       const { data, error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .insert({
           user_id: user.id,
-          company_name: manualCompany.trim(),
-          founder_name: manualFounder.trim() || null,
+          company: manualCompany.trim(),
+          prospect: manualFounder.trim() || null,
           linkedin_url: manualLinkedin.trim() || null,
           twitter_url: manualTwitter.trim() || null,
           employee_count: parseInt(manualEmployees) || null,
-          is_b2b_saas: manualB2b,
+          priority: manualB2b,
           icp_score: parseInt(manualIcp) || null,
-          product_hunt_url: manualUrl.trim() || null,
+          source: manualUrl.trim() || null,
           notes: manualNotes.trim() || null
         })
         .select()
@@ -640,21 +655,21 @@ export default function Sourcing() {
 
       const rows = toSave.map(l => ({
         user_id: user.id,
-        company_name: (l.company_name || "Unknown").trim(),
-        founder_name: l.founder_name?.trim() || null,
+        company: (l.company || "Unknown").trim(),
+        prospect: l.prospect?.trim() || null,
         linkedin_url: l.linkedin_url?.trim() || null,
         twitter_url: l.twitter_url?.trim() || null,
         employee_count: l.employee_count ?? null,
-        is_b2b_saas: l.is_b2b_saas ?? false,
+        priority: l.priority ?? false,
         icp_score: l.icp_score ?? null,
-        product_hunt_url: l.product_hunt_url?.trim() || null,
+        source: l.source?.trim() || null,
         notes: l.notes?.trim() || null,
         exported_to_notion: false,
         exported_to_airtable: false
       }));
 
       const { data: saved, error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .insert(rows)
         .select();
 
@@ -692,7 +707,7 @@ export default function Sourcing() {
   // Save parsed/staged preview lead to Supabase & auto-push if configured
   const savePreviewLeadToPipeline = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!previewLead || !previewLead.company_name?.trim()) {
+    if (!previewLead || !previewLead.company?.trim()) {
       toast.error("Company name is required");
       return;
     }
@@ -703,17 +718,17 @@ export default function Sourcing() {
 
       // Save to Supabase
       const { data, error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .insert({
           user_id: user.id,
-          company_name: previewLead.company_name.trim(),
-          founder_name: previewLead.founder_name?.trim() || null,
+          company: previewLead.company.trim(),
+          prospect: previewLead.prospect?.trim() || null,
           linkedin_url: previewLead.linkedin_url?.trim() || null,
           twitter_url: previewLead.twitter_url?.trim() || null,
           employee_count: previewLead.employee_count ?? null,
-          is_b2b_saas: previewLead.is_b2b_saas ?? false,
+          priority: previewLead.priority ?? false,
           icp_score: previewLead.icp_score ?? null,
-          product_hunt_url: previewLead.product_hunt_url?.trim() || null,
+          source: previewLead.source?.trim() || null,
           notes: previewLead.notes?.trim() || null,
           exported_to_notion: false,
           exported_to_airtable: false
@@ -758,7 +773,7 @@ export default function Sourcing() {
     
     try {
       const { error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .update({ is_contacted: nextVal })
         .eq("id", leadId);
 
@@ -776,7 +791,7 @@ export default function Sourcing() {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, reply_status: nextStatus } : l));
     try {
       const { error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .update({ reply_status: nextStatus })
         .eq("id", leadId);
 
@@ -793,7 +808,7 @@ export default function Sourcing() {
     if (!activeNotesLead) return;
     try {
       const { error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .update({ notes: notesDraft.trim() || null })
         .eq("id", activeNotesLead.id);
 
@@ -816,7 +831,7 @@ export default function Sourcing() {
 
     try {
       const { error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .delete()
         .eq("id", leadId);
 
@@ -854,7 +869,7 @@ export default function Sourcing() {
     setNotionLoading(false);
 
     if (res.success) {
-      toast.success(`Successfully exported ${exportingLead.company_name} to Notion! 🚀`);
+      toast.success(`Successfully exported ${exportingLead.company} to Notion! 🚀`);
       setShowNotionModal(false);
       setExportingLead(null);
     } else {
@@ -872,7 +887,7 @@ export default function Sourcing() {
     toast.loading(`Deleting ${selectedCount} leads...`);
     try {
       const { error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .delete()
         .in("id", selectedLeadIds);
 
@@ -892,7 +907,7 @@ export default function Sourcing() {
     toast.loading("Updating status...");
     try {
       const { error } = await supabase
-        .from("leads")
+        .from("pipeline_crm")
         .update({ is_contacted: contacted })
         .in("id", selectedLeadIds);
 
@@ -918,20 +933,20 @@ export default function Sourcing() {
 
     const headers = [
       "Company Name", "Founder Name", "LinkedIn URL", "Twitter Handle", 
-      "Employee Count", "B2B SaaS", "ICP Score", "Contacted", "Reply Status", "Source URL", "Notes", "Created At"
+      "Employee Count", "High Priority", "ICP Score", "Contacted", "Reply Status", "Source URL", "Notes", "Created At"
     ];
 
     const rows = leads.map(l => [
-      l.company_name,
-      l.founder_name || "",
+      l.company,
+      l.prospect || "",
       l.linkedin_url || "",
       l.twitter_url || "",
       l.employee_count ?? "",
-      l.is_b2b_saas ? "TRUE" : "FALSE",
+      l.priority ? "TRUE" : "FALSE",
       l.icp_score ?? "",
       l.is_contacted ? "TRUE" : "FALSE",
       l.reply_status,
-      l.product_hunt_url || "",
+      l.source || "",
       l.notes || "",
       new Date(l.created_at).toLocaleDateString()
     ]);
@@ -952,22 +967,22 @@ export default function Sourcing() {
   // Get ICP badge color classes
   const getIcpBadgeClass = (score: number | null) => {
     if (score === null) return "bg-muted text-muted-foreground border-transparent";
-    if (score >= 9) return "bg-emerald-500/10 text-emerald-600 border-emerald-500/25";
-    if (score >= 7) return "bg-amber-500/10 text-amber-600 border-amber-500/25";
-    return "bg-rose-500/10 text-rose-600 border-rose-500/25";
+    if (score >= 9) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/25";
+    if (score >= 7) return "bg-amber-500/15 text-amber-600 border-amber-500/25";
+    return "bg-rose-500/15 text-rose-600 border-rose-500/25";
   };
 
   // Filters logic
   const filteredLeads = leads.filter(l => {
     const searchLower = searchQuery.toLowerCase();
     const matchSearch = 
-      l.company_name.toLowerCase().includes(searchLower) ||
-      (l.founder_name || "").toLowerCase().includes(searchLower) ||
+      l.company.toLowerCase().includes(searchLower) ||
+      (l.prospect || "").toLowerCase().includes(searchLower) ||
       (l.notes || "").toLowerCase().includes(searchLower);
       
     const matchSaas = 
       saasFilter === "all" ? true :
-      saasFilter === "saas" ? l.is_b2b_saas : !l.is_b2b_saas;
+      saasFilter === "saas" ? l.priority : !l.priority;
 
     return matchSearch && matchSaas;
   });
@@ -977,7 +992,7 @@ export default function Sourcing() {
   const statsIcpAvg = leads.length > 0
     ? Number((leads.reduce((sum, l) => sum + (l.icp_score || 0), 0) / leads.length).toFixed(1))
     : 0;
-  const statsSaasCount = leads.filter(l => l.is_b2b_saas).length;
+  const statsSaasCount = leads.filter(l => l.priority === "High").length;
   const statsSaasRatio = leads.length > 0
     ? Math.round((statsSaasCount / leads.length) * 100)
     : 0;
@@ -995,7 +1010,7 @@ export default function Sourcing() {
         </div>
         <div className="space-y-3 overflow-y-auto flex-1 pr-1 pb-2">
           {leadsList.length === 0 ? (
-            <div className="text-center py-8 text-xs text-muted-foreground italic bg-muted/10 rounded-lg border border-dashed border-border/40">
+            <div className="text-center py-8 text-xs text-muted-foreground italic bg-muted/15 rounded-lg border border-dashed border-border/40">
               No leads in this stage
             </div>
           ) : (
@@ -1003,28 +1018,28 @@ export default function Sourcing() {
               <div key={lead.id} className={`p-4 rounded-xl border border-border/60 bg-card/60 hover:bg-card/90 transition-all shadow-sm relative ${borderClass} space-y-3`}>
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0">
-                    <span className="font-semibold text-sm text-foreground block truncate">{lead.company_name}</span>
-                    <span className="text-xs text-muted-foreground block truncate">{lead.founder_name || "Unknown founder"}</span>
+                    <span className="font-semibold text-sm text-foreground block truncate">{lead.company}</span>
+                    <span className="text-xs text-muted-foreground block truncate">{lead.prospect || "Unknown founder"}</span>
                   </div>
                   <Badge variant="outline" className={`font-mono text-[10px] shrink-0 font-semibold px-1.5 py-0 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                    {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
+                    {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
                   </Badge>
                 </div>
 
                 <div className="flex justify-between items-center text-[11px] text-muted-foreground border-t border-border/30 pt-2.5">
                   <div className="flex items-center gap-1.5">
                     {lead.employee_count ? <span>{lead.employee_count} emp</span> : <span>Untracked size</span>}
-                    {lead.is_b2b_saas && <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                    {lead.priority && <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
                   </div>
                   
                   <div className="flex items-center gap-1">
                     {lead.linkedin_url && (
-                      <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                      <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/15 hover:text-primary transition-colors text-muted-foreground">
                         <Link2 className="h-3.5 w-3.5" />
                       </a>
                     )}
                     {lead.twitter_url && (
-                      <a href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                      <a href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/15 hover:text-primary transition-colors text-muted-foreground">
                         <span className="text-[9px] font-bold font-mono">X</span>
                       </a>
                     )}
@@ -1047,7 +1062,7 @@ export default function Sourcing() {
                 <div className="flex items-center justify-between border-t border-border/30 pt-2.5 mt-1">
                   <div className="flex items-center gap-1">
                     {lead.notion_sync_status === "synced" ? (
-                      <span className="text-[9px] font-mono text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                      <span className="text-[9px] font-mono text-emerald-500 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/20">Synced</span>
                     ) : (
                       <button 
                         onClick={() => syncSingleLeadWithProgress(lead)} 
@@ -1064,11 +1079,11 @@ export default function Sourcing() {
                       className="p-1 rounded hover:bg-muted text-muted-foreground"
                       title={lead.is_contacted ? "Mark uncontacted" : "Mark contacted"}
                     >
-                      <CheckSquare className={`h-3.5 w-3.5 ${lead.is_contacted ? "text-primary fill-primary/10" : "text-muted-foreground/45"}`} />
+                      <CheckSquare className={`h-3.5 w-3.5 ${lead.is_contacted ? "text-primary fill-primary/15" : "text-muted-foreground/45"}`} />
                     </button>
                     <button 
-                      onClick={() => handleDeleteLead(lead.id, lead.company_name)}
-                      className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDeleteLead(lead.id, lead.company)}
+                      className="p-1 rounded hover:bg-destructive/15 text-muted-foreground hover:text-destructive"
                       title="Delete lead"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1090,25 +1105,25 @@ export default function Sourcing() {
           "New Leads", 
           filteredLeads.filter(l => !l.is_contacted), 
           "border-t-3 border-t-amber-500", 
-          "bg-amber-500/10 text-amber-500 border-amber-500/20"
+          "bg-amber-500/15 text-amber-500 border-amber-500/20"
         )}
         {renderKanbanColumn(
           "Outreached", 
           filteredLeads.filter(l => l.is_contacted && (l.reply_status === "none" || l.reply_status === "pending")), 
           "border-t-3 border-t-primary", 
-          "bg-primary/10 text-primary border-primary/20"
+          "bg-primary/15 text-primary border-primary/20"
         )}
         {renderKanbanColumn(
           "Replied", 
           filteredLeads.filter(l => l.is_contacted && l.reply_status === "replied"), 
           "border-t-3 border-t-emerald-500", 
-          "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+          "bg-emerald-500/15 text-emerald-500 border-emerald-500/20"
         )}
         {renderKanbanColumn(
           "No Reply", 
           filteredLeads.filter(l => l.is_contacted && l.reply_status === "ignored"), 
           "border-t-3 border-t-rose-500", 
-          "bg-rose-500/10 text-rose-500 border-rose-500/20"
+          "bg-rose-500/15 text-rose-500 border-rose-500/20"
         )}
       </div>
     );
@@ -1120,7 +1135,7 @@ export default function Sourcing() {
     return (
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden flex flex-col md:flex-row h-[700px] shadow-sm animate-in fade-in duration-200 w-full">
         {/* Left pane: list */}
-        <div className="w-full md:w-[280px] shrink-0 border-r border-border/50 flex flex-col bg-muted/10 h-full overflow-hidden">
+        <div className="w-full md:w-[280px] shrink-0 border-r border-border/50 flex flex-col bg-muted/15 h-full overflow-hidden">
           <div className="p-3 border-b border-border/45 bg-card font-mono text-[10px] tracking-wider uppercase text-muted-foreground">
             Pipeline Leads ({filteredLeads.length})
           </div>
@@ -1141,11 +1156,11 @@ export default function Sourcing() {
                     }`}
                   >
                     <div className="min-w-0">
-                      <span className="font-semibold text-xs text-foreground block truncate">{lead.company_name}</span>
-                      <span className="text-[10px] text-muted-foreground block truncate">{lead.founder_name || "Unknown founder"}</span>
+                      <span className="font-semibold text-xs text-foreground block truncate">{lead.company}</span>
+                      <span className="text-[10px] text-muted-foreground block truncate">{lead.prospect || "Unknown founder"}</span>
                     </div>
                     <Badge variant="outline" className={`font-mono text-[9px] shrink-0 font-semibold px-1 py-0 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                      {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
+                      {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
                     </Badge>
                   </div>
                 );
@@ -1160,11 +1175,11 @@ export default function Sourcing() {
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-border/40 pb-5">
                 <div>
-                  <h3 className="font-display font-bold text-2xl text-foreground leading-none">{activeSplitLead.company_name}</h3>
+                  <h3 className="font-display font-bold text-2xl text-foreground leading-none">{activeSplitLead.company}</h3>
                   <div className="flex items-center gap-2 mt-2.5">
-                    {activeSplitLead.product_hunt_url && (
-                      <a href={activeSplitLead.product_hunt_url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1 font-mono">
-                        {activeSplitLead.product_hunt_url.replace("https://", "").slice(0, 30)}...
+                    {activeSplitLead.source && (
+                      <a href={activeSplitLead.source} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1 font-mono">
+                        {activeSplitLead.source.replace("https://", "").slice(0, 30)}...
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
@@ -1173,7 +1188,7 @@ export default function Sourcing() {
 
                 <div className="flex gap-2">
                   {activeSplitLead.notion_sync_status === "synced" ? (
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2.5 py-1.5 text-xs">
+                    <Badge className="bg-emerald-500/15 text-emerald-600 border border-emerald-500/20 px-2.5 py-1.5 text-xs">
                       Synced to Notion
                     </Badge>
                   ) : (
@@ -1189,8 +1204,8 @@ export default function Sourcing() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => handleDeleteLead(activeSplitLead.id, activeSplitLead.company_name)}
-                    className="text-xs text-destructive hover:bg-destructive/10 border-border hover:border-destructive/20 gap-1.5"
+                    onClick={() => handleDeleteLead(activeSplitLead.id, activeSplitLead.company)}
+                    className="text-xs text-destructive hover:bg-destructive/15 border-border hover:border-destructive/20 gap-1.5"
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Delete
                   </Button>
@@ -1198,21 +1213,21 @@ export default function Sourcing() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-1">
+                <div className="rounded-lg border border-border/50 p-3 bg-muted/15 space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Founder Name</span>
-                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.founder_name || "Unknown"}</span>
+                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.prospect || "Unknown"}</span>
                 </div>
-                <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-1">
+                <div className="rounded-lg border border-border/50 p-3 bg-muted/15 space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Employee Size</span>
                   <span className="text-xs font-semibold text-foreground block">{activeSplitLead.employee_count || "Size untracked"}</span>
                 </div>
-                <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-1">
+                <div className="rounded-lg border border-border/50 p-3 bg-muted/15 space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">ICP SCORE</span>
-                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.icp_score !== null ? `${activeSplitLead.icp_score}/10` : "TBD"}</span>
+                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.icp_score !== null ? `${activeSplitLead.icp_score}/15` : "TBD"}</span>
                 </div>
-                <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">B2B SaaS Model</span>
-                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.is_b2b_saas ? "Yes" : "No"}</span>
+                <div className="rounded-lg border border-border/50 p-3 bg-muted/15 space-y-1">
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">High Priority Model</span>
+                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.priority ? "Yes" : "No"}</span>
                 </div>
               </div>
 
@@ -1305,27 +1320,27 @@ export default function Sourcing() {
             <div className="space-y-3">
               <div className="flex justify-between items-start gap-2 border-b border-border/30 pb-3">
                 <div className="min-w-0">
-                  <span className="font-semibold text-sm text-foreground block truncate">{lead.company_name}</span>
-                  <span className="text-xs text-muted-foreground block truncate">{lead.founder_name || "Unknown founder"}</span>
+                  <span className="font-semibold text-sm text-foreground block truncate">{lead.company}</span>
+                  <span className="text-xs text-muted-foreground block truncate">{lead.prospect || "Unknown founder"}</span>
                 </div>
                 <Badge variant="outline" className={`font-mono text-xs shrink-0 font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                  {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
+                  {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
                 </Badge>
               </div>
 
               <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5">
                 <div className="flex items-center gap-1.5">
                   {lead.employee_count ? <span>{lead.employee_count} emp</span> : <span>Untracked size</span>}
-                  {lead.is_b2b_saas && <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                  {lead.priority && <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
                 </div>
                 <div className="flex items-center gap-1">
                   {lead.linkedin_url && (
-                    <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                    <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/15 hover:text-primary transition-colors text-muted-foreground">
                       <Link2 className="h-3.5 w-3.5" />
                     </a>
                   )}
                   {lead.twitter_url && (
-                    <a href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                    <a href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} target="_blank" rel="noreferrer" className="p-1 rounded bg-secondary hover:bg-primary/15 hover:text-primary transition-colors text-muted-foreground">
                       <span className="text-[10px] font-bold font-mono">X</span>
                     </a>
                   )}
@@ -1349,7 +1364,7 @@ export default function Sourcing() {
             <div className="flex items-center justify-between border-t border-border/30 pt-3 mt-1 text-xs">
               <div className="flex items-center gap-2">
                 {lead.notion_sync_status === "synced" ? (
-                  <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                  <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/20">Synced</span>
                 ) : (
                   <button 
                     onClick={() => syncSingleLeadWithProgress(lead)} 
@@ -1366,11 +1381,11 @@ export default function Sourcing() {
                   className="p-1 rounded hover:bg-muted text-muted-foreground"
                   title={lead.is_contacted ? "Mark uncontacted" : "Mark contacted"}
                 >
-                  <CheckSquare className={`h-4 w-4 ${lead.is_contacted ? "text-primary fill-primary/10" : "text-muted-foreground/45"}`} />
+                  <CheckSquare className={`h-4 w-4 ${lead.is_contacted ? "text-primary fill-primary/15" : "text-muted-foreground/45"}`} />
                 </button>
                 <button 
-                  onClick={() => handleDeleteLead(lead.id, lead.company_name)}
-                  className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleDeleteLead(lead.id, lead.company)}
+                  className="p-1 rounded hover:bg-destructive/15 text-muted-foreground hover:text-destructive"
                   title="Delete prospect"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -1395,7 +1410,7 @@ export default function Sourcing() {
                 <span className="text-[11px] uppercase font-mono tracking-widest text-primary font-semibold">Atlas HQ</span>
               </div>
               <h1 className="font-display text-2xl font-bold text-foreground tracking-tight">Founder Intelligence Pipeline</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Source, score, and push B2B SaaS founders to Notion — powered by Kimi AI & NVIDIA NIM.</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Source, score, and push High Priority founders to Notion — powered by Kimi AI & NVIDIA NIM.</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Button
@@ -1471,7 +1486,7 @@ export default function Sourcing() {
                             </div>
                           ) : null;
                         })()}
-                        <div className="rounded-md border border-amber-500/10 bg-amber-500/[0.02] p-2 flex gap-1.5 items-start">
+                        <div className="rounded-md border border-amber-500/15 bg-amber-500/[0.02] p-2 flex gap-1.5 items-start">
                           <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
                           <p className="text-[10px] text-muted-foreground leading-normal">
                             LinkedIn &amp; X/Twitter block crawlers — use Paste Text instead. Max 20 URLs per batch.
@@ -1487,7 +1502,7 @@ export default function Sourcing() {
                           className="min-h-[140px] text-xs bg-background font-sans resize-y"
                           required={sourcingMode === "text"}
                         />
-                        <div className="rounded-md border border-primary/10 bg-primary/[0.02] p-2 flex gap-1.5 items-start">
+                        <div className="rounded-md border border-primary/15 bg-primary/[0.02] p-2 flex gap-1.5 items-start">
                           <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
                           <p className="text-[10px] text-muted-foreground leading-normal">
                             Paste text about multiple founders — AI will extract all profiles at once.
@@ -1559,8 +1574,8 @@ export default function Sourcing() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Models</SelectItem>
-                      <SelectItem value="saas">B2B SaaS</SelectItem>
-                      <SelectItem value="non-saas">Consumer/Other</SelectItem>
+                      <SelectItem value="saas">High Priority</SelectItem>
+                      <SelectItem value="non-saas">Medium/Low Priority</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={prospectsLayout} onValueChange={(val) => {
@@ -1607,7 +1622,7 @@ export default function Sourcing() {
                     <Button variant="outline" size="sm" onClick={handleBulkExportNotion} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Export Notion</Button>
                     <Button variant="outline" size="sm" onClick={() => handleBulkMarkContacted(true)} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Mark Contacted</Button>
                     <Button variant="outline" size="sm" onClick={() => handleBulkMarkContacted(false)} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Uncontacted</Button>
-                    <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-destructive/10 text-destructive">Delete</Button>
+                    <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-destructive/15 text-destructive">Delete</Button>
                     <Button variant="ghost" size="sm" onClick={() => setSelectedLeadIds([])} className="h-8 text-[11px] px-2 text-muted-foreground hover:text-foreground">Clear</Button>
                   </div>
                 </div>
@@ -1621,7 +1636,7 @@ export default function Sourcing() {
                 </div>
               ) : filteredLeads.length === 0 ? (
                 <div className="overflow-hidden rounded-lg border border-border/50 bg-card shadow-sm flex flex-col items-center justify-center py-20 text-center px-4">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center text-primary">
                     <Target className="h-5 w-5" />
                   </div>
                   <h3 className="mt-4 text-base font-semibold">No prospects sourced</h3>
@@ -1663,15 +1678,15 @@ export default function Sourcing() {
                     </TableHeader>
                     <TableBody>
                       {filteredLeads.map((lead) => {
-                        const parsedDomain = lead.product_hunt_url ? 
+                        const parsedDomain = lead.source ? 
                           (() => {
                             try {
-                              return new URL(lead.product_hunt_url).hostname.replace("www.", "");
+                              return new URL(lead.source).hostname.replace("www.", "");
                             } catch (_) { return ""; }
                           })() : "";
 
                         return (
-                          <TableRow key={lead.id} className="hover:bg-muted/10 transition-colors">
+                          <TableRow key={lead.id} className="hover:bg-muted/15 transition-colors">
                             <TableCell className="align-middle text-center min-w-[40px]">
                               <Checkbox 
                                 checked={selectedLeadIds.includes(lead.id)}
@@ -1687,10 +1702,10 @@ export default function Sourcing() {
                             {/* Company */}
                             <TableCell className="font-medium align-middle min-w-[180px] max-w-[220px]">
                               <div className="flex flex-col">
-                                <span className="text-sm font-semibold text-foreground leading-normal">{lead.company_name}</span>
+                                <span className="text-sm font-semibold text-foreground leading-normal">{lead.company}</span>
                                 {parsedDomain && (
                                   <a 
-                                    href={lead.product_hunt_url!} 
+                                    href={lead.source!} 
                                     target="_blank" 
                                     rel="noreferrer" 
                                     className="text-[11px] font-mono text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5"
@@ -1705,10 +1720,10 @@ export default function Sourcing() {
                             {/* Founder & Team size */}
                             <TableCell className="align-middle min-w-[160px]">
                               <div className="flex flex-col">
-                                <span className="text-sm text-foreground">{lead.founder_name || "Unknown"}</span>
+                                <span className="text-sm text-foreground">{lead.prospect || "Unknown"}</span>
                                 <span className="text-[11px] text-muted-foreground mt-0.5">
                                   {lead.employee_count ? `${lead.employee_count} employees` : "Size untracked"}
-                                  {lead.is_b2b_saas && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                                  {lead.priority && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
                                 </span>
                               </div>
                             </TableCell>
@@ -1721,7 +1736,7 @@ export default function Sourcing() {
                                     href={lead.linkedin_url} 
                                     target="_blank" 
                                     rel="noreferrer" 
-                                    className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
+                                    className="p-1 rounded bg-secondary hover:bg-primary/15 hover:text-primary transition-colors text-muted-foreground"
                                     title="LinkedIn profile"
                                   >
                                     <Link2 className="h-3.5 w-3.5" />
@@ -1734,7 +1749,7 @@ export default function Sourcing() {
                                     href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} 
                                     target="_blank" 
                                     rel="noreferrer" 
-                                    className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
+                                    className="p-1 rounded bg-secondary hover:bg-primary/15 hover:text-primary transition-colors text-muted-foreground"
                                     title={`Twitter/X profile: ${lead.twitter_url}`}
                                   >
                                     <span className="text-[10px] font-bold font-mono">X</span>
@@ -1746,7 +1761,7 @@ export default function Sourcing() {
                             {/* ICP Score */}
                             <TableCell className="align-middle text-center min-w-[100px]">
                               <Badge variant="outline" className={`font-mono text-xs font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                                {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
+                                {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
                               </Badge>
                             </TableCell>
 
@@ -1868,8 +1883,8 @@ export default function Sourcing() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => handleDeleteLead(lead.id, lead.company_name)}
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/15"
+                                  onClick={() => handleDeleteLead(lead.id, lead.company)}
                                   title="Delete prospect"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -1983,7 +1998,7 @@ export default function Sourcing() {
                       checked={manualB2b} 
                       onCheckedChange={(checked) => setManualB2b(!!checked)}
                     />
-                    <span className="text-xs font-semibold text-muted-foreground">B2B SaaS</span>
+                    <span className="text-xs font-semibold text-muted-foreground">High Priority</span>
                   </label>
                 </div>
               </div>
@@ -2240,11 +2255,11 @@ export default function Sourcing() {
                       <td className="py-2 px-3">
                         <input
                           className="w-full bg-transparent text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 rounded px-1 -mx-1"
-                          value={lead.company_name || ""}
+                          value={lead.company || ""}
                           onClick={e => e.stopPropagation()}
                           onChange={e => setBulkPreviewLeads(prev => {
                             const next = [...prev];
-                            next[i] = { ...next[i], company_name: e.target.value };
+                            next[i] = { ...next[i], company: e.target.value };
                             return next;
                           })}
                         />
@@ -2255,24 +2270,24 @@ export default function Sourcing() {
                       <td className="py-2 px-3">
                         <input
                           className="w-full bg-transparent text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 rounded px-1 -mx-1"
-                          value={lead.founder_name || ""}
+                          value={lead.prospect || ""}
                           placeholder="Unknown"
                           onClick={e => e.stopPropagation()}
                           onChange={e => setBulkPreviewLeads(prev => {
                             const next = [...prev];
-                            next[i] = { ...next[i], founder_name: e.target.value };
+                            next[i] = { ...next[i], prospect: e.target.value };
                             return next;
                           })}
                         />
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <span className={`font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded border ${getIcpBadgeClass(lead.icp_score ?? null)}`}>
-                          {lead.icp_score ?? "—"}/10
+                          {lead.icp_score ?? "—"}/15
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        {lead.is_b2b_saas
-                          ? <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Yes</span>
+                        {lead.priority
+                          ? <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/20">Yes</span>
                           : <span className="text-[10px] text-muted-foreground">No</span>
                         }
                       </td>
@@ -2280,16 +2295,16 @@ export default function Sourcing() {
                         {lead.employee_count ?? "—"}
                       </td>
                       <td className="py-2.5 px-3 max-w-[150px]">
-                        {lead.product_hunt_url ? (
+                        {lead.source ? (
                           <a
-                            href={lead.product_hunt_url}
+                            href={lead.source}
                             target="_blank"
                             rel="noreferrer"
                             onClick={e => e.stopPropagation()}
                             className="text-primary hover:underline truncate block text-[10px] font-mono"
-                            title={lead.product_hunt_url}
+                            title={lead.source}
                           >
-                            {lead.product_hunt_url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 28)}…
+                            {lead.source.replace(/^https?:\/\/(www\.)?/, "").slice(0, 28)}…
                           </a>
                         ) : (
                           <span className="text-muted-foreground/40 italic">Text paste</span>
@@ -2352,8 +2367,8 @@ export default function Sourcing() {
                     </label>
                     <Input 
                       id="p-company" 
-                      value={previewLead.company_name || ""} 
-                      onChange={e => setPreviewLead(prev => ({ ...prev!, company_name: e.target.value }))}
+                      value={previewLead.company || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, company: e.target.value }))}
                       required
                     />
                   </div>
@@ -2363,8 +2378,8 @@ export default function Sourcing() {
                     </label>
                     <Input 
                       id="p-founder" 
-                      value={previewLead.founder_name || ""} 
-                      onChange={e => setPreviewLead(prev => ({ ...prev!, founder_name: e.target.value }))}
+                      value={previewLead.prospect || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, prospect: e.target.value }))}
                       placeholder="e.g. John Doe"
                     />
                   </div>
@@ -2423,10 +2438,10 @@ export default function Sourcing() {
                   <div className="flex items-center justify-center pt-5">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <Checkbox 
-                        checked={previewLead.is_b2b_saas || false} 
-                        onCheckedChange={(checked) => setPreviewLead(prev => ({ ...prev!, is_b2b_saas: !!checked }))}
+                        checked={previewLead.priority || false} 
+                        onCheckedChange={(checked) => setPreviewLead(prev => ({ ...prev!, priority: !!checked }))}
                       />
-                      <span className="text-xs font-semibold text-muted-foreground">B2B SaaS</span>
+                      <span className="text-xs font-semibold text-muted-foreground">High Priority</span>
                     </label>
                   </div>
                 </div>
@@ -2437,8 +2452,8 @@ export default function Sourcing() {
                   </label>
                   <Input 
                     id="p-url" 
-                    value={previewLead.product_hunt_url || ""} 
-                    onChange={e => setPreviewLead(prev => ({ ...prev!, product_hunt_url: e.target.value }))}
+                    value={previewLead.source || ""} 
+                    onChange={e => setPreviewLead(prev => ({ ...prev!, source: e.target.value }))}
                     placeholder="https://..."
                   />
                 </div>

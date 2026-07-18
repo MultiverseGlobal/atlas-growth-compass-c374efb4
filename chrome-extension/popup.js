@@ -195,12 +195,15 @@ btnPush.addEventListener("click", async () => {
     if (leadInfo.error) {
       throw new Error(leadInfo.error);
     }
+    if (leadInfo.disqualified) {
+      throw new Error(`Prospect disqualified: ${leadInfo.reason}`);
+    }
 
     footerMsg.innerText = "Inserting prospect into pipeline...";
 
-    // 2. Insert lead into Supabase leads table via REST API
+    // 2. Insert lead into Supabase pipeline_crm table via REST API
     const anonKey = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxdGh2bGlhcGthdW94aWVpd2ZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNzA5ODgsImV4cCI6MjA5ODc0Njk4OH0.gHFtw1hTFnMaFduW-fmM3E2Vmjl6JeGwPft6uNvgl9Y`;
-    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/leads`, {
+    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/pipeline_crm`, {
       method: "POST",
       headers: {
         "apikey": anonKey,
@@ -210,17 +213,21 @@ btnPush.addEventListener("click", async () => {
       },
       body: JSON.stringify({
         user_id: userId,
-        company_name: leadInfo.company_name,
-        founder_name: leadInfo.founder_name,
-        linkedin_url: leadInfo.linkedin_url || (response.url.includes("linkedin.com") ? response.url : null),
-        twitter_url: leadInfo.twitter_url || (response.url.includes("x.com") || response.url.includes("twitter.com") ? response.url : null),
-        employee_count: leadInfo.employee_count,
-        is_b2b_saas: leadInfo.is_b2b_saas,
-        icp_score: leadInfo.icp_score,
-        product_hunt_url: response.url,
-        notes: leadInfo.notes,
+        company: leadInfo.company || leadInfo.company_name || "Unknown",
+        prospect: leadInfo.prospect || leadInfo.founder_name || "Unknown Prospect",
+        website: leadInfo.website || leadInfo.source || response.url || "https://unknown.com",
+        founder_thesis: leadInfo.founder_thesis || "No dominant constraint specified",
+        goal: leadInfo.goal || null,
+        icp_score: leadInfo.icp_score || 10,
+        next_action: leadInfo.next_action || null,
+        notes: leadInfo.notes || null,
+        priority: leadInfo.priority || "Low",
+        source: response.url || "https://unknown.com",
+        stage: "Sourced",
         is_contacted: false,
-        reply_status: "none"
+        reply_status: "none",
+        linkedin_url: leadInfo.linkedin_url || (response.url.includes("linkedin.com") ? response.url : null),
+        twitter_url: leadInfo.twitter_url || (response.url.includes("x.com") || response.url.includes("twitter.com") ? response.url : null)
       })
     });
 

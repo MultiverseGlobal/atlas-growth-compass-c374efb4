@@ -33,8 +33,8 @@ export default function HqDashboard() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from("leads")
-        .select("icp_score, is_contacted, exported_to_notion, notion_sync_status, is_b2b_saas");
+        .from("pipeline_crm")
+        .select("icp_score, is_contacted, exported_to_notion, notion_sync_status, priority");
 
       if (error) throw error;
       const leads = data as any[];
@@ -50,7 +50,7 @@ export default function HqDashboard() {
       leads?.forEach((l) => {
         sumIcp += l.icp_score || 0;
         if (l.is_contacted) contacted++;
-        if (l.is_b2b_saas) saasCount++;
+        if (l.priority === "High") saasCount++;
         if (l.exported_to_notion || l.notion_sync_status === "synced") synced++;
         else if (l.notion_sync_status === "syncing" || l.notion_sync_status === "not_synced") pending++;
         else if (l.notion_sync_status === "failed") failed++;
@@ -137,15 +137,15 @@ export default function HqDashboard() {
           },
           {
             title: "Avg ICP Score",
-            value: `${stats?.avgIcp ?? 0}/10`,
+            value: `${stats?.avgIcp ?? 0}/15`,
             description: "Ideal Customer Profile fit match",
             icon: TrendingUp,
             color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/25"
           },
           {
-            title: "B2B SaaS",
+            title: "High Priority",
             value: `${stats?.saasRatio ?? 0}%`,
-            description: "Product model classification",
+            description: "High priority lead ratio",
             icon: Database,
             color: "text-sky-500 bg-sky-500/10 border-sky-500/20"
           },

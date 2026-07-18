@@ -192,72 +192,81 @@ export type Database = {
         }
         Relationships: []
       }
-      leads: {
+      pipeline_crm: {
         Row: {
           id: string
           user_id: string
-          company_name: string
-          founder_name: string | null
-          linkedin_url: string | null
-          twitter_url: string | null
-          employee_count: number | null
-          is_b2b_saas: boolean
-          icp_score: number | null
+          prospect: string
+          company: string
+          website: string
+          founder_thesis: string
+          goal: string | null
+          icp_score: number
+          next_action: string | null
+          notes: string | null
+          priority: string | null
+          source: string
+          stage: string
           is_contacted: boolean
           reply_status: string
-          product_hunt_url: string | null
-          notes: string | null
           created_at: string
           updated_at: string
           exported_to_notion: boolean
-          exported_to_airtable: boolean
           notion_sync_status: string
           notion_page_id: string | null
           notion_sync_error: string | null
+          linkedin_url: string | null
+          twitter_url: string | null
         }
         Insert: {
           id?: string
           user_id: string
-          company_name: string
-          founder_name?: string | null
-          linkedin_url?: string | null
-          twitter_url?: string | null
-          employee_count?: number | null
-          is_b2b_saas?: boolean
-          icp_score?: number | null
+          prospect: string
+          company: string
+          website: string
+          founder_thesis: string
+          goal?: string | null
+          icp_score: number
+          next_action?: string | null
+          notes?: string | null
+          priority?: string | null
+          source: string
+          stage?: string
           is_contacted?: boolean
           reply_status?: string
-          product_hunt_url?: string | null
-          notes?: string | null
           created_at?: string
           updated_at?: string
           exported_to_notion?: boolean
-          exported_to_airtable?: boolean
           notion_sync_status?: string
           notion_page_id?: string | null
           notion_sync_error?: string | null
+          linkedin_url?: string | null
+          twitter_url?: string | null
         }
         Update: {
           id?: string
           user_id?: string
-          company_name?: string
-          founder_name?: string | null
-          linkedin_url?: string | null
-          twitter_url?: string | null
-          employee_count?: number | null
-          is_b2b_saas?: boolean
-          icp_score?: number | null
+          prospect?: string
+          company?: string
+          website?: string
+          founder_thesis?: string
+          goal?: string | null
+          icp_score?: number
+          next_action?: string | null
+          notes?: string | null
+          priority?: string | null
+          source?: string
+          stage?: string
           is_contacted?: boolean
           reply_status?: string
-          product_hunt_url?: string | null
-          notes?: string | null
           created_at?: string
           updated_at?: string
           exported_to_notion?: boolean
-          exported_to_airtable?: boolean
           notion_sync_status?: string
           notion_page_id?: string | null
           notion_sync_error?: string | null
+          linkedin_url?: string | null
+          twitter_url?: string | null
         }
         Relationships: []
       }
