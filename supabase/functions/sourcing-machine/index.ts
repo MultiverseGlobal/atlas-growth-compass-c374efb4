@@ -77,6 +77,44 @@ async function scrapeUrl(url: string): Promise<{ title: string; description: str
   }
 }
 
+// Robust JSON extractor — strips markdown code fences and uses balanced-brace scanning
+// to avoid the "Unexpected non-whitespace character" error caused by greedy regex.
+function extractJson(raw: string): any {
+  // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
+  let text = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+
+  // 2. Find the first '{' and walk balanced braces to get the exact JSON object
+  const start = text.indexOf("{");
+  if (start === -1) throw new Error("No JSON object found in AI response");
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let end = -1;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\" && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+
+  if (end === -1) throw new Error("Unterminated JSON object in AI response");
+
+  const jsonStr = text.slice(start, end + 1);
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e: any) {
+    throw new Error(`JSON parse failed after extraction: ${e.message}\nExtracted: ${jsonStr.slice(0, 200)}`);
+  }
+}
+
 // Call Kimi AI
 async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string): Promise<any> {
   const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
@@ -101,11 +139,7 @@ async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string
 
   const data = await res.json();
   const text = data.choices[0].message.content;
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("No JSON object found in Kimi AI response");
-  }
-  return JSON.parse(jsonMatch[0]);
+  return extractJson(text);
 }
 
 // Call NVIDIA NIM (OpenAI-compatible, llama-3.1-70b-instruct)
@@ -133,11 +167,7 @@ async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: s
 
   const data = await res.json();
   const text = data.choices[0].message.content;
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("No JSON object found in NVIDIA NIM response");
-  }
-  return JSON.parse(jsonMatch[0]);
+  return extractJson(text);
 }
 
 // Parse structured markdown notes into Notion block formats
