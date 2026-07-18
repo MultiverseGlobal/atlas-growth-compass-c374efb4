@@ -274,7 +274,7 @@ export default function Sourcing() {
         await new Promise(r => setTimeout(r, 200));
         setPreviewLead(parsedLead);
         setShowPreviewModal(true);
-        toast.success(`Parsed ${parsedLead.company_name || "lead"} — review before saving.`);
+        toast.success(`Parsed ${parsedLead.company || "lead"} — review before saving.`);
       } catch (err: any) {
         toast.error("Sourcing failed: " + err.message);
       } finally {
@@ -680,16 +680,19 @@ export default function Sourcing() {
       const rows = toSave.map(l => ({
         user_id: user.id,
         company: (l.company || "Unknown").trim(),
-        prospect: l.prospect?.trim() || null,
-        linkedin_url: l.linkedin_url?.trim() || null,
-        twitter_url: l.twitter_url?.trim() || null,
-        employee_count: l.employee_count ?? null,
-        priority: l.priority ?? false,
-        icp_score: l.icp_score ?? null,
-        source: l.source?.trim() || null,
+        prospect: (l.prospect || "Unknown Prospect").trim(),
+        website: l.website?.trim() || l.source?.trim() || "https://unknown.com",
+        founder_thesis: l.founder_thesis?.trim() || "No dominant constraint specified",
+        goal: l.goal?.trim() || null,
+        icp_score: l.icp_score ?? 10,
+        next_action: l.next_action?.trim() || null,
         notes: l.notes?.trim() || null,
+        priority: l.priority || "Low",
+        source: l.source?.trim() || "https://unknown.com",
+        stage: l.stage || "Sourced",
         exported_to_notion: false,
-        exported_to_airtable: false
+        linkedin_url: l.linkedin_url?.trim() || null,
+        twitter_url: l.twitter_url?.trim() || null
       }));
 
       const { data: saved, error } = await supabase
@@ -745,17 +748,20 @@ export default function Sourcing() {
         .from("pipeline_crm")
         .insert({
           user_id: user.id,
-          company: previewLead.company.trim(),
-          prospect: previewLead.prospect?.trim() || null,
-          linkedin_url: previewLead.linkedin_url?.trim() || null,
-          twitter_url: previewLead.twitter_url?.trim() || null,
-          employee_count: previewLead.employee_count ?? null,
-          priority: previewLead.priority ?? false,
-          icp_score: previewLead.icp_score ?? null,
-          source: previewLead.source?.trim() || null,
+          company: (previewLead.company || "Unknown").trim(),
+          prospect: (previewLead.prospect || "Unknown Prospect").trim(),
+          website: previewLead.website?.trim() || previewLead.source?.trim() || "https://unknown.com",
+          founder_thesis: previewLead.founder_thesis?.trim() || "No dominant constraint specified",
+          goal: previewLead.goal?.trim() || null,
+          icp_score: previewLead.icp_score ?? 10,
+          next_action: previewLead.next_action?.trim() || null,
           notes: previewLead.notes?.trim() || null,
+          priority: previewLead.priority || "Low",
+          source: previewLead.source?.trim() || "https://unknown.com",
+          stage: previewLead.stage || "Sourced",
           exported_to_notion: false,
-          exported_to_airtable: false
+          linkedin_url: previewLead.linkedin_url?.trim() || null,
+          twitter_url: previewLead.twitter_url?.trim() || null
         })
         .select()
         .single();
@@ -766,13 +772,13 @@ export default function Sourcing() {
       setLeads(prev => [data, ...prev]);
       setShowPreviewModal(false);
       setPreviewLead(null);
-      toast.success(`Successfully saved ${data.company_name} to pipeline!`);
+      toast.success(`Successfully saved ${data.company} to pipeline!`);
 
       // Trigger auto-push if configured
       if (autoNotion) {
         const notionDb = defaultNotionDb || (notionDatabases.length > 0 ? notionDatabases[0].id : null);
         if (notionDb) {
-          toast.loading(`Auto-pushing ${data.company_name} to Notion...`);
+          toast.loading(`Auto-pushing ${data.company} to Notion...`);
           const res = await performExportToNotion(data, notionDb);
           toast.dismiss();
           if (res.success) {
@@ -2092,7 +2098,7 @@ export default function Sourcing() {
               <AlertCircle className="h-5 w-5 shrink-0" /> Duplicate Record Detected
             </DialogTitle>
             <DialogDescription>
-              A page for <strong>{conflictLead?.company_name}</strong> already exists in your active Notion database. How would you like to handle this conflict?
+              A page for <strong>{conflictLead?.company}</strong> already exists in your active Notion database. How would you like to handle this conflict?
             </DialogDescription>
           </DialogHeader>
 
@@ -2481,8 +2487,8 @@ export default function Sourcing() {
                   <div className="flex items-center justify-center pt-5">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <Checkbox 
-                        checked={previewLead.priority || false} 
-                        onCheckedChange={(checked) => setPreviewLead(prev => ({ ...prev!, priority: !!checked }))}
+                        checked={previewLead.priority === "High"} 
+                        onCheckedChange={(checked) => setPreviewLead(prev => ({ ...prev!, priority: checked ? "High" : "Low" }))}
                       />
                       <span className="text-xs font-semibold text-muted-foreground">High Priority</span>
                     </label>
@@ -2554,7 +2560,7 @@ export default function Sourcing() {
               <Target className="h-5 w-5 text-primary" /> Outreach Notes & Strategy
             </DialogTitle>
             <DialogDescription>
-              Analyze and edit strategic notes and outreach recommendations for <strong className="text-foreground">{activeNotesLead?.company_name}</strong>.
+              Analyze and edit strategic notes and outreach recommendations for <strong className="text-foreground">{activeNotesLead?.company}</strong>.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
