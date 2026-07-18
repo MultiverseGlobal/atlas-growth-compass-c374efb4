@@ -2,13 +2,15 @@ import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, Users, Database, Shield, Compass, 
-  LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon, Lock, ArrowLeft
+  LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon, Lock,
+  Palette, Moon, Sun
 } from "lucide-react";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { isUserAdmin } from "@/lib/adminConfig";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "@/hooks/useTheme";
 
 const hqNav = [
   { to: "/hq/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -21,6 +23,7 @@ const STORAGE_KEY = "atlas.hq.sidebar.collapsed";
 
 export default function HqShell() {
   const { user, loading, signOut } = useAuth();
+  const { theme, cycleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [profile, setProfile] = useState<{ display_name: string | null; handle: string | null } | null>(null);
@@ -56,10 +59,10 @@ export default function HqShell() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center grain">
+      <div className="min-h-screen bg-background flex items-center justify-center grain">
         <div className="flex flex-col items-center gap-2">
-          <LogoMark size={32} className="animate-pulse text-amber-500" />
-          <span className="text-xs text-muted-foreground font-mono mt-2">Connecting to Atlas HQ...</span>
+          <LogoMark size={32} className="animate-pulse text-primary" />
+          <span className="text-xs text-muted-foreground font-mono mt-2 animate-pulse">Connecting to Atlas HQ...</span>
         </div>
       </div>
     );
@@ -70,21 +73,20 @@ export default function HqShell() {
   // Authorization Check
   if (!isUserAdmin(user.email)) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4 grain">
-        <div className="max-w-md w-full rounded-2xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-8 text-center shadow-2xl relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-amber-500/[0.02] to-transparent pointer-events-none" />
-          <div className="mx-auto w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mb-6 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-            <Lock className="h-6 w-6 text-amber-500" />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 grain">
+        <div className="max-w-md w-full rounded-2xl border border-border/60 bg-card p-8 text-center shadow-2xl relative overflow-hidden">
+          <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-6 border border-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.1)]">
+            <Lock className="h-6 w-6 text-primary" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground font-display">Restricted Administration</h2>
           <p className="mt-3 text-[13px] text-muted-foreground leading-relaxed">
             Atlas HQ is an internal administration portal. The email address <strong className="text-foreground">{user.email}</strong> is not authorized to access this environment.
           </p>
           <div className="mt-8 flex flex-col gap-3">
-            <Button onClick={() => navigate("/app")} className="w-full h-10 gap-1.5 font-medium bg-amber-500 text-black hover:bg-amber-600">
+            <Button onClick={() => navigate("/app")} className="w-full h-10 gap-1.5 font-medium bg-primary text-primary-foreground hover:opacity-90">
               <Compass className="h-4 w-4" /> Return to Workspace
             </Button>
-            <Button variant="outline" onClick={() => signOut().then(() => navigate("/auth"))} className="w-full h-10 gap-1.5 font-medium border-white/10 hover:bg-white/5">
+            <Button variant="outline" onClick={() => signOut().then(() => navigate("/auth"))} className="w-full h-10 gap-1.5 font-medium border-border/80 hover:bg-muted">
               <LogOut className="h-4 w-4" /> Sign Out
             </Button>
           </div>
@@ -94,20 +96,20 @@ export default function HqShell() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-foreground grain md:flex">
+    <div className="min-h-screen bg-background text-foreground grain md:flex">
       {/* Sidebar Panel */}
       <aside
-        className={`shrink-0 border-r border-white/[0.06] bg-black/40 backdrop-blur-xl flex flex-col transition-[width] duration-200 ease-out ${
+        className={`shrink-0 border-r border-border/60 bg-sidebar flex flex-col transition-[width] duration-200 ease-out ${
           collapsed ? "md:w-16" : "lg:w-56 md:w-60"
         }`}
       >
-        <div className={`h-16 flex items-center border-b border-white/[0.06] ${collapsed ? "justify-center px-2" : "px-5"}`}>
+        <div className={`h-16 flex items-center border-b border-border/60 ${collapsed ? "justify-center px-2" : "px-5"}`}>
           <div className="flex items-center gap-2.5">
-            <LogoMark size={24} className="text-amber-500" />
+            <LogoMark size={24} className="text-primary" />
             {!collapsed && (
               <div className="flex flex-col">
                 <span className="font-bold text-xs tracking-tight font-display">ATLAS HQ</span>
-                <span className="text-[9px] text-amber-500/80 font-semibold uppercase tracking-wider">Admin Console</span>
+                <span className="text-[9px] text-primary/80 font-semibold uppercase tracking-wider">Admin Console</span>
               </div>
             )}
           </div>
@@ -117,11 +119,29 @@ export default function HqShell() {
         <SidebarNav collapsed={collapsed} />
 
         {/* Sidebar Footer Operations */}
-        <div className="p-3 border-t border-white/[0.06] space-y-1">
+        <div className="p-3 border-t border-border/60 space-y-1">
+          {/* Theme cycling toggle */}
+          <button
+            onClick={cycleTheme}
+            aria-label="Cycle theme"
+            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
+              collapsed ? "justify-center" : ""
+            }`}
+          >
+            {theme === "dark" ? (
+              <Moon className="h-4 w-4 text-amber-400" />
+            ) : theme === "paper" ? (
+              <Palette className="h-4 w-4 text-amber-500" />
+            ) : (
+              <Sun className="h-4 w-4 text-primary" />
+            )}
+            {!collapsed && <span>Theme: {theme === "clean" ? "Clean" : theme === "paper" ? "Paper" : "Dark"}</span>}
+          </button>
+
           {/* Back to Client App */}
           <button
             onClick={() => navigate("/app")}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors ${
+            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
               collapsed ? "justify-center" : ""
             }`}
             title="Back to client workspace"
@@ -134,7 +154,7 @@ export default function HqShell() {
           <button
             onClick={toggle}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors ${
+            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
               collapsed ? "justify-center" : ""
             }`}
           >
@@ -143,9 +163,9 @@ export default function HqShell() {
           </button>
 
           {/* Profile box */}
-          <div className={`flex items-center gap-3 px-3 py-2 border-t border-white/[0.03] mt-2 pt-2 ${collapsed ? "justify-center" : ""}`}>
-            <div className="h-7 w-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
-              <UserIcon className="h-3.5 w-3.5 text-amber-500" />
+          <div className={`flex items-center gap-3 px-3 py-2 border-t border-border/40 mt-2 pt-2 ${collapsed ? "justify-center" : ""}`}>
+            <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <UserIcon className="h-3.5 w-3.5 text-primary" />
             </div>
             {!collapsed && (
               <>
@@ -210,7 +230,7 @@ function SidebarNav({ collapsed }: { collapsed: boolean }) {
       {/* Sliding active indicator block */}
       {indicator.visible && (
         <div
-          className="absolute left-3 right-3 rounded-md bg-white/[0.04] border border-white/[0.02] transition-all duration-200 ease-out pointer-events-none"
+          className="absolute left-3 right-3 rounded-md bg-sidebar-accent/60 border border-sidebar-border/30 transition-all duration-200 ease-out pointer-events-none"
           style={{ top: indicator.top, height: indicator.height }}
         />
       )}
@@ -224,8 +244,8 @@ function SidebarNav({ collapsed }: { collapsed: boolean }) {
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150 ${
                 isActive 
-                  ? "text-amber-500 font-medium" 
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-primary font-medium" 
+                  : "text-sidebar-foreground hover:text-foreground"
               } ${collapsed ? "justify-center" : ""}`
             }
           >

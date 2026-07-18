@@ -102,9 +102,9 @@ export default function HqSettings() {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-8 bg-[#09090b] min-h-screen text-foreground relative overflow-hidden">
+    <div className="p-6 md:p-8 space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       {/* Header */}
-      <div className="border-b border-white/[0.06] pb-5">
+      <div className="border-b border-border/60 pb-5">
         <h1 className="text-3xl font-bold tracking-tight font-display">CRM Mappings</h1>
         <p className="text-sm text-muted-foreground mt-1">Configure your outbound Notion database pipelines and automation rules.</p>
       </div>
@@ -112,9 +112,9 @@ export default function HqSettings() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Connection Setup */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-6 space-y-6 shadow-lg">
+          <div className="rounded-xl border border-border/60 bg-card p-6 space-y-6 shadow-lg">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center border border-white/[0.06]">
+              <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center border border-border/60">
                 <Database className="h-5 w-5 text-amber-500" />
               </div>
               <div>
@@ -149,10 +149,10 @@ export default function HqSettings() {
                     <label className="text-xs font-semibold text-muted-foreground">Active Export Database</label>
                     <div className="flex gap-2">
                       <Select value={defaultNotionDb} onValueChange={handleSelectDb}>
-                        <SelectTrigger className="bg-background text-xs h-9 flex-1 border-white/[0.08]">
+                        <SelectTrigger className="bg-background text-xs h-9 flex-1 border-border/60">
                           <SelectValue placeholder={notionLoading ? "Loading..." : "Select database"} />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#09090b] border-white/[0.08]">
+                        <SelectContent className="bg-popover text-popover-foreground border-border/60">
                           {notionDatabases.length === 0 ? (
                             <SelectItem value="none" disabled>No databases found</SelectItem>
                           ) : (
@@ -166,7 +166,7 @@ export default function HqSettings() {
                         onClick={() => loadNotionDatabasesList(true)}
                         disabled={notionLoading}
                         variant="outline"
-                        className="h-9 w-9 border-white/[0.08] hover:bg-white/5 p-0 shrink-0"
+                        className="h-9 w-9 border-border/60 hover:bg-muted p-0 shrink-0"
                         title="Reload Databases"
                       >
                         <RefreshCw className={`h-4.5 w-4.5 text-muted-foreground ${notionLoading ? "animate-spin" : ""}`} />
@@ -190,7 +190,7 @@ export default function HqSettings() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-6 border border-dashed border-white/[0.08] rounded-lg bg-white/[0.01]">
+              <div className="text-center py-6 border border-dashed border-border/60 rounded-lg bg-muted/20">
                 <Database className="h-8 w-8 text-muted-foreground/60 mx-auto mb-3" />
                 <h3 className="text-sm font-semibold">No Notion Workspace Connected</h3>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
@@ -205,8 +205,8 @@ export default function HqSettings() {
         </div>
 
         {/* Database property mapping guide */}
-        <div className="rounded-xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-5 space-y-4 shadow-lg h-fit">
-          <h2 className="text-sm font-semibold tracking-tight font-mono uppercase text-muted-foreground flex items-center gap-1.5 pb-2 border-b border-white/[0.06]">
+        <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4 shadow-lg h-fit">
+          <h2 className="text-sm font-semibold tracking-tight font-mono uppercase text-muted-foreground flex items-center gap-1.5 pb-2 border-b border-border/60">
             <Info className="h-4 w-4 text-amber-500" /> Database Mappings Schema
           </h2>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -222,7 +222,7 @@ export default function HqSettings() {
               { field: "ICP Score", type: "Number" },
               { field: "Notes", type: "Rich Text" },
             ].map((m, i) => (
-              <div key={i} className="flex justify-between items-center py-1.5 border-b border-white/[0.03]">
+              <div key={i} className="flex justify-between items-center py-1.5 border-b border-border/30">
                 <span className="font-semibold text-foreground">{m.field}</span>
                 <span className="text-muted-foreground">{m.type}</span>
               </div>

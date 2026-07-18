@@ -107,7 +107,7 @@ export default function HqDashboard() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#09090b]">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-7 w-7 animate-spin text-amber-500" />
           <span className="text-xs text-muted-foreground font-mono">Loading metrics...</span>
@@ -117,17 +117,17 @@ export default function HqDashboard() {
   }
 
   return (
-    <div className="p-6 md:p-8 space-y-8 bg-[#09090b] min-h-screen text-foreground relative overflow-hidden">
+    <div className="p-6 md:p-8 space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       {/* Decorative gradient */}
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/[0.01] rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/[0.06] pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-display">Overview</h1>
           <p className="text-sm text-muted-foreground mt-1">Real-time prospect pipeline health and integration diagnostic logs.</p>
         </div>
-        <Button onClick={fetchStats} variant="outline" className="h-9 gap-1.5 border-white/10 hover:bg-white/5 font-mono text-xs">
+        <Button onClick={fetchStats} variant="outline" className="h-9 gap-1.5 border-border hover:bg-muted font-mono text-xs">
           <RefreshCw className="h-3.5 w-3.5" /> Refresh Stats
         </Button>
       </div>
@@ -164,7 +164,7 @@ export default function HqDashboard() {
             color: "text-purple-500 bg-purple-500/10 border-purple-500/20"
           }
         ].map((c, i) => (
-          <div key={i} className="rounded-xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-5 flex items-center justify-between shadow-lg">
+          <div key={i} className="rounded-xl border border-border/60 bg-card p-5 flex items-center justify-between shadow-lg">
             <div className="space-y-1.5">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider font-mono">{c.title}</span>
               <div className="text-3xl font-bold font-display">{c.value}</div>
@@ -180,7 +180,7 @@ export default function HqDashboard() {
       {/* Main Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sourcing Quick links */}
-        <div className="lg:col-span-2 rounded-xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-5 space-y-4 shadow-lg flex flex-col justify-between">
+        <div className="lg:col-span-2 rounded-xl border border-border/60 bg-card p-5 space-y-4 shadow-lg flex flex-col justify-between">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
               <Shield className="h-4.5 w-4.5 text-amber-500" /> Sourcing Engine Launchpad
@@ -192,7 +192,7 @@ export default function HqDashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
             <Link to="/hq/prospects">
-              <div className="p-4 rounded-lg border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03] transition-colors cursor-pointer group flex justify-between items-center">
+              <div className="p-4 rounded-lg border border-border/40 bg-card/40 hover:bg-card/80 transition-colors cursor-pointer group flex justify-between items-center">
                 <div>
                   <h3 className="text-sm font-semibold group-hover:text-amber-500 transition-colors">Prospects Database</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">Manage sourced leads and Notion exports.</p>
@@ -201,7 +201,7 @@ export default function HqDashboard() {
               </div>
             </Link>
             <Link to="/hq/settings">
-              <div className="p-4 rounded-lg border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03] transition-colors cursor-pointer group flex justify-between items-center">
+              <div className="p-4 rounded-lg border border-border/40 bg-card/40 hover:bg-card/80 transition-colors cursor-pointer group flex justify-between items-center">
                 <div>
                   <h3 className="text-sm font-semibold group-hover:text-amber-500 transition-colors">Notion Mappings</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">Configure columns, properties, and sync rules.</p>
@@ -213,8 +213,8 @@ export default function HqDashboard() {
         </div>
 
         {/* Diagnostic Status Box */}
-        <div className="rounded-xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-5 space-y-4 shadow-lg">
-          <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+        <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4 shadow-lg">
+          <div className="flex items-center justify-between pb-2 border-b border-border/60">
             <h2 className="text-sm font-semibold tracking-tight font-mono uppercase text-muted-foreground">Service Health</h2>
             <div className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

@@ -850,7 +850,7 @@ export default function Sourcing() {
     : 0;
 
   return (
-    <div className="p-6 md:p-8 bg-[#09090b] min-h-screen text-foreground relative overflow-hidden">
+    <div className="p-6 md:p-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       <div className="mx-auto max-w-7xl">
 
           {/* ── Page Header ── */}
