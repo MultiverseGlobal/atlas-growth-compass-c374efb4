@@ -27,8 +27,18 @@ import {
   Select, SelectContent, SelectItem, 
   SelectTrigger, SelectValue 
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+const stripMarkdown = (text: string | null): string => {
+  if (!text) return "";
+  return text
+    .replace(/^#+\s+/gm, "")      // remove markdown headings
+    .replace(/^[-*+]\s+/gm, "")   // remove bullets
+    .replace(/\*\*([^*]+)\*\*/g, "$1") // remove bold **
+    .replace(/\*([^*]+)\*/g, "$1") // remove italics *
+    .replace(/`([^`]+)`/g, "$1") // remove inline code
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // remove links
+    .replace(/\n+/g, " ")         // replace newlines with spaces
+    .trim();
+};
 
 interface Lead {
   id: string;
@@ -82,8 +92,8 @@ export default function Sourcing() {
   const [manualUrl, setManualUrl] = useState("");
 
   // Edit notes state
-  const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
-  const [editingNotesText, setEditingNotesText] = useState("");
+  const [activeNotesLead, setActiveNotesLead] = useState<Lead | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
 
   // Export Notion Modal State
   const [showNotionModal, setShowNotionModal] = useState(false);
@@ -651,21 +661,21 @@ export default function Sourcing() {
     }
   };
 
-  // Inline Note Save
-  const saveInlineNotes = async (leadId: string) => {
-    setEditingNotesId(null);
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, notes: editingNotesText.trim() || null } : l));
-    
+  // Save lead notes from modal dialog
+  const saveNotesDialog = async () => {
+    if (!activeNotesLead) return;
     try {
       const { error } = await supabase
         .from("leads")
-        .update({ notes: editingNotesText.trim() || null })
-        .eq("id", leadId);
+        .update({ notes: notesDraft.trim() || null })
+        .eq("id", activeNotesLead.id);
 
       if (error) throw error;
-      toast.success("Notes updated");
+
+      setLeads(prev => prev.map(l => l.id === activeNotesLead.id ? { ...l, notes: notesDraft.trim() || null } : l));
+      toast.success("Strategic notes updated");
+      setActiveNotesLead(null);
     } catch (err: any) {
-      fetchLeads();
       toast.error("Failed to update notes: " + err.message);
     }
   };
@@ -1169,14 +1179,14 @@ export default function Sourcing() {
                           />
                         </TableHead>
 
-                <TableHead className="w-[180px] font-mono text-[10px] tracking-wider uppercase py-3">Company</TableHead>
-                <TableHead className="w-[160px] font-mono text-[10px] tracking-wider uppercase py-3">Founder</TableHead>
-                <TableHead className="w-[80px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Socials</TableHead>
-                <TableHead className="w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">ICP Score</TableHead>
+                <TableHead className="w-[200px] font-mono text-[10px] tracking-wider uppercase py-3">Company</TableHead>
+                <TableHead className="w-[180px] font-mono text-[10px] tracking-wider uppercase py-3">Founder</TableHead>
+                <TableHead className="w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Socials</TableHead>
+                <TableHead className="w-[100px] text-center font-mono text-[10px] tracking-wider uppercase py-3">ICP Score</TableHead>
                 <TableHead className="w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Contacted</TableHead>
                 <TableHead className="w-[120px] font-mono text-[10px] tracking-wider uppercase py-3">Reply Status</TableHead>
                 <TableHead className="w-[110px] font-mono text-[10px] tracking-wider uppercase py-3">Notion Sync</TableHead>
-                <TableHead className="font-mono text-[10px] tracking-wider uppercase py-3">Outreach Notes / Strategy</TableHead>
+                <TableHead className="min-w-[250px] font-mono text-[10px] tracking-wider uppercase py-3">Outreach Notes / Strategy</TableHead>
                 <TableHead className="w-[120px] text-right font-mono text-[10px] tracking-wider uppercase py-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -1250,7 +1260,7 @@ export default function Sourcing() {
                         )}
                         {lead.twitter_url ? (
                           <a 
-                            href={`https://x.com/${lead.twitter_url.replace("@", "")}`} 
+                            href={lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`} 
                             target="_blank" 
                             rel="noreferrer" 
                             className="p-1 rounded bg-secondary hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
@@ -1265,7 +1275,7 @@ export default function Sourcing() {
                     {/* ICP Score */}
                     <TableCell className="align-middle text-center">
                       <Badge variant="outline" className={`font-mono text-xs font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                        {lead.icp_score ? `${lead.icp_score}/10` : "TBD"}
+                        {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/10` : "TBD"}
                       </Badge>
                     </TableCell>
 
@@ -1348,37 +1358,25 @@ export default function Sourcing() {
                       </div>
                     </TableCell>
 
-                    {/* Notes (Inline editable on click) */}
-                    <TableCell className="align-middle text-xs">
-                      {editingNotesId === lead.id ? (
-                        <div className="flex items-center gap-1.5 w-full">
-                          <Input
-                            value={editingNotesText}
-                            onChange={(e) => setEditingNotesText(e.target.value)}
-                            onBlur={() => saveInlineNotes(lead.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveInlineNotes(lead.id);
-                              if (e.key === "Escape") setEditingNotesId(null);
-                            }}
-                            autoFocus
-                            className="h-7 text-xs py-0 px-2"
-                          />
-                        </div>
-                      ) : (
-                        <div 
-                          onClick={() => {
-                            setEditingNotesId(lead.id);
-                            setEditingNotesText(lead.notes || "");
-                          }}
-                          className="cursor-pointer group flex items-start justify-between gap-1 hover:bg-muted/30 p-1 rounded transition-colors min-h-[24px]"
-                          title="Click to edit notes"
-                        >
-                          <span className="text-muted-foreground line-clamp-2 leading-tight">
-                            {lead.notes || <span className="text-muted-foreground/30 italic font-sans">Add strategic notes...</span>}
-                          </span>
-                          <Edit2 className="h-2.5 w-2.5 text-muted-foreground/0 group-hover:text-muted-foreground/60 shrink-0 mt-0.5 transition-opacity" />
-                        </div>
-                      )}
+                    {/* Notes (Clean display, click to open full dialog editor) */}
+                    <TableCell className="align-middle text-xs max-w-[280px]">
+                      <div 
+                        onClick={() => {
+                          setActiveNotesLead(lead);
+                          setNotesDraft(lead.notes || "");
+                        }}
+                        className="cursor-pointer group flex items-start justify-between gap-1 hover:bg-muted/30 p-1.5 rounded transition-colors min-h-[24px]"
+                        title="Click to view/edit outreach notes"
+                      >
+                        <span className="text-muted-foreground line-clamp-2 leading-tight">
+                          {lead.notes ? (
+                            stripMarkdown(lead.notes)
+                          ) : (
+                            <span className="text-muted-foreground/30 italic font-sans">Add strategic notes...</span>
+                          )}
+                        </span>
+                        <Edit2 className="h-2.5 w-2.5 text-muted-foreground/0 group-hover:text-muted-foreground/60 shrink-0 mt-0.5 transition-opacity" />
+                      </div>
                     </TableCell>
 
                     {/* Integrations & Delete actions */}
@@ -1837,6 +1835,42 @@ export default function Sourcing() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: View & Edit Notes ── */}
+      <Dialog open={activeNotesLead !== null} onOpenChange={(open) => { if (!open) setActiveNotesLead(null); }}>
+        <DialogContent className="sm:max-w-[550px] bg-card border border-border/80">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" /> Outreach Notes & Strategy
+            </DialogTitle>
+            <DialogDescription>
+              Analyze and edit strategic notes and outreach recommendations for <strong className="text-foreground">{activeNotesLead?.company_name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground" htmlFor="dialog-notes">
+                Notes & Strategy (Markdown supported)
+              </label>
+              <Textarea 
+                id="dialog-notes" 
+                value={notesDraft} 
+                onChange={e => setNotesDraft(e.target.value)}
+                className="min-h-[250px] font-sans text-xs bg-background resize-y"
+                placeholder="No strategic notes generated yet. Type strategic outreach points here..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setActiveNotesLead(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={saveNotesDialog}>
+              Save Changes
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

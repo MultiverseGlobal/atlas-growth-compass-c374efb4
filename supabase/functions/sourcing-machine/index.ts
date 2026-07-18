@@ -343,6 +343,7 @@ Deno.serve(async (req: Request) => {
 
       let contentToAnalyze = "";
       let sourceUrl = body.url || null;
+      let isRawTextActuallyUrl = false;
 
       // Smart check: if user pasted a single URL in the raw text scraper, treat it as a URL
       if (!sourceUrl && body.raw_text) {
@@ -354,17 +355,29 @@ Deno.serve(async (req: Request) => {
           if (!/^https?:\/\//i.test(sourceUrl)) {
             sourceUrl = "https://" + sourceUrl;
           }
+          isRawTextActuallyUrl = true;
         }
       }
 
-      if (sourceUrl) {
+      // Check if URL is a social profile (which block Deno fetch crawlers)
+      const isSocialMedia = sourceUrl && (
+        sourceUrl.includes("linkedin.com") || 
+        sourceUrl.includes("x.com") || 
+        sourceUrl.includes("twitter.com")
+      );
+
+      if (sourceUrl && (!body.raw_text || isRawTextActuallyUrl || !isSocialMedia)) {
         console.log(`Scraping URL: ${sourceUrl}`);
         const scraped = await scrapeUrl(sourceUrl);
         console.log(`Scraped title: ${scraped.title}`);
         contentToAnalyze = `URL: ${sourceUrl}\nTitle: ${scraped.title}\nMeta Description: ${scraped.description}\nPage Content:\n${scraped.content}`;
+      } else if (body.raw_text) {
+        console.log("Analyzing provided raw text (using raw_text instead of scraping)...");
+        contentToAnalyze = `URL: ${sourceUrl || "Direct Text"}\nRaw Text Page Content:\n${body.raw_text}`;
       } else {
-        console.log("Analyzing provided raw text...");
-        contentToAnalyze = `Raw Text Page Content:\n${body.raw_text}`;
+        return new Response(JSON.stringify({ error: "URL or raw_text is required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       // Build the shared system prompt for all AI providers
@@ -821,7 +834,9 @@ Parsed profile data for **${founder}** at **${company}**.
         // 4. X / Twitter
         const xPropName = mappings["twitter_url"];
         if (xPropName && properties[xPropName]) {
-          const xVal = lead.twitter_url ? `https://x.com/${lead.twitter_url.replace("@", "")}` : null;
+          const xVal = lead.twitter_url 
+            ? (lead.twitter_url.startsWith("http") ? lead.twitter_url : `https://x.com/${lead.twitter_url.replace("@", "")}`) 
+            : null;
           if (properties[xPropName].type === "url") {
             notionProperties[xPropName] = { url: xVal };
           } else {
