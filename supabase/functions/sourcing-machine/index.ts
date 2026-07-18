@@ -122,10 +122,9 @@ function extractJson(raw: string, expectArray = false): any {
   }
 }
 
-// Call Kimi AI — 50 s timeout via AbortSignal.timeout (Deno-native, no timer leak)
+// Call Kimi AI
 async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
   const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
-    signal: AbortSignal.timeout(50_000),
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -145,10 +144,9 @@ async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string
   return extractJson(data.choices[0].message.content, expectArray);
 }
 
-// Call NVIDIA NIM — 50 s timeout via AbortSignal.timeout
+// Call NVIDIA NIM
 async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
   const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-    signal: AbortSignal.timeout(50_000),
     method: "POST",
     headers: {
       "Content-Type": "application/json",
