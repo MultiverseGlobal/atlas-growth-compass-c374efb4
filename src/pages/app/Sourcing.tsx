@@ -49,7 +49,7 @@ interface Lead {
   linkedin_url: string | null;
   twitter_url: string | null;
   employee_count: number | null;
-  priority: boolean;
+  priority: string | null;
   icp_score: number | null;
   is_contacted: boolean;
   reply_status: string;
@@ -95,11 +95,10 @@ export default function Sourcing() {
   const [manualLinkedin, setManualLinkedin] = useState("");
   const [manualTwitter, setManualTwitter] = useState("");
   const [manualGoal, setManualGoal] = useState("");
-  const [manualB2b, setManualB2b] = useState(true);
   const [manualIcp, setManualIcp] = useState("10");
   const [manualNotes, setManualNotes] = useState("");
-  const [manualUrl, setManualUrl] = useState("")
-  const [manualThesis, setManualThesis] = useState("")
+  const [manualUrl, setManualUrl] = useState("");
+  const [manualThesis, setManualThesis] = useState("");
   const [manualNextAction, setManualNextAction] = useState("");
 
   // Edit notes state
@@ -599,31 +598,55 @@ export default function Sourcing() {
       toast.error("Company name is required");
       return;
     }
+    if (!manualFounder.trim()) {
+      toast.error("Founder name (Prospect) is required");
+      return;
+    }
+    if (!manualUrl.trim()) {
+      toast.error("Source URL / Website is required");
+      return;
+    }
+    if (!manualThesis.trim()) {
+      toast.error("Founder Thesis (Dominant Constraint) is required");
+      return;
+    }
+
+    const parsedIcp = parseInt(manualIcp) || 10;
+    if (parsedIcp < 10) {
+      toast.error("Sourced prospects must score at least 10/15 to be qualified");
+      return;
+    }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Unauthorized");
+
+      const calculatedPriority = parsedIcp >= 13 ? "High" : parsedIcp >= 11 ? "Medium" : "Low";
 
       const { data, error } = await supabase
         .from("pipeline_crm")
         .insert({
           user_id: user.id,
           company: manualCompany.trim(),
-          prospect: manualFounder.trim() || null,
+          prospect: manualFounder.trim(),
+          website: manualUrl.trim(),
+          founder_thesis: manualThesis.trim(),
+          goal: manualGoal.trim() || "Scale operations",
+          icp_score: parsedIcp,
+          next_action: manualNextAction.trim() || "Initial outreach",
+          notes: `## Manual Entry\n\nNotes: ${manualNotes.trim()}`,
+          priority: calculatedPriority,
+          source: manualUrl.trim(),
+          stage: "Sourced",
           linkedin_url: manualLinkedin.trim() || null,
-          twitter_url: manualTwitter.trim() || null,
-          employee_count: parseInt(manualEmployees) || null,
-          priority: manualB2b,
-          icp_score: parseInt(manualIcp) || null,
-          source: manualUrl.trim() || null,
-          notes: manualNotes.trim() || null
+          twitter_url: manualTwitter.trim() || null
         })
         .select()
         .single();
 
       if (error) throw error;
       setLeads(prev => [data, ...prev]);
-      toast.success(`Manually added ${data.company_name}`);
+      toast.success(`Manually added ${data.company}`);
       setShowManualModal(false);
       
       // Clear form
@@ -631,11 +654,12 @@ export default function Sourcing() {
       setManualFounder("");
       setManualLinkedin("");
       setManualTwitter("");
-      setManualEmployees("5");
-      setManualB2b(true);
-      setManualIcp("8");
+      setManualGoal("");
+      setManualIcp("10");
       setManualNotes("");
       setManualUrl("");
+      setManualThesis("");
+      setManualNextAction("");
     } catch (err: any) {
       toast.error("Failed to add lead: " + err.message);
     }
@@ -1913,7 +1937,7 @@ export default function Sourcing() {
                 Manually record a startup lead to seed your CRM.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-company">
@@ -1929,13 +1953,14 @@ export default function Sourcing() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-founder">
-                    Founder Name
+                    Founder Name (Prospect) *
                   </label>
                   <Input 
                     id="m-founder" 
                     value={manualFounder} 
                     onChange={e => setManualFounder(e.target.value)} 
                     placeholder="e.g. Jane Doe"
+                    required
                   />
                 </div>
               </div>
@@ -1965,53 +1990,71 @@ export default function Sourcing() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-employees">
-                    Employees
-                  </label>
-                  <Input 
-                    id="m-employees" 
-                    type="number"
-                    value={manualEmployees} 
-                    onChange={e => setManualEmployees(e.target.value)} 
-                    placeholder="e.g. 5"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-icp">
-                    ICP Score (0-10)
-                  </label>
-                  <Input 
-                    id="m-icp" 
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={manualIcp} 
-                    onChange={e => setManualIcp(e.target.value)} 
-                    placeholder="e.g. 8"
-                  />
-                </div>
-                <div className="flex items-center justify-center pt-5">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <Checkbox 
-                      checked={manualB2b} 
-                      onCheckedChange={(checked) => setManualB2b(!!checked)}
-                    />
-                    <span className="text-xs font-semibold text-muted-foreground">High Priority</span>
-                  </label>
-                </div>
-              </div>
-
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-url">
-                  Source / Website URL
+                  Source / Website URL *
                 </label>
                 <Input 
                   id="m-url" 
                   value={manualUrl} 
                   onChange={e => setManualUrl(e.target.value)} 
-                  placeholder="e.g. producthunt.com/posts/river"
+                  placeholder="e.g. https://anysearch.com"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-thesis">
+                  Dominant Constraint (Founder Thesis) *
+                  <span className="text-[10px] text-muted-foreground block font-normal">A quote or close paraphrase of self-disclosed problem</span>
+                </label>
+                <Input 
+                  id="m-thesis" 
+                  value={manualThesis} 
+                  onChange={e => setManualThesis(e.target.value)} 
+                  placeholder="e.g. Doesn't know which acquisition channel to invest in"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-goal">
+                    Goal
+                  </label>
+                  <Input 
+                    id="m-goal" 
+                    value={manualGoal} 
+                    onChange={e => setManualGoal(e.target.value)} 
+                    placeholder="e.g. Get first 10 customers"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-icp">
+                    ICP Score (10-15) *
+                  </label>
+                  <Input 
+                    id="m-icp" 
+                    type="number"
+                    min="10"
+                    max="15"
+                    value={manualIcp} 
+                    onChange={e => setManualIcp(e.target.value)} 
+                    placeholder="e.g. 12"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground" htmlFor="m-next-action">
+                  Next Outreach Action
+                </label>
+                <Input 
+                  id="m-next-action" 
+                  value={manualNextAction} 
+                  onChange={e => setManualNextAction(e.target.value)} 
+                  placeholder="e.g. Send cold email with growth audit"
                 />
               </div>
 
