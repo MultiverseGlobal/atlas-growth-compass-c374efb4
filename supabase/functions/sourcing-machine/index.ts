@@ -122,63 +122,51 @@ function extractJson(raw: string, expectArray = false): any {
   }
 }
 
-// Call Kimi AI — with 25 s hard timeout so the function never hangs indefinitely
+// Call Kimi AI — 50 s timeout via AbortSignal.timeout (Deno-native, no timer leak)
 async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25_000);
-  try {
-    const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
-      signal: ctrl.signal,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "moonshot-v1-8k",
-        temperature: 0.3,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`Kimi AI error: ${res.status} ${await res.text()}`);
-    const data = await res.json();
-    return extractJson(data.choices[0].message.content, expectArray);
-  } finally {
-    clearTimeout(timer);
-  }
+  const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
+    signal: AbortSignal.timeout(50_000),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "moonshot-v1-8k",
+      temperature: 0.3,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Kimi AI error: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return extractJson(data.choices[0].message.content, expectArray);
 }
 
-// Call NVIDIA NIM — with 25 s hard timeout
+// Call NVIDIA NIM — 50 s timeout via AbortSignal.timeout
 async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25_000);
-  try {
-    const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      signal: ctrl.signal,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "meta/llama-3.1-70b-instruct",
-        temperature: 0.3,
-        max_tokens: 1024,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`NVIDIA NIM error: ${res.status} ${await res.text()}`);
-    const data = await res.json();
-    return extractJson(data.choices[0].message.content, expectArray);
-  } finally {
-    clearTimeout(timer);
-  }
+  const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    signal: AbortSignal.timeout(50_000),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "meta/llama-3.1-70b-instruct",
+      temperature: 0.3,
+      max_tokens: 1024,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`NVIDIA NIM error: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return extractJson(data.choices[0].message.content, expectArray);
 }
 
 // Parse structured markdown notes into Notion block formats
