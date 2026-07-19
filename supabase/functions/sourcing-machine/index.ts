@@ -1391,83 +1391,139 @@ Return ONLY a valid JSON array — one object per story:
       const ycIndustry = body.industry || "";
 
       try {
-        // Build YC search URL based on filter
-        const batchParam = ycFilter === "recent" ? "W24,S24,W23,S23" : "";
-        const industryQuery = ycIndustry ? encodeURIComponent(ycIndustry) : "";
-        
-        // Use YC's public API / search
-        const ycSearchUrl = `https://www.ycombinator.com/companies?batch=${batchParam}&industry=${industryQuery}`;
-        const ycRes = await fetch(ycSearchUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          },
-          signal: AbortSignal.timeout(20000)
+        // 1. Fetch YC master directory list from yc-oss open-source JSON replica
+        const listRes = await fetch("https://yc-oss.github.io/api/companies/all.json", {
+          signal: AbortSignal.timeout(15000)
         });
-        if (!ycRes.ok) throw new Error(`YC directory fetch failed: ${ycRes.status}`);
-        const ycHtml = await ycRes.text();
+        if (!listRes.ok) throw new Error(`Failed to load YC company dataset: ${listRes.status}`);
+        const allCompanies = await listRes.json();
 
-        // Extract companies from Next.js __NEXT_DATA__ JSON blob if present
-        const nextDataMatch = ycHtml.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-        const companies: Array<{ name: string; url: string; description: string; founders: string; batch: string }> = [];
-
-        if (nextDataMatch) {
-          try {
-            const nextData = JSON.parse(nextDataMatch[1]);
-            const companyList = nextData?.props?.pageProps?.companies || nextData?.props?.pageProps?.initialCompanies || [];
-            for (const co of companyList.slice(0, 12)) {
-              companies.push({
-                name: co.name || co.company_name || "Unknown",
-                url: co.website || co.url || "",
-                description: co.one_liner || co.description || "",
-                founders: (co.founders || []).map((f: any) => f.first_name + " " + f.last_name).join(", ") || "",
-                batch: co.batch || ""
-              });
-            }
-          } catch (_) {
-            // Fall through to HTML extraction
-          }
+        // 2. Filter companies based on filter param
+        let filtered = allCompanies;
+        if (ycFilter === "recent") {
+          const recentBatches = ["Winter 2024", "Summer 2024", "Winter 2023", "Summer 2023", "W24", "S24", "W23", "S23"];
+          filtered = allCompanies.filter((co: any) => recentBatches.some((b: string) => co.batch && co.batch.includes(b)));
+        } else if (ycFilter === "top") {
+          filtered = allCompanies.filter((co: any) => co.top_company === true);
+        } else if (ycFilter === "b2b") {
+          filtered = allCompanies.filter((co: any) => 
+            (co.industry && co.industry.toLowerCase().includes("b2b")) ||
+            (co.subindustry && co.subindustry.toLowerCase().includes("b2b")) ||
+            (co.tags && co.tags.some((t: string) => t.toLowerCase().includes("b2b")))
+          );
+        } else if (ycFilter === "saas") {
+          filtered = allCompanies.filter((co: any) => 
+            (co.subindustry && co.subindustry.toLowerCase().includes("saas")) ||
+            (co.tags && co.tags.some((t: string) => t.toLowerCase().includes("saas")))
+          );
         }
 
-        // Fallback: direct HTML regex extraction
-        if (companies.length === 0) {
-          const coCardRegex = /<a[^>]+href="(\/companies\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-          let cm: RegExpExecArray | null;
-          while ((cm = coCardRegex.exec(ycHtml)) !== null && companies.length < 12) {
-            const slug = cm[1];
-            const cardHtml = cm[2];
-            const name = (cardHtml.match(/<[^>]*class="[^"]*company[^"]*"[^>]*>([\s\S]*?)<\//) || [])[1]?.replace(/<[^>]+>/g, "").trim();
-            const desc = (cardHtml.match(/<[^>]*class="[^"]*tagline[^"]*"[^>]*>([\s\S]*?)<\//) || [])[1]?.replace(/<[^>]+>/g, "").trim();
-            if (name) {
-              companies.push({ name, url: `https://www.ycombinator.com${slug}`, description: desc || "", founders: "", batch: "" });
-            }
-          }
+        // 3. Filter by industry keyword if provided
+        if (ycIndustry) {
+          const indLower = ycIndustry.toLowerCase();
+          filtered = filtered.filter((co: any) => 
+            (co.industry && co.industry.toLowerCase().includes(indLower)) ||
+            (co.subindustry && co.subindustry.toLowerCase().includes(indLower)) ||
+            (co.tags && co.tags.some((t: string) => t.toLowerCase().includes(indLower)))
+          );
         }
 
-        if (companies.length === 0) {
-          return new Response(JSON.stringify({ leads: [], rejected: [], total: 0, message: "No YC companies found. Try a different filter." }), {
+        // Sort by ID descending to prioritize newer/more relevant entries
+        filtered.sort((a: any, b: any) => (b.id || 0) - (a.id || 0));
+
+        if (filtered.length === 0) {
+          return new Response(JSON.stringify({ leads: [], rejected: [], total: 0, message: "No YC companies found matching the criteria." }), {
             status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
 
-        const ycTextBlock = companies.map((co, i) =>
-          `Company ${i + 1}:\nName: ${co.name}\nWebsite: ${co.url}\nBatch: ${co.batch}\nFounders: ${co.founders || "not listed"}\nDescription: ${co.description}`
+        // Slice top 10 companies to fetch their public detail pages
+        const topStories = filtered.slice(0, 10);
+        
+        // 4. Fetch detail pages in parallel to extract founders list and profile details
+        const companiesWithDetails = await Promise.all(
+          topStories.map(async (co: any) => {
+            try {
+              const coUrl = `https://www.ycombinator.com/companies/${co.slug}`;
+              const detailRes = await fetch(coUrl, {
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                },
+                signal: AbortSignal.timeout(10000)
+              });
+              if (!detailRes.ok) return null;
+              
+              const html = await detailRes.text();
+              const dataPageMatch = html.match(/data-page="([^"]+)"/) || html.match(/data-page='([^']+)'/);
+              if (dataPageMatch) {
+                const decodedJson = dataPageMatch[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                const pageData = JSON.parse(decodedJson);
+                const companyDetails = pageData.props?.company || {};
+                
+                // Format founders list details
+                const foundersList = (companyDetails.founders || []).map((f: any) => {
+                  return `Name: ${f.full_name || "not listed"}, Bio: ${f.founder_bio || "not listed"}, LinkedIn: ${f.linkedin_url || "not listed"}, Twitter: ${f.twitter_url || "not listed"}`;
+                }).join(" | ");
+
+                return {
+                  company_name: companyDetails.name || co.name,
+                  website: companyDetails.website || co.website || null,
+                  linkedin_url: companyDetails.linkedin_url || null,
+                  twitter_url: companyDetails.twitter_url || null,
+                  employee_count: companyDetails.team_size || co.team_size || null,
+                  funding_status: `Seed (YC ${companyDetails.batch || co.batch || "backed"})`,
+                  founders: foundersList || null,
+                  description: companyDetails.long_description || companyDetails.one_liner || co.long_description || co.one_liner || "",
+                  source_url: coUrl
+                };
+              }
+            } catch (err) {
+              console.error(`Error loading detail for ${co.slug}:`, err.message);
+            }
+            // Fallback to list details if profile page crawl failed
+            return {
+              company_name: co.name,
+              website: co.website || null,
+              linkedin_url: null,
+              twitter_url: null,
+              employee_count: co.team_size || null,
+              funding_status: `Seed (YC ${co.batch || "backed"})`,
+              founders: null,
+              description: co.long_description || co.one_liner || "",
+              source_url: `https://www.ycombinator.com/companies/${co.slug}`
+            };
+          })
+        );
+
+        const validCompanies = companiesWithDetails.filter(Boolean);
+
+        // 5. Format detailed data as text block for AI parsing
+        const ycTextBlock = validCompanies.map((co: any, i: number) =>
+          `Company ${i + 1}:
+Name: ${co.company_name}
+Website: ${co.website || "No website link"}
+Source Profile: ${co.source_url}
+Batch & Funding: ${co.funding_status}
+Team Size: ${co.employee_count}
+Stated Founders: ${co.founders || "Not listed"}
+Description: ${co.description}
+`
         ).join("\n---\n\n");
 
         const ycSystemPrompt = `You are Atlas HQ — a B2B sales intelligence machine. You are parsing YC company directory listings to find solo/small-team B2B SaaS founders worth cold outreach.
 
 For EACH company, extract:
 1. Company Name
-2. Founder Name — CRITICAL: Use the "Founders" field if provided. If a real name is there, use it. If not, return the exact string "founder name not found — needs manual research". NEVER invent a name.
+2. Founder Name — CRITICAL: Use the "Stated Founders" field if provided. If a real name is listed there, use it. If multiple founders, list the first main founder. If not found or not listed, return the exact string "founder name not found — needs manual research". NEVER invent a name.
 3. Company Website: The real domain. Return null if not found.
 4. LinkedIn URL (or null)
 5. Twitter/X handle (or null)
-6. Employee count (integer, default to 2-5 for YC companies)
-7. Funding Status: "Seed (YC-backed)" unless stated otherwise
+6. Employee count (integer)
+7. Funding Status: e.g. "Seed (YC-backed)"
 8. Social Media Followers: 0 unless explicitly stated
 9. has_major_press: boolean
 10. ph_top_5: boolean
-11. Founder Thesis: Their stated problem or mission. Return null if not found. Never fabricate.
+11. Founder Thesis: Their stated problem or mission from the description. Return null if not found. Never fabricate.
 12. Goal: What they're building (or null)
 13. Rubric scores — UNIQUE PER ENTRY:
     - score_founder_active (0-3)
@@ -1524,7 +1580,8 @@ Return ONLY a valid JSON array:
         const items = Array.isArray(arrayResult) ? arrayResult : [];
         for (let idx = 0; idx < items.length; idx++) {
           const item = items[idx];
-          const matchedSource = companies[idx]?.url || "https://www.ycombinator.com/companies";
+          const matchedCo = validCompanies[idx] || {};
+          const matchedSource = matchedCo.source_url || "https://www.ycombinator.com/companies";
           const evaluation = validateAndEvaluateLead(item, matchedSource);
           if (!evaluation.disqualified) {
             filteredLeads.push(evaluation.evaluatedLead);
