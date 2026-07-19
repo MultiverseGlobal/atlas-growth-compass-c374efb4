@@ -628,9 +628,9 @@ export default function Sourcing() {
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, notion_sync_status: "syncing" } : l));
 
       try {
-        const { data, error } = await supabase.functions.invoke("sourcing-machine", {
+        const { data, error } = await supabase.functions.invoke("notion-sync", {
           body: {
-            action: "export-notion",
+            action: "sync",
             lead: {
               id: lead.id,
               company: lead.company,
@@ -647,12 +647,21 @@ export default function Sourcing() {
               founder_thesis: lead.founder_thesis,
               goal: lead.goal,
               next_action: lead.next_action,
-              stage: lead.stage
+              stage: lead.stage,
+              draft_message: lead.draft_message,
+              contact_channel: lead.contact_channel,
+              stale_data_warning: lead.stale_data_warning,
+              score_founder_active: lead.score_founder_active,
+              score_buying_signal: lead.score_buying_signal,
+              score_icp_fit: lead.score_icp_fit,
+              score_reachable: lead.score_reachable,
+              score_atlas_relevance: lead.score_atlas_relevance
             },
             database_id: dbId,
             duplicate_behavior: defaultBehavior,
             field_mappings: notionIntegration?.settings?.field_mappings
-          }
+          },
+          signal: AbortSignal.timeout(55000)
         });
 
         if (error) throw error;
