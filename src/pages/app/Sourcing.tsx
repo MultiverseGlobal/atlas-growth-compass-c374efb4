@@ -4,7 +4,7 @@ import {
   FileSpreadsheet, Link2, Check, X, Edit2, CheckSquare, 
   Square, RefreshCw, AlertCircle, HelpCircle, ArrowRight,
   LogOut, SlidersHorizontal, TrendingUp, Users, CheckCircle2,
-  Database, Play, Info, Plug, ArrowUpRight, Lock
+  Database, Play, Info, Plug, ArrowUpRight, Lock, RotateCcw
 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -149,6 +149,8 @@ export default function Sourcing() {
 
   // Selection state for Bulk Actions
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  // Re-analyze state
+  const [reanalyzingLeadId, setReanalyzingLeadId] = useState<string | null>(null);
 
   // Sourcing mode state
   const [sourcingMode, setSourcingMode] = useState<"url" | "text" | "hn">("url");
@@ -1090,6 +1092,65 @@ export default function Sourcing() {
     }
   };
 
+  // Re-analyze a lead with fresh AI extraction from its source
+  const handleReanalyzeLead = async (lead: Lead) => {
+    if (!lead.source || reanalyzingLeadId) return;
+    const toastId = toast.loading(`Re-analyzing ${lead.company} with updated models...`);
+    setReanalyzingLeadId(lead.id);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+        body: {
+          action: "source",
+          url: lead.source.startsWith("http") ? lead.source : undefined,
+          raw_text: !lead.source.startsWith("http") ? lead.source : undefined
+        },
+        signal: AbortSignal.timeout(55000)
+      });
+
+      if (invokeError) throw new Error(invokeError.message ?? "Re-analysis failed");
+      if (data?.error) throw new Error(data.error);
+
+      const freshLead = data?.leads?.[0];
+      if (!freshLead) throw new Error("No lead data returned from re-analysis");
+
+      // Merge fresh scores + analysis back into the existing lead record
+      const updates = {
+        prospect: freshLead.prospect || lead.prospect,
+        founder_thesis: freshLead.founder_thesis || lead.founder_thesis,
+        icp_score: freshLead.icp_score ?? lead.icp_score,
+        score_founder_active: freshLead.score_founder_active ?? lead.score_founder_active,
+        score_buying_signal: freshLead.score_buying_signal ?? lead.score_buying_signal,
+        score_icp_fit: freshLead.score_icp_fit ?? lead.score_icp_fit,
+        score_reachable: freshLead.score_reachable ?? lead.score_reachable,
+        score_atlas_relevance: freshLead.score_atlas_relevance ?? lead.score_atlas_relevance,
+        notes: freshLead.notes || lead.notes,
+        next_action: freshLead.next_action || lead.next_action,
+        goal: freshLead.goal || lead.goal,
+        priority: freshLead.priority || lead.priority,
+        website: freshLead.website || lead.website,
+        linkedin_url: freshLead.linkedin_url || lead.linkedin_url,
+        twitter_url: freshLead.twitter_url || lead.twitter_url,
+        stale_data_warning: freshLead.stale_data_warning ?? lead.stale_data_warning,
+        notion_sync_status: "not_synced" // mark as needing re-sync after update
+      };
+
+      const { error: updateError } = await supabase
+        .from("pipeline_crm")
+        .update(updates)
+        .eq("id", lead.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state immediately
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l));
+      toast.success(`${lead.company} re-analyzed successfully!`, { id: toastId });
+    } catch (err: any) {
+      toast.error(`Re-analysis failed: ${err.message}`, { id: toastId });
+    } finally {
+      setReanalyzingLeadId(null);
+    }
+  };
+
   // Export Notion DB List
   const fetchNotionDatabases = async (lead: Lead) => {
     setExportingLead(lead);
@@ -1361,6 +1422,16 @@ export default function Sourcing() {
 
                   <div className="flex items-center gap-1.5">
                     <button 
+                      onClick={() => handleReanalyzeLead(lead)}
+                      disabled={reanalyzingLeadId === lead.id}
+                      className="p-1 rounded hover:bg-amber-500/15 text-muted-foreground hover:text-amber-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Re-analyze with fresh AI models"
+                    >
+                      {reanalyzingLeadId === lead.id
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <RotateCcw className="h-3.5 w-3.5" />}
+                    </button>
+                    <button 
                       onClick={() => {
                         setPreviewLead(lead);
                         setShowPreviewModal(true);
@@ -1521,6 +1592,19 @@ export default function Sourcing() {
                     )
                   )}
                   
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleReanalyzeLead(activeSplitLead)}
+                    disabled={reanalyzingLeadId === activeSplitLead.id}
+                    className="text-xs text-amber-500 hover:bg-amber-500/15 border-border hover:border-amber-500/30 gap-1.5 disabled:opacity-40"
+                    title="Re-analyze with fresh AI models"
+                  >
+                    {reanalyzingLeadId === activeSplitLead.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <RotateCcw className="h-3.5 w-3.5" />}
+                    Re-analyze
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -1773,6 +1857,16 @@ export default function Sourcing() {
               </div>
 
               <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => handleReanalyzeLead(lead)}
+                  disabled={reanalyzingLeadId === lead.id}
+                  className="p-1 rounded hover:bg-amber-500/15 text-muted-foreground hover:text-amber-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Re-analyze with fresh AI models"
+                >
+                  {reanalyzingLeadId === lead.id
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <RotateCcw className="h-4 w-4" />}
+                </button>
                 <button 
                   onClick={() => {
                     setPreviewLead(lead);
