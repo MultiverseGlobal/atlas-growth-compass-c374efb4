@@ -141,6 +141,36 @@ function parseNotesToNotionBlocks(notesText: string) {
   return blocks.slice(0, 100); // safety cap
 }
 
+// Build value payload based on actual Notion property schema type
+function buildNotionPropertyValue(value: any, notionPropType: string) {
+  if (value === undefined || value === null) return null;
+  const strVal = String(value).trim();
+  if (!strVal) return null;
+
+  switch (notionPropType) {
+    case "title":
+      return { title: [{ text: { content: strVal } }] };
+    case "rich_text":
+      return { rich_text: [{ text: { content: strVal } }] };
+    case "url":
+      if (!/^https?:\/\//i.test(strVal)) return null;
+      return { url: strVal };
+    case "number":
+      const num = Number(value);
+      return isNaN(num) ? null : { number: num };
+    case "select":
+      return { select: { name: strVal } };
+    case "status":
+      return { status: { name: strVal } };
+    case "multi_select":
+      return { multi_select: strVal.split(",").map(s => ({ name: s.trim() })).filter(Boolean) };
+    case "checkbox":
+      return { checkbox: Boolean(value) };
+    default:
+      return null;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -234,8 +264,9 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      // Fetch the Notion Database Schema if database_id is provided, to locate the Stage field name
+      // Fetch the Notion Database Schema if database_id is provided, to locate the Stage field name and type
       let stagePropName = "Stage";
+      let stagePropType = "select"; // default fallback
       if (body.database_id) {
         try {
           const dbSchemaRes = await fetch(`https://api.notion.com/v1/databases/${body.database_id}`, {
@@ -244,9 +275,21 @@ Deno.serve(async (req: Request) => {
           if (dbSchemaRes.ok) {
             const dbSchema = await dbSchemaRes.json();
             const mappings = body.field_mappings || autoMapProperties(dbSchema.properties).mappings;
-            if (mappings["stage"]) stagePropName = mappings["stage"];
+            if (mappings["stage"]) {
+              stagePropName = mappings["stage"];
+              if (dbSchema.properties[stagePropName]) {
+                stagePropType = dbSchema.properties[stagePropName].type;
+              }
+            }
           }
         } catch (_) {}
+      }
+
+      let stageValObj: any = { select: { name: "Sourced" } };
+      if (stagePropType === "status") {
+        stageValObj = { status: { name: "Sourced" } };
+      } else if (stagePropType !== "select") {
+        stageValObj = { rich_text: [{ text: { content: "Sourced" } }] };
       }
 
       // Update Notion Stage property to "Sourced"
@@ -259,7 +302,7 @@ Deno.serve(async (req: Request) => {
         },
         body: JSON.stringify({
           properties: {
-            [stagePropName]: { select: { name: "Sourced" } }
+            [stagePropName]: stageValObj
           }
         })
       });
@@ -330,50 +373,28 @@ Deno.serve(async (req: Request) => {
       // 2. Build Notion page properties
       const notionProperties: any = {};
 
-      if (mappings["prospect"] && properties[mappings["prospect"]]) {
-        notionProperties[mappings["prospect"]] = { title: [{ text: { content: lead.prospect || "" } }] };
-      }
-      if (mappings["company"] && properties[mappings["company"]]) {
-        notionProperties[mappings["company"]] = { rich_text: [{ text: { content: lead.company || "" } }] };
-      }
-      if (mappings["website"] && properties[mappings["website"]]) {
-        notionProperties[mappings["website"]] = { url: lead.website || null };
-      }
-      if (mappings["founder_thesis"] && properties[mappings["founder_thesis"]]) {
-        notionProperties[mappings["founder_thesis"]] = { rich_text: [{ text: { content: lead.founder_thesis || "" } }] };
-      }
-      if (mappings["goal"] && properties[mappings["goal"]]) {
-        notionProperties[mappings["goal"]] = { rich_text: [{ text: { content: lead.goal || "" } }] };
-      }
-      if (mappings["icp_score"] && properties[mappings["icp_score"]]) {
-        notionProperties[mappings["icp_score"]] = { number: Number(lead.icp_score ?? 0) };
-      }
-      if (mappings["next_action"] && properties[mappings["next_action"]]) {
-        notionProperties[mappings["next_action"]] = { rich_text: [{ text: { content: lead.next_action || "" } }] };
-      }
-      if (mappings["notes"] && properties[mappings["notes"]]) {
-        notionProperties[mappings["notes"]] = { rich_text: [{ text: { content: (lead.notes || "").slice(0, 2000) } }] };
-      }
-      if (mappings["priority"] && properties[mappings["priority"]]) {
-        if (properties[mappings["priority"]].type === "select") {
-          notionProperties[mappings["priority"]] = lead.priority ? { select: { name: lead.priority } } : null;
-        } else {
-          notionProperties[mappings["priority"]] = { rich_text: [{ text: { content: lead.priority || "Low" } }] };
+      const setField = (fieldKey: string, rawValue: any) => {
+        const propName = mappings[fieldKey];
+        if (!propName || !properties[propName]) return;
+        const propType = properties[propName].type;
+        const val = buildNotionPropertyValue(rawValue, propType);
+        if (val !== null) {
+          notionProperties[propName] = val;
         }
-      }
-      if (mappings["source"] && properties[mappings["source"]]) {
-        if (properties[mappings["source"]].type === "url") {
-          notionProperties[mappings["source"]] = { url: lead.source || null };
-        } else {
-          notionProperties[mappings["source"]] = { rich_text: [{ text: { content: lead.source || "" } }] };
-        }
-      }
-      if (mappings["draft_message"] && properties[mappings["draft_message"]]) {
-        notionProperties[mappings["draft_message"]] = { rich_text: [{ text: { content: (lead.draft_message || "").slice(0, 2000) } }] };
-      }
-      if (mappings["contact_channel"] && properties[mappings["contact_channel"]]) {
-        notionProperties[mappings["contact_channel"]] = { rich_text: [{ text: { content: lead.contact_channel || "" } }] };
-      }
+      };
+
+      setField("prospect", lead.prospect);
+      setField("company", lead.company);
+      setField("website", lead.website);
+      setField("founder_thesis", lead.founder_thesis);
+      setField("goal", lead.goal);
+      setField("icp_score", lead.icp_score);
+      setField("next_action", lead.next_action);
+      setField("notes", lead.notes);
+      setField("priority", lead.priority);
+      setField("source", lead.source);
+      setField("draft_message", lead.draft_message);
+      setField("contact_channel", lead.contact_channel);
 
       // ── Stage logic (Default to "HQ Dump" on new pages) ──────────────────────────
       const stageProp = mappings["stage"];
