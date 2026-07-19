@@ -323,6 +323,21 @@ export default function Sourcing() {
     const parsedUrls = isUrlMode
       ? input.split(/\n/).map(u => u.trim()).filter(Boolean)
       : [];    
+
+    if (isUrlMode) {
+      const restricted = parsedUrls.find(u => {
+        const lower = u.toLowerCase();
+        return lower.includes("linkedin.com") || 
+               lower.includes("x.com") || 
+               lower.includes("twitter.com") || 
+               lower.includes("producthunt.com");
+      });
+      if (restricted) {
+        toast.error("Scraping profiles from LinkedIn, X/Twitter, and Product Hunt directly is disabled to prevent API restrictions. Please copy-paste the text content into the 'Paste Text' tab instead.");
+        return;
+      }
+    }
+
     const isMultiUrl = isUrlMode && parsedUrls.length > 1;
     const isSingleUrl = isUrlMode && parsedUrls.length === 1;
 
@@ -762,7 +777,7 @@ export default function Sourcing() {
   };
 
   // Save bulk-preview leads to Supabase
-  const handleBulkSave = async () => {
+  const handleBulkSave = async (forceNotionExport?: boolean) => {
     const toSave = bulkPreviewLeads.filter((_, i) => bulkSelectedIndices.includes(i));
     if (toSave.length === 0) return;
 
@@ -801,9 +816,9 @@ export default function Sourcing() {
       }));
 
       const { data: saved, error } = await supabase
-        .from("pipeline_crm")
-        .insert(rows)
-        .select();
+          .from("pipeline_crm")
+          .insert(rows)
+          .select();
 
       if (error) throw error;
 
@@ -814,17 +829,18 @@ export default function Sourcing() {
       toast.dismiss(toastId);
       toast.success(`✓ Saved ${toSave.length} prospect${toSave.length === 1 ? "" : "s"} to pipeline!`);
 
-      // Auto-push to Notion if enabled
-      if (autoNotion && saved && saved.length > 0) {
+      // Auto-push to Notion if enabled or forced
+      const shouldPushToNotion = forceNotionExport !== undefined ? forceNotionExport : autoNotion;
+      if (shouldPushToNotion && saved && saved.length > 0) {
         const notionDb = defaultNotionDb || (notionDatabases.length > 0 ? notionDatabases[0].id : null);
         if (notionDb) {
-          toast.loading(`Auto-pushing ${saved.length} leads to Notion...`);
+          toast.loading(`Pushing ${saved.length} leads to Notion...`);
           const results = await Promise.allSettled(
-            saved.map(lead => performExportToNotion(lead, notionDb))
+              saved.map(lead => performExportToNotion(lead, notionDb))
           );
           const failed = results.filter(r => r.status === "rejected" || (r.status === "fulfilled" && !r.value.success)).length;
           toast.dismiss();
-          if (failed === 0) toast.success("All leads auto-pushed to Notion!");
+          if (failed === 0) toast.success("All leads pushed to Notion!");
           else toast.error(`${failed} Notion push(es) failed — check individually.`);
         }
       }
@@ -2767,20 +2783,29 @@ export default function Sourcing() {
             }}>
               Discard Batch
             </Button>
-            <Button 
-              className="bg-primary text-primary-foreground hover:bg-primary/95"
-              onClick={handleBulkSave}
-              disabled={bulkSelectedIndices.length === 0 || bulkSaving}
-            >
-              {bulkSaving ? (
-                <>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button 
+                variant="secondary"
+                onClick={() => handleBulkSave(false)}
+                disabled={bulkSelectedIndices.length === 0 || bulkSaving}
+                className="w-full sm:w-auto"
+              >
+                {bulkSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                  Saving to Staging...
-                </>
-              ) : (
-                `Push Selected (${bulkSelectedIndices.length}) to Notion Staging`
-              )}
-            </Button>
+                ) : null}
+                Save to Table Only ({bulkSelectedIndices.length})
+              </Button>
+              <Button 
+                className="bg-primary text-primary-foreground hover:bg-primary/95 w-full sm:w-auto"
+                onClick={() => handleBulkSave(true)}
+                disabled={bulkSelectedIndices.length === 0 || bulkSaving}
+              >
+                {bulkSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                ) : null}
+                Save &amp; Push to Notion
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

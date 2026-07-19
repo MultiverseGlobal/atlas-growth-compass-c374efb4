@@ -590,13 +590,22 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      const isSocialMedia = sourceUrl && (
+      const isRestrictedUrl = sourceUrl && (
         sourceUrl.includes("linkedin.com") || 
         sourceUrl.includes("x.com") || 
-        sourceUrl.includes("twitter.com")
+        sourceUrl.includes("twitter.com") || 
+        sourceUrl.includes("producthunt.com")
       );
 
-      if (sourceUrl && (!body.raw_text || isRawTextActuallyUrl || !isSocialMedia)) {
+      if (isRestrictedUrl) {
+        return new Response(JSON.stringify({ 
+          error: "Scraping of social media platforms (LinkedIn, X/Twitter) and Product Hunt directly is disabled to prevent rate limits and suspensions. Please copy-paste the text content into the 'Paste Text' tab." 
+        }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      if (sourceUrl && (!body.raw_text || isRawTextActuallyUrl)) {
         console.log(`Scraping URL: ${sourceUrl}`);
         const scraped = await scrapeUrl(sourceUrl);
         console.log(`Scraped title: ${scraped.title}`);
@@ -798,14 +807,12 @@ Return ONLY a valid JSON object matching this exact schema:
         const settled = await Promise.allSettled(
           urls.map(async (url) => {
             console.log(`Sourcing URL inside batch: ${url}`);
-            const isSocial = url.includes("linkedin.com") || url.includes("x.com") || url.includes("twitter.com");
-            let contentToAnalyze = "";
-            if (!isSocial) {
-              const scraped = await scrapeUrl(url);
-              contentToAnalyze = `URL: ${url}\nTitle: ${scraped.title}\nMeta Description: ${scraped.description}\nPage Content:\n${scraped.content}`;
-            } else {
-              contentToAnalyze = `URL: ${url}\nNote: Social media profile — extract from URL patterns only.`;
+            const isRestricted = url.includes("linkedin.com") || url.includes("x.com") || url.includes("twitter.com") || url.includes("producthunt.com");
+            if (isRestricted) {
+              throw new Error("Direct scraping of LinkedIn, X, and Product Hunt is disabled.");
             }
+            const scraped = await scrapeUrl(url);
+            const contentToAnalyze = `URL: ${url}\nTitle: ${scraped.title}\nMeta Description: ${scraped.description}\nPage Content:\n${scraped.content}`;
             return await callAi(singleSystemPrompt, contentToAnalyze);
           })
         );
