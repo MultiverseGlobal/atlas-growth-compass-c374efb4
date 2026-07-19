@@ -1127,27 +1127,65 @@ export default function Sourcing() {
       if (invokeError) throw new Error(invokeError.message ?? "Re-analysis failed");
       if (data?.error) throw new Error(data.error);
 
-      const freshLead = data?.leads?.[0];
-      if (!freshLead) throw new Error("No lead data returned from re-analysis");
+      const rawLead = data?.leads?.[0] || data?.rejected?.[0]?.raw_data;
+      if (!rawLead) throw new Error("No lead data returned from re-analysis");
+
+      const scoreFounderActive = typeof rawLead.score_founder_active === 'number' ? rawLead.score_founder_active : 0;
+      const scoreBuyingSignal = typeof rawLead.score_buying_signal === 'number' ? rawLead.score_buying_signal : 0;
+      const scoreIcpFit = typeof rawLead.score_icp_fit === 'number' ? rawLead.score_icp_fit : 0;
+      const scoreReachable = typeof rawLead.score_reachable === 'number' ? rawLead.score_reachable : 0;
+      const scoreAtlasRelevance = typeof rawLead.score_atlas_relevance === 'number' ? rawLead.score_atlas_relevance : 0;
+      const computedScore = scoreFounderActive + scoreBuyingSignal + scoreIcpFit + scoreReachable + scoreAtlasRelevance;
+
+      // Contact channel details
+      let contactChannel = "None [UNVERIFIED]";
+      if (rawLead.linkedin_url || rawLead.twitter_url) {
+        contactChannel = rawLead.linkedin_url ? `LinkedIn profile: ${rawLead.linkedin_url} [VERIFIED]` : `X handle: ${rawLead.twitter_url} [VERIFIED]`;
+      }
+
+      // Check if it was disqualified by the backend validator
+      const isDisqualified = !!data?.rejected?.[0];
+      const disqualificationReason = data?.rejected?.[0]?.reason || "";
+
+      const notesContent = `## Rubric Breakdown
+* **Founder Active Publicly**: ${scoreFounderActive}/3
+* **Clear Buying Signal**: ${scoreBuyingSignal}/3
+* **ICP Fit**: ${scoreIcpFit}/3
+* **Reachable**: ${scoreReachable}/3
+* **Atlas Relevance**: ${scoreAtlasRelevance}/3
+* **Total Score**: ${computedScore}/15
+
+## Contact Channel
+* Status: ${contactChannel}
+
+## Evaluation Details
+${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLead.notes || "No evaluation details provided."}`;
+
+      const displayName = (rawLead.founder_name && rawLead.founder_name !== "founder name not found — needs manual research") ? rawLead.founder_name : "the founder";
+      const nextAction = rawLead.next_action || `Reach out to ${displayName} on ${rawLead.linkedin_url ? "LinkedIn" : rawLead.twitter_url ? "X" : "available channels"} regarding their constraint: "${rawLead.founder_thesis || "stated constraint"}".`;
+
+      let priority = "Low";
+      if (computedScore >= 13) priority = "High";
+      else if (computedScore >= 11) priority = "Medium";
 
       // Merge fresh scores + analysis back into the existing lead record
       const updates = {
-        prospect: freshLead.prospect || lead.prospect,
-        founder_thesis: freshLead.founder_thesis || lead.founder_thesis,
-        icp_score: freshLead.icp_score ?? lead.icp_score,
-        score_founder_active: freshLead.score_founder_active ?? lead.score_founder_active,
-        score_buying_signal: freshLead.score_buying_signal ?? lead.score_buying_signal,
-        score_icp_fit: freshLead.score_icp_fit ?? lead.score_icp_fit,
-        score_reachable: freshLead.score_reachable ?? lead.score_reachable,
-        score_atlas_relevance: freshLead.score_atlas_relevance ?? lead.score_atlas_relevance,
-        notes: freshLead.notes || lead.notes,
-        next_action: freshLead.next_action || lead.next_action,
-        goal: freshLead.goal || lead.goal,
-        priority: freshLead.priority || lead.priority,
-        website: freshLead.website || lead.website,
-        linkedin_url: freshLead.linkedin_url || lead.linkedin_url,
-        twitter_url: freshLead.twitter_url || lead.twitter_url,
-        stale_data_warning: freshLead.stale_data_warning ?? lead.stale_data_warning,
+        prospect: rawLead.founder_name || "founder name not found — needs manual research",
+        founder_thesis: rawLead.founder_thesis || "No dominant constraint specified",
+        icp_score: computedScore,
+        score_founder_active: scoreFounderActive,
+        score_buying_signal: scoreBuyingSignal,
+        score_icp_fit: scoreIcpFit,
+        score_reachable: scoreReachable,
+        score_atlas_relevance: scoreAtlasRelevance,
+        notes: notesContent,
+        next_action: nextAction,
+        goal: rawLead.goal || null,
+        priority: priority,
+        website: rawLead.website || null,
+        linkedin_url: rawLead.linkedin_url || null,
+        twitter_url: rawLead.twitter_url || null,
+        stale_data_warning: rawLead.stale_data_warning || false,
         notion_sync_status: "not_synced" // mark as needing re-sync after update
       };
 
@@ -1160,7 +1198,7 @@ export default function Sourcing() {
 
       // Update local state immediately
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l));
-      toast.success(`${lead.company} re-analyzed successfully!`, { id: toastId });
+      toast.success(`${lead.company} re-analyzed and updated successfully!`, { id: toastId });
     } catch (err: any) {
       toast.error(`Re-analysis failed: ${err.message}`, { id: toastId });
     } finally {
