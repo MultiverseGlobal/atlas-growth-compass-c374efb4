@@ -7,10 +7,16 @@ const corsHeaders = {
 };
 
 interface SourcingRequest {
-  action: "source" | "bulk-source" | "export-notion" | "list-notion-databases" | "validate-notion-database";
+  action: "source" | "bulk-source" | "export-notion" | "list-notion-databases" | "validate-notion-database" | "hn-source" | "starter-story-source" | "yc-source" | "re-analyze";
   url?: string;
   urls?: string[];
   raw_text?: string;
+  // HN params
+  query?: string;
+  time_range?: string;
+  // YC params
+  filter?: string;
+  industry?: string;
   lead?: {
     id?: string;
     prospect: string;
@@ -427,8 +433,10 @@ function validateAndEvaluateLead(lead: any, sourceUrl: string): { disqualified: 
   if (!company || !company.trim()) {
     return { disqualified: true, reason: "Missing company name" };
   }
-  // Bug fix #3: Don't require a website to pass — leave it blank rather than rejecting or fabricating
-  // (HN posts rarely have explicit company URLs in the story text)
+  // Commercial business check
+  if (lead.is_commercial_business === false) {
+    return { disqualified: true, reason: "Disqualified: no evidence of commercial business framing, revenue, MRR, or paying customers" };
+  }
 
   // Hard disqualifiers check
   const funding = (lead.funding_status || "").toLowerCase();
@@ -674,6 +682,7 @@ Given the raw page text or scraped HTML, extract details strictly matching the f
 14. Notes: 2-4 sentences of UNIQUE reasoning for THIS candidate specifically. Do not use template phrases like "Founder has a clear vision" — explain what you actually read.
 15. Next Action: Specific outreach suggestion for THIS person — include their name, channel, and their specific constraint.
 16. stale_data_warning: true if any metrics/revenue claims are older than Jan 2026 (assume current date is July 2026).
+17. is_commercial_business: Boolean. Set to true only if there is explicit evidence of commercial intent in the source content (pricing, revenue, MRR, paying customers, SaaS model, or clear commercial framing). Set to false if it is a hobby project, pure open-source library with no pricing/business model mentioned, or personal side-project without clear commercial intent.
 
 Return ONLY a valid JSON object:
 {
@@ -696,7 +705,8 @@ Return ONLY a valid JSON object:
   "score_atlas_relevance": number,
   "notes": "string",
   "next_action": "string",
-  "stale_data_warning": boolean
+  "stale_data_warning": boolean,
+  "is_commercial_business": boolean
 }`;
 
       if (kimiApiKey && kimiApiKey !== "your-kimi-api-key") {
@@ -1095,12 +1105,15 @@ For EACH submission, extract the following. You MUST produce a separate entry fo
 13. Rubric scores — UNIQUE PER ENTRY, based on what you actually read. DO NOT use the same scores for multiple entries.
     - score_founder_active (0-3): Active publicly? Posting, sharing metrics, engaging?
     - score_buying_signal (0-3): Clear pain/desire to invest in tools to grow?
-    - score_icp_fit (0-3): Is this a B2B micro/solo SaaS founder without a big sales team?
+    - score_icp_fit (0-3): B2B micro/solo SaaS founder. Must be 0 if the project is a pure open-source tool, hobby library, or has no commercial intent/pricing model.
     - score_reachable (0-3): Reachable via HN, Twitter, LinkedIn, or email in text?
     - score_atlas_relevance (0-3): Does their stated problem align with outbound/growth tooling Atlas provides?
 14. Notes: 2-4 sentences of SPECIFIC reasoning for THIS candidate. Do not reuse phrases across entries. Reference what you actually read in their submission.
 15. Next Action: Specific, personalized outreach suggestion for THIS person — include their name/handle, the channel, and their specific stated constraint.
 16. stale_data_warning: true if any revenue/metrics claims are older than Jan 2026 (current date = July 2026)
+17. is_commercial_business: Boolean. Set to true only if there is explicit evidence of commercial intent in this story (pricing, revenue, MRR, paying customers, SaaS model, or clear commercial framing). Set to false if it is a hobby project, pure open-source library, codec, AI agent wrapper with no pricing/business model mentioned, or personal side-project without clear commercial intent.
+
+Crucially, keep data aligned! For each JSON object, all fields (company_name, founder_name, website, founder_thesis, scores, notes, next_action) MUST be extracted ONLY from that specific story's text block. DO NOT mix usernames (e.g. Author or name in text), websites, or details from one submission with another. For example, if HN Thread Link 1 has Author 'userA', then the JSON object for that company name MUST use founder_name 'userA' (or name in text). Never associate 'userA' with the company name or details from HN Thread Link 2.
 
 Return ONLY a valid JSON array — one object per story. No commentary, no markdown:
 [{
@@ -1123,7 +1136,8 @@ Return ONLY a valid JSON array — one object per story. No commentary, no markd
   "score_atlas_relevance": number,
   "notes": "string",
   "next_action": "string",
-  "stale_data_warning": boolean
+  "stale_data_warning": boolean,
+  "is_commercial_business": boolean
 }]`;
 
         let arrayResult: any = [];
@@ -1204,6 +1218,327 @@ Return ONLY a valid JSON array — one object per story. No commentary, no markd
           });
         }
         return new Response(JSON.stringify({ error: "HN sourcing extraction failed: " + err.message }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // ── STARTER STORY SOURCING ACTION ─────────────────────────────────────────────
+    if (body.action === "starter-story-source") {
+      const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
+
+      try {
+        // Fetch Starter Story's latest stories feed
+        const ssRes = await fetch("https://www.starterstory.com/stories", {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          },
+          signal: AbortSignal.timeout(20000)
+        });
+        if (!ssRes.ok) throw new Error(`Starter Story fetch failed: ${ssRes.status}`);
+        const ssHtml = await ssRes.text();
+
+        // Extract story cards from the HTML (title, URL, revenue snippet)
+        const storyPattern = /<a[^>]+href="(\/stories\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
+        const namePattern = /<h\d[^>]*>([\s\S]*?)<\/h\d>/gi;
+        
+        // Simpler: pull all /stories/ links and their titles via a direct regex
+        const cardMatches: Array<{ url: string; text: string }> = [];
+        const linkRegex = /href="(\/stories\/[^"#?]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+        let m: RegExpExecArray | null;
+        while ((m = linkRegex.exec(ssHtml)) !== null && cardMatches.length < 15) {
+          const url = `https://www.starterstory.com${m[1]}`;
+          const rawText = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          if (rawText.length > 20 && !cardMatches.some(c => c.url === url)) {
+            cardMatches.push({ url, text: rawText });
+          }
+        }
+
+        // If no cards found, fall back to the RSS feed
+        if (cardMatches.length === 0) {
+          const rssRes = await fetch("https://www.starterstory.com/rss.xml", {
+            headers: { "User-Agent": "Mozilla/5.0" },
+            signal: AbortSignal.timeout(15000)
+          });
+          if (rssRes.ok) {
+            const rssText = await rssRes.text();
+            const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+            let rssM: RegExpExecArray | null;
+            while ((rssM = itemRegex.exec(rssText)) !== null && cardMatches.length < 10) {
+              const item = rssM[1];
+              const titleM = item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || item.match(/<title>([\s\S]*?)<\/title>/);
+              const linkM = item.match(/<link>([\s\S]*?)<\/link>/);
+              const descM = item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) || item.match(/<description>([\s\S]*?)<\/description>/);
+              if (titleM && linkM) {
+                cardMatches.push({
+                  url: linkM[1].trim(),
+                  text: `${titleM[1].trim()}. ${(descM?.[1] || "").replace(/<[^>]+>/g, " ").slice(0, 400).trim()}`
+                });
+              }
+            }
+          }
+        }
+
+        if (cardMatches.length === 0) {
+          return new Response(JSON.stringify({ leads: [], rejected: [], total: 0, message: "No Starter Story stories found." }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const topStories = cardMatches.slice(0, 10);
+        const ssTextBlock = topStories.map((s, i) => `Story ${i + 1}:\nSource URL: ${s.url}\n${s.text}`).join("\n---\n\n");
+
+        const ssSystemPrompt = `You are Atlas HQ — an intelligent B2B sales intelligence machine. You are parsing Starter Story founder interviews to find bootstrapped founders worth cold outreach.
+
+For EACH story entry, extract:
+1. Company Name: The startup or product name.
+2. Founder Name — CRITICAL: Extract from the text if present (often "I'm [Name]" or byline). Return the exact string "founder name not found — needs manual research" if not found with confidence. NEVER invent or guess a name.
+3. Company Website: The real product domain (not starterstory.com). Return null if not found.
+4. LinkedIn URL (or null)
+5. Twitter/X handle (or null)
+6. Employee count (integer)
+7. Funding Status: "Bootstrapped" unless stated otherwise
+8. Social Media Followers: 0 unless explicitly stated
+9. has_major_press: boolean
+10. ph_top_5: boolean
+11. Founder Thesis: Direct quote or paraphrase of their stated pain point. null if not found. Never fabricate.
+12. Goal: What they're building toward (or null)
+13. Rubric scores — UNIQUE PER ENTRY based on what you read:
+    - score_founder_active (0-3)
+    - score_buying_signal (0-3)
+    - score_icp_fit (0-3): Must be 0 if no commercial intent, revenue, or pricing
+    - score_reachable (0-3)
+    - score_atlas_relevance (0-3)
+14. Notes: 2-4 sentences of specific reasoning for THIS candidate
+15. Next Action: Specific personalized outreach suggestion
+16. stale_data_warning: true if revenue claims are older than Jan 2026
+17. is_commercial_business: true only if there is explicit evidence of revenue, MRR, paying customers, or a clear commercial SaaS model. false for hobby/open-source/personal projects.
+
+Return ONLY a valid JSON array — one object per story:
+[{
+  "company_name": "string",
+  "founder_name": "string",
+  "website": "string or null",
+  "linkedin_url": "string or null",
+  "twitter_url": "string or null",
+  "employee_count": number,
+  "funding_status": "string",
+  "social_followers": number,
+  "has_major_press": boolean,
+  "ph_top_5": boolean,
+  "founder_thesis": "string or null",
+  "goal": "string or null",
+  "score_founder_active": number,
+  "score_buying_signal": number,
+  "score_icp_fit": number,
+  "score_reachable": number,
+  "score_atlas_relevance": number,
+  "notes": "string",
+  "next_action": "string",
+  "stale_data_warning": boolean,
+  "is_commercial_business": boolean
+}]`;
+
+        let arrayResult: any = [];
+        if (kimiApiKey) {
+          try { arrayResult = await callKimi(ssSystemPrompt, `Starter Story entries:\n${ssTextBlock}`, kimiApiKey, true, "moonshot-v1-32k", 8192); }
+          catch (e: any) { console.warn("Kimi SS failed:", e.message); if (e.message.includes("AUTH_ERROR")) throw e; }
+        }
+        if ((!arrayResult || !arrayResult.length) && groqApiKey) {
+          try { arrayResult = await callGroq(ssSystemPrompt, `Starter Story entries:\n${ssTextBlock}`, groqApiKey, true); }
+          catch (e: any) { console.warn("Groq SS failed:", e.message); }
+        }
+        if ((!arrayResult || !arrayResult.length) && nimApiKey) {
+          try { arrayResult = await callNvidiaNim(ssSystemPrompt, `Starter Story entries:\n${ssTextBlock}`, nimApiKey, true); }
+          catch (e: any) { console.warn("NIM SS failed:", e.message); }
+        }
+
+        const filteredLeads: any[] = [];
+        const rejectedLeads: any[] = [];
+        const items = Array.isArray(arrayResult) ? arrayResult : [];
+        for (let idx = 0; idx < items.length; idx++) {
+          const item = items[idx];
+          const matchedSource = topStories[idx]?.url || "https://www.starterstory.com/stories";
+          const evaluation = validateAndEvaluateLead(item, matchedSource);
+          if (!evaluation.disqualified) {
+            filteredLeads.push(evaluation.evaluatedLead);
+          } else {
+            rejectedLeads.push({ company: item.company_name || "Unknown", prospect: item.founder_name || "Unknown", reason: evaluation.reason, raw_data: item });
+          }
+        }
+
+        return new Response(JSON.stringify({ leads: filteredLeads, rejected: rejectedLeads, total: filteredLeads.length + rejectedLeads.length }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err: any) {
+        console.error("Starter Story Sourcing Error:", err.message);
+        return new Response(JSON.stringify({ error: "Starter Story sourcing failed: " + err.message }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // ── YC DIRECTORY SOURCING ACTION ──────────────────────────────────────────────
+    if (body.action === "yc-source") {
+      const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
+
+      const ycFilter = body.filter || "recent";
+      const ycIndustry = body.industry || "";
+
+      try {
+        // Build YC search URL based on filter
+        const batchParam = ycFilter === "recent" ? "W24,S24,W23,S23" : "";
+        const industryQuery = ycIndustry ? encodeURIComponent(ycIndustry) : "";
+        
+        // Use YC's public API / search
+        const ycSearchUrl = `https://www.ycombinator.com/companies?batch=${batchParam}&industry=${industryQuery}`;
+        const ycRes = await fetch(ycSearchUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          },
+          signal: AbortSignal.timeout(20000)
+        });
+        if (!ycRes.ok) throw new Error(`YC directory fetch failed: ${ycRes.status}`);
+        const ycHtml = await ycRes.text();
+
+        // Extract companies from Next.js __NEXT_DATA__ JSON blob if present
+        const nextDataMatch = ycHtml.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+        const companies: Array<{ name: string; url: string; description: string; founders: string; batch: string }> = [];
+
+        if (nextDataMatch) {
+          try {
+            const nextData = JSON.parse(nextDataMatch[1]);
+            const companyList = nextData?.props?.pageProps?.companies || nextData?.props?.pageProps?.initialCompanies || [];
+            for (const co of companyList.slice(0, 12)) {
+              companies.push({
+                name: co.name || co.company_name || "Unknown",
+                url: co.website || co.url || "",
+                description: co.one_liner || co.description || "",
+                founders: (co.founders || []).map((f: any) => f.first_name + " " + f.last_name).join(", ") || "",
+                batch: co.batch || ""
+              });
+            }
+          } catch (_) {
+            // Fall through to HTML extraction
+          }
+        }
+
+        // Fallback: direct HTML regex extraction
+        if (companies.length === 0) {
+          const coCardRegex = /<a[^>]+href="(\/companies\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+          let cm: RegExpExecArray | null;
+          while ((cm = coCardRegex.exec(ycHtml)) !== null && companies.length < 12) {
+            const slug = cm[1];
+            const cardHtml = cm[2];
+            const name = (cardHtml.match(/<[^>]*class="[^"]*company[^"]*"[^>]*>([\s\S]*?)<\//) || [])[1]?.replace(/<[^>]+>/g, "").trim();
+            const desc = (cardHtml.match(/<[^>]*class="[^"]*tagline[^"]*"[^>]*>([\s\S]*?)<\//) || [])[1]?.replace(/<[^>]+>/g, "").trim();
+            if (name) {
+              companies.push({ name, url: `https://www.ycombinator.com${slug}`, description: desc || "", founders: "", batch: "" });
+            }
+          }
+        }
+
+        if (companies.length === 0) {
+          return new Response(JSON.stringify({ leads: [], rejected: [], total: 0, message: "No YC companies found. Try a different filter." }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const ycTextBlock = companies.map((co, i) =>
+          `Company ${i + 1}:\nName: ${co.name}\nWebsite: ${co.url}\nBatch: ${co.batch}\nFounders: ${co.founders || "not listed"}\nDescription: ${co.description}`
+        ).join("\n---\n\n");
+
+        const ycSystemPrompt = `You are Atlas HQ — a B2B sales intelligence machine. You are parsing YC company directory listings to find solo/small-team B2B SaaS founders worth cold outreach.
+
+For EACH company, extract:
+1. Company Name
+2. Founder Name — CRITICAL: Use the "Founders" field if provided. If a real name is there, use it. If not, return the exact string "founder name not found — needs manual research". NEVER invent a name.
+3. Company Website: The real domain. Return null if not found.
+4. LinkedIn URL (or null)
+5. Twitter/X handle (or null)
+6. Employee count (integer, default to 2-5 for YC companies)
+7. Funding Status: "Seed (YC-backed)" unless stated otherwise
+8. Social Media Followers: 0 unless explicitly stated
+9. has_major_press: boolean
+10. ph_top_5: boolean
+11. Founder Thesis: Their stated problem or mission. Return null if not found. Never fabricate.
+12. Goal: What they're building (or null)
+13. Rubric scores — UNIQUE PER ENTRY:
+    - score_founder_active (0-3)
+    - score_buying_signal (0-3)
+    - score_icp_fit (0-3): Must be 0 if not a B2B SaaS product
+    - score_reachable (0-3)
+    - score_atlas_relevance (0-3)
+14. Notes: 2-4 sentences of specific reasoning
+15. Next Action: Specific personalized outreach suggestion
+16. stale_data_warning: false (YC directory is current)
+17. is_commercial_business: true for all YC-backed companies with a product (they are vetted commercial entities). Set false only if it is clearly a non-commercial research/OSS project.
+
+Return ONLY a valid JSON array:
+[{
+  "company_name": "string",
+  "founder_name": "string",
+  "website": "string or null",
+  "linkedin_url": "string or null",
+  "twitter_url": "string or null",
+  "employee_count": number,
+  "funding_status": "string",
+  "social_followers": number,
+  "has_major_press": boolean,
+  "ph_top_5": boolean,
+  "founder_thesis": "string or null",
+  "goal": "string or null",
+  "score_founder_active": number,
+  "score_buying_signal": number,
+  "score_icp_fit": number,
+  "score_reachable": number,
+  "score_atlas_relevance": number,
+  "notes": "string",
+  "next_action": "string",
+  "stale_data_warning": boolean,
+  "is_commercial_business": boolean
+}]`;
+
+        let arrayResult: any = [];
+        if (kimiApiKey) {
+          try { arrayResult = await callKimi(ycSystemPrompt, `YC Companies:\n${ycTextBlock}`, kimiApiKey, true, "moonshot-v1-32k", 8192); }
+          catch (e: any) { console.warn("Kimi YC failed:", e.message); if (e.message.includes("AUTH_ERROR")) throw e; }
+        }
+        if ((!arrayResult || !arrayResult.length) && groqApiKey) {
+          try { arrayResult = await callGroq(ycSystemPrompt, `YC Companies:\n${ycTextBlock}`, groqApiKey, true); }
+          catch (e: any) { console.warn("Groq YC failed:", e.message); }
+        }
+        if ((!arrayResult || !arrayResult.length) && nimApiKey) {
+          try { arrayResult = await callNvidiaNim(ycSystemPrompt, `YC Companies:\n${ycTextBlock}`, nimApiKey, true); }
+          catch (e: any) { console.warn("NIM YC failed:", e.message); }
+        }
+
+        const filteredLeads: any[] = [];
+        const rejectedLeads: any[] = [];
+        const items = Array.isArray(arrayResult) ? arrayResult : [];
+        for (let idx = 0; idx < items.length; idx++) {
+          const item = items[idx];
+          const matchedSource = companies[idx]?.url || "https://www.ycombinator.com/companies";
+          const evaluation = validateAndEvaluateLead(item, matchedSource);
+          if (!evaluation.disqualified) {
+            filteredLeads.push(evaluation.evaluatedLead);
+          } else {
+            rejectedLeads.push({ company: item.company_name || "Unknown", prospect: item.founder_name || "Unknown", reason: evaluation.reason, raw_data: item });
+          }
+        }
+
+        return new Response(JSON.stringify({ leads: filteredLeads, rejected: rejectedLeads, total: filteredLeads.length + rejectedLeads.length }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err: any) {
+        console.error("YC Sourcing Error:", err.message);
+        return new Response(JSON.stringify({ error: "YC sourcing failed: " + err.message }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }

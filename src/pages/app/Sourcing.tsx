@@ -153,11 +153,13 @@ export default function Sourcing() {
   const [reanalyzingLeadId, setReanalyzingLeadId] = useState<string | null>(null);
 
   // Sourcing mode state
-  const [sourcingMode, setSourcingMode] = useState<"url" | "text" | "hn">("url");
+  const [sourcingMode, setSourcingMode] = useState<"url" | "text" | "hn" | "starter_story" | "yc">("hn");
   const [rawTextInput, setRawTextInput] = useState("");
   const [hnQueryType, setHnQueryType] = useState("Show HN");
   const [hnCustomQuery, setHnCustomQuery] = useState("");
   const [hnTimeRange, setHnTimeRange] = useState("past_week");
+  const [ycFilter, setYcFilter] = useState("recent");
+  const [ycIndustry, setYcIndustry] = useState("");
 
   // Preview & Organize Staging Flow state
   const [previewLead, setPreviewLead] = useState<Partial<Lead> | null>(null);
@@ -310,6 +312,72 @@ export default function Sourcing() {
         setShowBulkPreviewModal(true);
       } catch (err: any) {
         toast.error("HN Sourcing failed: " + err.message);
+      } finally {
+        clearInterval(stepInterval);
+        setSourcing(false);
+        setSourcingStep(0);
+      }
+      return;
+    }
+
+    // ── STARTER STORY MODE ───────────────────────────────────────────
+    if (sourcingMode === "starter_story") {
+      setSourcing(true);
+      setSourcingStep(1);
+      const stepInterval = setInterval(() => {
+        setSourcingStep(prev => (prev < 3 ? prev + 1 : prev));
+      }, 700);
+      try {
+        const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+          body: { action: "starter-story-source" },
+          signal: AbortSignal.timeout(60000)
+        });
+        if (invokeError) throw new Error(invokeError.message ?? "Starter Story sourcing failed");
+        if (data?.error) throw new Error(data.error);
+        const extracted: Lead[] = data?.leads || [];
+        const rejected: any[] = data?.rejected || [];
+        if (extracted.length === 0 && rejected.length === 0) throw new Error("No leads found on Starter Story.");
+        clearInterval(stepInterval);
+        setSourcingStep(4);
+        setBulkPreviewLeads(extracted);
+        setRejectedLeads(rejected);
+        setBulkSelectedIndices(extracted.map((_, idx) => idx));
+        setShowBulkPreviewModal(true);
+      } catch (err: any) {
+        toast.error("Starter Story sourcing failed: " + err.message);
+      } finally {
+        clearInterval(stepInterval);
+        setSourcing(false);
+        setSourcingStep(0);
+      }
+      return;
+    }
+
+    // ── YC DIRECTORY MODE ────────────────────────────────────────────
+    if (sourcingMode === "yc") {
+      setSourcing(true);
+      setSourcingStep(1);
+      const stepInterval = setInterval(() => {
+        setSourcingStep(prev => (prev < 3 ? prev + 1 : prev));
+      }, 700);
+      try {
+        const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+          body: { action: "yc-source", filter: ycFilter, industry: ycIndustry || undefined },
+          signal: AbortSignal.timeout(60000)
+        });
+        if (invokeError) throw new Error(invokeError.message ?? "YC sourcing failed");
+        if (data?.error) throw new Error(data.error);
+        const extracted: Lead[] = data?.leads || [];
+        const rejected: any[] = data?.rejected || [];
+        if (extracted.length === 0 && rejected.length === 0) throw new Error("No YC companies found. Try a different filter.");
+        clearInterval(stepInterval);
+        setSourcingStep(4);
+        setBulkPreviewLeads(extracted);
+        setRejectedLeads(rejected);
+        setBulkSelectedIndices(extracted.map((_, idx) => idx));
+        setShowBulkPreviewModal(true);
+      } catch (err: any) {
+        toast.error("YC sourcing failed: " + err.message);
       } finally {
         clearInterval(stepInterval);
         setSourcing(false);
@@ -2111,45 +2179,32 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
 
                 {/* Sourcing Input Card */}
                 <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
-                  <div className="flex border-b border-border/40">
-                    <button
-                      type="button"
-                      onClick={() => setSourcingMode("url")}
-                      className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
-                        sourcingMode === "url"
-                          ? "bg-primary/5 text-primary border-b-2 border-primary"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
+
+                  {/* Source Selector */}
+                  <div className="p-3 border-b border-border/40 bg-muted/20">
+                    <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground block mb-1.5">Source</label>
+                    <select
+                      value={sourcingMode}
+                      onChange={(e) => setSourcingMode(e.target.value as any)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
-                      🔗 URL Scanner
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSourcingMode("text")}
-                      className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
-                        sourcingMode === "text"
-                          ? "bg-primary/5 text-primary border-b-2 border-primary"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      📋 Paste Text
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSourcingMode("hn")}
-                      className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
-                        sourcingMode === "hn"
-                          ? "bg-primary/5 text-primary border-b-2 border-primary"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      📰 Hacker News
-                    </button>
+                      <optgroup label="Automated Directories">
+                        <option value="hn">📰 Hacker News (Show HN)</option>
+                        <option value="starter_story">🚀 Starter Story</option>
+                        <option value="yc">🔶 YC Directory</option>
+                      </optgroup>
+                      <optgroup label="Manual Entry">
+                        <option value="url">🔗 Paste URL(s)</option>
+                        <option value="text">📋 Paste Raw Text</option>
+                      </optgroup>
+                    </select>
                   </div>
 
                   <div className="p-4">
                     <form onSubmit={handleSource} className="flex flex-col gap-3">
-                      {sourcingMode === "url" ? (
+
+                      {/* ── URL MODE ── */}
+                      {sourcingMode === "url" && (
                         <div className="flex flex-col gap-2">
                           <Textarea
                             placeholder={`One URL per line:\nhttps://stripe.com\nhttps://linear.app`}
@@ -2158,7 +2213,6 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                             className="min-h-[100px] text-xs bg-background font-sans resize-y"
                             required={sourcingMode === "url"}
                           />
-                          {/* Batch mode indicator */}
                           {(() => {
                             const count = urlsInput.trim().split(/\n/).map(u => u.trim()).filter(Boolean).length;
                             return count > 1 ? (
@@ -2175,7 +2229,10 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                             </p>
                           </div>
                         </div>
-                      ) : sourcingMode === "text" ? (
+                      )}
+
+                      {/* ── TEXT MODE ── */}
+                      {sourcingMode === "text" && (
                         <div className="flex flex-col gap-2">
                           <Textarea
                             placeholder="Paste raw startup information, product descriptions, or founder profiles — multiple companies OK..."
@@ -2191,12 +2248,13 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                             </p>
                           </div>
                         </div>
-                      ) : (
+                      )}
+
+                      {/* ── HACKER NEWS MODE ── */}
+                      {sourcingMode === "hn" && (
                         <div className="flex flex-col gap-3 text-xs">
                           <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-muted-foreground" htmlFor="hn-query-type">
-                              Search Stream / Topic
-                            </label>
+                            <label className="text-xs font-semibold text-muted-foreground" htmlFor="hn-query-type">Search Stream</label>
                             <select
                               id="hn-query-type"
                               value={hnQueryType}
@@ -2209,12 +2267,9 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                               <option value="custom">Custom Query...</option>
                             </select>
                           </div>
-
                           {hnQueryType === "custom" && (
                             <div className="space-y-1.5 animate-in fade-in duration-200">
-                              <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="hn-custom-query">
-                                Custom Search Keywords
-                              </label>
+                              <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="hn-custom-query">Custom Keywords</label>
                               <Input
                                 id="hn-custom-query"
                                 placeholder="e.g. AI builder"
@@ -2225,11 +2280,8 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                               />
                             </div>
                           )}
-
                           <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-muted-foreground" htmlFor="hn-time-range">
-                              Time Filter Range
-                            </label>
+                            <label className="text-xs font-semibold text-muted-foreground" htmlFor="hn-time-range">Time Range</label>
                             <select
                               id="hn-time-range"
                               value={hnTimeRange}
@@ -2241,11 +2293,56 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                               <option value="past_month">Past Month</option>
                             </select>
                           </div>
+                        </div>
+                      )}
 
-                          <div className="rounded-md border border-primary/15 bg-primary/[0.02] p-2 flex gap-1.5 items-start">
-                            <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                      {/* ── STARTER STORY MODE ── */}
+                      {sourcingMode === "starter_story" && (
+                        <div className="flex flex-col gap-2">
+                          <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] p-3 space-y-1.5">
+                            <p className="text-[11px] font-semibold text-emerald-600">🚀 Starter Story Feed</p>
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                              Scrapes the latest founder interviews and revenue-sharing stories from Starter Story. These are verified bootstrapped founders with real revenue numbers.
+                            </p>
+                          </div>
+                          <div className="rounded-md border border-amber-500/15 bg-amber-500/[0.02] p-2 flex gap-1.5 items-start">
+                            <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
                             <p className="text-[10px] text-muted-foreground leading-normal">
-                              Pulls Show HN stories via Algolia search, automatically extracts company/founder profiles, scores them against the ICP rubric, and puts them into review.
+                              Pulls up to 10 recent profiles. Only commercial businesses with stated revenue/MRR will pass the filter.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── YC DIRECTORY MODE ── */}
+                      {sourcingMode === "yc" && (
+                        <div className="flex flex-col gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground">Filter</label>
+                            <select
+                              value={ycFilter}
+                              onChange={(e) => setYcFilter(e.target.value)}
+                              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                              <option value="recent">Recent Batches (W24, S24...)</option>
+                              <option value="top">Top Companies</option>
+                              <option value="b2b">B2B / Enterprise</option>
+                              <option value="saas">SaaS</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground">Industry (optional)</label>
+                            <Input
+                              placeholder="e.g. fintech, devtools, HR"
+                              value={ycIndustry}
+                              onChange={(e) => setYcIndustry(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="rounded-md border border-orange-500/20 bg-orange-500/[0.04] p-2 flex gap-1.5 items-start">
+                            <Info className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-muted-foreground leading-normal">
+                              Scrapes YC company directory. Only solo/small teams (&lt;10 employees) with commercial SaaS products will pass ICP scoring.
                             </p>
                           </div>
                         </div>
@@ -2255,23 +2352,23 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                         type="submit"
                         disabled={
                           sourcing || 
-                          (sourcingMode === "url" 
-                            ? !urlsInput.trim() 
-                            : sourcingMode === "text" 
-                              ? !rawTextInput.trim() 
-                              : (hnQueryType === "custom" && !hnCustomQuery.trim())
-                          )
+                          (sourcingMode === "url" ? !urlsInput.trim() :
+                           sourcingMode === "text" ? !rawTextInput.trim() :
+                           sourcingMode === "hn" && hnQueryType === "custom" ? !hnCustomQuery.trim() : false)
                         }
                         className="h-9 gap-1.5 font-medium w-full"
                       >
                         {sourcing ? (
                           <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {bulkProgress ? `Processing ${bulkProgress.current}/${bulkProgress.total}...` : "Analyzing..."}</>
-                        ) : (() => {
-                          if (sourcingMode === "hn") return <><ArrowRight className="h-3.5 w-3.5" /> Pull from Hacker News</>;
-                          const urlCount = sourcingMode === "url" ? urlsInput.trim().split(/\n/).filter(Boolean).length : 0;
-                          if (urlCount > 1) return <><Play className="h-3.5 w-3.5" /> Batch Analyze {urlCount} URLs</>;
-                          return <><ArrowRight className="h-3.5 w-3.5" /> {sourcingMode === "url" ? "Analyze URL" : "Extract All Profiles"}</>;
-                        })()}
+                        ) : (
+                          sourcingMode === "hn" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from Hacker News</> :
+                          sourcingMode === "starter_story" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from Starter Story</> :
+                          sourcingMode === "yc" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from YC Directory</> :
+                          sourcingMode === "url" ? (() => {
+                            const c = urlsInput.trim().split(/\n/).filter(Boolean).length;
+                            return c > 1 ? <><Play className="h-3.5 w-3.5" /> Batch Analyze {c} URLs</> : <><ArrowRight className="h-3.5 w-3.5" /> Analyze URL</>;
+                          })() : <><ArrowRight className="h-3.5 w-3.5" /> Extract All Profiles</>
+                        )}
                       </Button>
                     </form>
 
