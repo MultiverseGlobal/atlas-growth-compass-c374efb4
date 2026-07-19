@@ -214,6 +214,21 @@ Deno.serve(async (req: Request) => {
       }
 
       if (!pageId) {
+        if (leadId) {
+          // Prospect has not been pushed to Notion (table only lead). Graduate locally in database.
+          await dbClient
+            .from("pipeline_crm")
+            .update({
+              is_hq_dump: false,
+              stage: "Sourced"
+            })
+            .eq("id", leadId);
+
+          return new Response(JSON.stringify({ success: true, graduated: true, local_only: true }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
         return new Response(JSON.stringify({ error: "notion_page_id or valid lead_id is required for graduation" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
