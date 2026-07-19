@@ -414,6 +414,9 @@ Deno.serve(async (req: Request) => {
       const companyFieldInNotion = mappings["company"] || "Company";
       let existingPageId: string | null = null;
 
+      const companyPropType = properties[companyFieldInNotion]?.type || "rich_text";
+      const filterType = companyPropType === "title" ? "title" : "rich_text";
+
       const queryRes = await fetch(`https://api.notion.com/v1/databases/${body.database_id}/query`, {
         method: "POST",
         headers: {
@@ -422,7 +425,7 @@ Deno.serve(async (req: Request) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          filter: { property: companyFieldInNotion, rich_text: { equals: lead.company } },
+          filter: { property: companyFieldInNotion, [filterType]: { equals: lead.company } },
           page_size: 1
         })
       });

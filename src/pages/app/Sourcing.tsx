@@ -826,19 +826,36 @@ export default function Sourcing() {
         is_hq_dump: true
       }));
 
-      const { data: saved, error } = await supabase
-          .from("pipeline_crm")
-          .insert(rows)
-          .select();
+      // Local duplicate filtering: skip inserting if company already exists in the local CRM list
+      const existingCompanies = new Set(leads.map(l => l.company.toLowerCase().trim()));
+      const uniqueRows = rows.filter(row => {
+        return !existingCompanies.has(row.company.toLowerCase().trim());
+      });
 
-      if (error) throw error;
+      const skippedCount = rows.length - uniqueRows.length;
 
-      setLeads(prev => [...(saved || []), ...prev]);
+      let saved: any[] = [];
+      if (uniqueRows.length > 0) {
+        const { data, error } = await supabase
+            .from("pipeline_crm")
+            .insert(uniqueRows)
+            .select();
+
+        if (error) throw error;
+        saved = data || [];
+      }
+
+      setLeads(prev => [...saved, ...prev]);
       setShowBulkPreviewModal(false);
       setBulkPreviewLeads([]);
       setBulkSelectedIndices([]);
       toast.dismiss(toastId);
-      toast.success(`✓ Saved ${toSave.length} prospect${toSave.length === 1 ? "" : "s"} to pipeline!`);
+      
+      if (skippedCount > 0) {
+        toast.success(`✓ Saved ${uniqueRows.length} prospect(s) to pipeline (${skippedCount} skipped as duplicates)`);
+      } else {
+        toast.success(`✓ Saved ${toSave.length} prospect${toSave.length === 1 ? "" : "s"} to pipeline!`);
+      }
 
       // Auto-push to Notion if enabled or forced
       const shouldPushToNotion = forceNotionExport !== undefined ? forceNotionExport : autoNotion;
