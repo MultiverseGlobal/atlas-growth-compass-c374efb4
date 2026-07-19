@@ -217,6 +217,7 @@ export type Database = {
           notion_sync_error: string | null
           linkedin_url: string | null
           twitter_url: string | null
+          is_hq_dump: boolean
         }
         Insert: {
           id?: string
@@ -242,6 +243,7 @@ export type Database = {
           notion_sync_error?: string | null
           linkedin_url?: string | null
           twitter_url?: string | null
+          is_hq_dump?: boolean
         }
         Update: {
           id?: string
@@ -267,6 +269,7 @@ export type Database = {
           notion_sync_error?: string | null
           linkedin_url?: string | null
           twitter_url?: string | null
+          is_hq_dump?: boolean
         }
         Relationships: []
       }

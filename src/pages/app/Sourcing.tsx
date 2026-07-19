@@ -4,7 +4,7 @@ import {
   FileSpreadsheet, Link2, Check, X, Edit2, CheckSquare, 
   Square, RefreshCw, AlertCircle, HelpCircle, ArrowRight,
   LogOut, SlidersHorizontal, TrendingUp, Users, CheckCircle2,
-  Database, Play, Info, Plug
+  Database, Play, Info, Plug, ArrowUpRight, Lock
 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,22 +45,27 @@ const stripMarkdown = (text: string | null): string => {
 interface Lead {
   id: string;
   company: string;
-  prospect: string | null;
+  prospect: string;
   linkedin_url: string | null;
   twitter_url: string | null;
-  employee_count: number | null;
   priority: string | null;
-  icp_score: number | null;
+  icp_score: number;
   is_contacted: boolean;
   reply_status: string;
-  source: string | null;
+  source: string;
   notes: string | null;
   created_at: string;
+  updated_at: string;
   exported_to_notion: boolean;
-  exported_to_airtable: boolean;
   notion_sync_status?: string | null;
   notion_page_id?: string | null;
   notion_sync_error?: string | null;
+  is_hq_dump: boolean;
+  website: string;
+  founder_thesis: string;
+  goal: string | null;
+  next_action: string | null;
+  stage: string;
 }
 
 interface NotionDatabase {
@@ -140,6 +145,11 @@ export default function Sourcing() {
   // Preview & Organize Staging Flow state
   const [previewLead, setPreviewLead] = useState<Partial<Lead> | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  // Tab and Graduation states
+  const [activeTab, setActiveTab] = useState<"hq_dump" | "pipeline">("hq_dump");
+  const [graduatingLead, setGraduatingLead] = useState<Lead | null>(null);
+  const [showGraduationModal, setShowGraduationModal] = useState(false);
 
   // Notion integration hooks
   const { data: integrations = [], connectNotion, updateSettings } = useIntegrations();
@@ -250,7 +260,7 @@ export default function Sourcing() {
     const isMultiUrl = isUrlMode && parsedUrls.length > 1;
     const isSingleUrl = isUrlMode && parsedUrls.length === 1;
 
-    // ── SINGLE URL → use existing single-preview flow ────────────────────────
+    // ── SINGLE URL → use direct staging save ────────────────────────
     if (isSingleUrl) {
       let targetUrl = parsedUrls[0];
       if (!/^https?:\/\//i.test(targetUrl)) targetUrl = "https://" + targetUrl;
@@ -269,12 +279,41 @@ export default function Sourcing() {
         if (invokeError) throw new Error(invokeError.message ?? "Failed to source lead");
         if (parsedLead?.error) throw new Error(parsedLead.error);
         if (!parsedLead) throw new Error("No data returned from sourcing service");
+        
         clearInterval(stepInterval);
         setSourcingStep(4);
         await new Promise(r => setTimeout(r, 200));
-        setPreviewLead(parsedLead);
-        setShowPreviewModal(true);
-        toast.success(`Parsed ${parsedLead.company || "lead"} — review before saving.`);
+
+        // Save directly to database with is_hq_dump: true
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const { data, error } = await supabase
+          .from("pipeline_crm")
+          .insert({
+            user_id: user.id,
+            company: (parsedLead.company || "Unknown").trim(),
+            prospect: (parsedLead.prospect || "Unknown Prospect").trim(),
+            website: parsedLead.website?.trim() || parsedLead.source?.trim() || targetUrl,
+            founder_thesis: parsedLead.founder_thesis?.trim() || "No dominant constraint specified",
+            goal: parsedLead.goal?.trim() || null,
+            icp_score: parsedLead.icp_score ?? 10,
+            next_action: parsedLead.next_action?.trim() || null,
+            notes: parsedLead.notes?.trim() || null,
+            priority: parsedLead.priority || "Low",
+            source: parsedLead.source?.trim() || targetUrl,
+            stage: parsedLead.stage || "Sourced",
+            exported_to_notion: false,
+            linkedin_url: parsedLead.linkedin_url?.trim() || null,
+            twitter_url: parsedLead.twitter_url?.trim() || null,
+            is_hq_dump: true
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setLeads(prev => [data, ...prev]);
+        toast.success(`Successfully saved ${data.company} to HQ Dump!`);
       } catch (err: any) {
         toast.error("Sourcing failed: " + err.message);
       } finally {
@@ -285,7 +324,7 @@ export default function Sourcing() {
       return;
     }
 
-    // ── MULTIPLE URLS → bulk-source with progress ─────────────────────────────
+    // ── MULTIPLE URLS → bulk-source and save directly ─────────────────────────
     if (isMultiUrl) {
       setSourcing(true);
       setUrlsInput("");
@@ -298,12 +337,39 @@ export default function Sourcing() {
         });
         if (invokeError) throw new Error(invokeError.message ?? "Bulk sourcing failed");
         if (data?.error) throw new Error(data.error);
-        const leads: Partial<Lead>[] = data?.leads || [];
-        if (leads.length === 0) throw new Error("No leads extracted from URLs");
-        setBulkPreviewLeads(leads);
-        setBulkSelectedIndices(leads.map((_, i) => i));
-        setShowBulkPreviewModal(true);
-        toast.success(`Extracted ${leads.length} prospects — select which to save.`);
+        const extracted: Partial<Lead>[] = data?.leads || [];
+        if (extracted.length === 0) throw new Error("No leads extracted from URLs");
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const rows = extracted.map(l => ({
+          user_id: user.id,
+          company: (l.company || "Unknown").trim(),
+          prospect: (l.prospect || "Unknown Prospect").trim(),
+          website: l.website?.trim() || l.source?.trim() || "https://unknown.com",
+          founder_thesis: l.founder_thesis?.trim() || "No dominant constraint specified",
+          goal: l.goal?.trim() || null,
+          icp_score: l.icp_score ?? 10,
+          next_action: l.next_action?.trim() || null,
+          notes: l.notes?.trim() || null,
+          priority: l.priority || "Low",
+          source: l.source?.trim() || "https://unknown.com",
+          stage: l.stage || "Sourced",
+          exported_to_notion: false,
+          linkedin_url: l.linkedin_url?.trim() || null,
+          twitter_url: l.twitter_url?.trim() || null,
+          is_hq_dump: true
+        }));
+
+        const { data: saved, error } = await supabase
+          .from("pipeline_crm")
+          .insert(rows)
+          .select();
+
+        if (error) throw error;
+        setLeads(prev => [...(saved || []), ...prev]);
+        toast.success(`Extracted and saved ${rows.length} prospects to HQ Dump!`);
       } catch (err: any) {
         toast.error("Bulk sourcing failed: " + err.message);
       } finally {
@@ -314,7 +380,7 @@ export default function Sourcing() {
       return;
     }
 
-    // ── TEXT MODE → always use bulk-source (AI returns array) ─────────────────
+    // ── TEXT MODE → bulk-source and save directly ─────────────────────────────
     if (!isUrlMode) {
       setSourcing(true);
       setRawTextInput("");
@@ -328,7 +394,6 @@ export default function Sourcing() {
           body: { action: "bulk-source", raw_text: input }
         });
         if (invokeError) {
-          // Try to read the actual status + body for better diagnostics
           let detail = invokeError.message ?? "Bulk text extraction failed";
           try {
             const ctx = (invokeError as any)?.context as Response | undefined;
@@ -342,15 +407,43 @@ export default function Sourcing() {
           throw new Error(detail);
         }
         if (data?.error) throw new Error(data.error);
-        const leads: Partial<Lead>[] = data?.leads || [];
-        if (leads.length === 0) throw new Error("No leads found in pasted text");
+        const extracted: Partial<Lead>[] = data?.leads || [];
+        if (extracted.length === 0) throw new Error("No leads found in pasted text");
+        
         clearInterval(stepInterval);
         setSourcingStep(4);
         await new Promise(r => setTimeout(r, 200));
-        setBulkPreviewLeads(leads);
-        setBulkSelectedIndices(leads.map((_, i) => i));
-        setShowBulkPreviewModal(true);
-        toast.success(`Extracted ${leads.length} prospect${leads.length === 1 ? "" : "s"} — select which to save.`);
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const rows = extracted.map(l => ({
+          user_id: user.id,
+          company: (l.company || "Unknown").trim(),
+          prospect: (l.prospect || "Unknown Prospect").trim(),
+          website: l.website?.trim() || l.source?.trim() || "https://unknown.com",
+          founder_thesis: l.founder_thesis?.trim() || "No dominant constraint specified",
+          goal: l.goal?.trim() || null,
+          icp_score: l.icp_score ?? 10,
+          next_action: l.next_action?.trim() || null,
+          notes: l.notes?.trim() || null,
+          priority: l.priority || "Low",
+          source: l.source?.trim() || "https://unknown.com",
+          stage: l.stage || "Sourced",
+          exported_to_notion: false,
+          linkedin_url: l.linkedin_url?.trim() || null,
+          twitter_url: l.twitter_url?.trim() || null,
+          is_hq_dump: true
+        }));
+
+        const { data: saved, error } = await supabase
+          .from("pipeline_crm")
+          .insert(rows)
+          .select();
+
+        if (error) throw error;
+        setLeads(prev => [...(saved || []), ...prev]);
+        toast.success(`Extracted and saved ${rows.length} prospects to HQ Dump!`);
       } catch (err: any) {
         toast.error("Extraction failed: " + err.message);
         console.error("[bulk-source text] Error:", err);
@@ -434,13 +527,17 @@ export default function Sourcing() {
           prospect: lead.prospect,
           linkedin_url: lead.linkedin_url,
           twitter_url: lead.twitter_url,
-          employee_count: lead.employee_count,
           priority: lead.priority,
           icp_score: lead.icp_score,
           notes: lead.notes,
           is_contacted: lead.is_contacted,
           reply_status: lead.reply_status,
-          source: lead.source
+          source: lead.source,
+          website: lead.website,
+          founder_thesis: lead.founder_thesis,
+          goal: lead.goal,
+          next_action: lead.next_action,
+          stage: lead.stage
         },
         database_id: dbId,
         duplicate_behavior: behavior || notionIntegration?.settings?.notion_duplicate_behavior,
@@ -531,13 +628,17 @@ export default function Sourcing() {
               prospect: lead.prospect,
               linkedin_url: lead.linkedin_url,
               twitter_url: lead.twitter_url,
-              employee_count: lead.employee_count,
               priority: lead.priority,
               icp_score: lead.icp_score,
               notes: lead.notes,
               is_contacted: lead.is_contacted,
               reply_status: lead.reply_status,
-              source: lead.source
+              source: lead.source,
+              website: lead.website,
+              founder_thesis: lead.founder_thesis,
+              goal: lead.goal,
+              next_action: lead.next_action,
+              stage: lead.stage
             },
             database_id: dbId,
             duplicate_behavior: defaultBehavior,
@@ -639,7 +740,8 @@ export default function Sourcing() {
           source: manualUrl.trim(),
           stage: "Sourced",
           linkedin_url: manualLinkedin.trim() || null,
-          twitter_url: manualTwitter.trim() || null
+          twitter_url: manualTwitter.trim() || null,
+          is_hq_dump: false
         })
         .select()
         .single();
@@ -743,52 +845,82 @@ export default function Sourcing() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Unauthorized");
 
-      // Save to Supabase
-      const { data, error } = await supabase
-        .from("pipeline_crm")
-        .insert({
-          user_id: user.id,
-          company: (previewLead.company || "Unknown").trim(),
-          prospect: (previewLead.prospect || "Unknown Prospect").trim(),
-          website: previewLead.website?.trim() || previewLead.source?.trim() || "https://unknown.com",
-          founder_thesis: previewLead.founder_thesis?.trim() || "No dominant constraint specified",
-          goal: previewLead.goal?.trim() || null,
-          icp_score: previewLead.icp_score ?? 10,
-          next_action: previewLead.next_action?.trim() || null,
-          notes: previewLead.notes?.trim() || null,
-          priority: previewLead.priority || "Low",
-          source: previewLead.source?.trim() || "https://unknown.com",
-          stage: previewLead.stage || "Sourced",
-          exported_to_notion: false,
-          linkedin_url: previewLead.linkedin_url?.trim() || null,
-          twitter_url: previewLead.twitter_url?.trim() || null
-        })
-        .select()
-        .single();
+      if (previewLead.id) {
+        // Edit mode
+        const { data, error } = await supabase
+          .from("pipeline_crm")
+          .update({
+            company: (previewLead.company || "Unknown").trim(),
+            prospect: (previewLead.prospect || "Unknown Prospect").trim(),
+            website: previewLead.website?.trim() || "https://unknown.com",
+            founder_thesis: previewLead.founder_thesis?.trim() || "No dominant constraint specified",
+            goal: previewLead.goal?.trim() || null,
+            icp_score: previewLead.icp_score ?? 10,
+            next_action: previewLead.next_action?.trim() || null,
+            notes: previewLead.notes?.trim() || null,
+            priority: previewLead.priority || "Low",
+            source: previewLead.source?.trim() || "https://unknown.com",
+            stage: previewLead.stage || "Sourced",
+            linkedin_url: previewLead.linkedin_url?.trim() || null,
+            twitter_url: previewLead.twitter_url?.trim() || null
+          })
+          .eq("id", previewLead.id)
+          .select()
+          .single();
 
-      if (error) throw error;
-      
-      // Update local lists
-      setLeads(prev => [data, ...prev]);
-      setShowPreviewModal(false);
-      setPreviewLead(null);
-      toast.success(`Successfully saved ${data.company} to pipeline!`);
+        if (error) throw error;
 
-      // Trigger auto-push if configured
-      if (autoNotion) {
-        const notionDb = defaultNotionDb || (notionDatabases.length > 0 ? notionDatabases[0].id : null);
-        if (notionDb) {
-          toast.loading(`Auto-pushing ${data.company} to Notion...`);
-          const res = await performExportToNotion(data, notionDb);
-          toast.dismiss();
-          if (res.success) {
-            toast.success("Auto-pushed to Notion!");
-          } else {
-            toast.error("Notion auto-push failed: " + res.error);
+        setLeads(prev => prev.map(l => l.id === data.id ? data : l));
+        setShowPreviewModal(false);
+        setPreviewLead(null);
+        toast.success(`Successfully updated ${data.company}`);
+      } else {
+        // Insert mode (staged preview fallback)
+        const { data, error } = await supabase
+          .from("pipeline_crm")
+          .insert({
+            user_id: user.id,
+            company: (previewLead.company || "Unknown").trim(),
+            prospect: (previewLead.prospect || "Unknown Prospect").trim(),
+            website: previewLead.website?.trim() || previewLead.source?.trim() || "https://unknown.com",
+            founder_thesis: previewLead.founder_thesis?.trim() || "No dominant constraint specified",
+            goal: previewLead.goal?.trim() || null,
+            icp_score: previewLead.icp_score ?? 10,
+            next_action: previewLead.next_action?.trim() || null,
+            notes: previewLead.notes?.trim() || null,
+            priority: previewLead.priority || "Low",
+            source: previewLead.source?.trim() || "https://unknown.com",
+            stage: previewLead.stage || "Sourced",
+            exported_to_notion: false,
+            linkedin_url: previewLead.linkedin_url?.trim() || null,
+            twitter_url: previewLead.twitter_url?.trim() || null,
+            is_hq_dump: true
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setLeads(prev => [data, ...prev]);
+        setShowPreviewModal(false);
+        setPreviewLead(null);
+        toast.success(`Successfully saved ${data.company} to pipeline!`);
+
+        // Trigger auto-push if configured
+        if (autoNotion) {
+          const notionDb = defaultNotionDb || (notionDatabases.length > 0 ? notionDatabases[0].id : null);
+          if (notionDb) {
+            toast.loading(`Auto-pushing ${data.company} to Notion...`);
+            const res = await performExportToNotion(data, notionDb);
+            toast.dismiss();
+            if (res.success) {
+              toast.success("Auto-pushed to Notion!");
+            } else {
+              toast.error("Notion auto-push failed: " + res.error);
+            }
           }
         }
       }
-
     } catch (err: any) {
       toast.error("Failed to save lead: " + err.message);
     }
@@ -870,6 +1002,27 @@ export default function Sourcing() {
     } catch (err: any) {
       fetchLeads();
       toast.error("Failed to delete lead: " + err.message);
+    }
+  };
+
+  // Graduate lead from HQ Dump to CRM
+  const handleGraduateLead = async (lead: Lead) => {
+    if (!lead) return;
+    try {
+      const { error } = await supabase
+        .from("pipeline_crm")
+        .update({ is_hq_dump: false })
+        .eq("id", lead.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, is_hq_dump: false } : l));
+      toast.success(`Successfully graduated ${lead.company} to Pipeline CRM!`);
+      setShowGraduationModal(false);
+      setGraduatingLead(null);
+    } catch (err: any) {
+      toast.error("Failed to graduate lead: " + err.message);
     }
   };
 
@@ -962,21 +1115,24 @@ export default function Sourcing() {
     }
 
     const headers = [
-      "Company Name", "Founder Name", "LinkedIn URL", "Twitter Handle", 
-      "Employee Count", "High Priority", "ICP Score", "Contacted", "Reply Status", "Source URL", "Notes", "Created At"
+      "Company Name", "Founder Name", "Website", "LinkedIn URL", "Twitter Handle", 
+      "Priority", "ICP Score", "Contacted", "Reply Status", "Source URL", "Founder Thesis", "Goal", "Next Action", "Notes", "Created At"
     ];
 
     const rows = leads.map(l => [
       l.company,
       l.prospect || "",
+      l.website || "",
       l.linkedin_url || "",
       l.twitter_url || "",
-      l.employee_count ?? "",
-      l.priority ? "TRUE" : "FALSE",
+      l.priority || "Low",
       l.icp_score ?? "",
       l.is_contacted ? "TRUE" : "FALSE",
       l.reply_status,
       l.source || "",
+      l.founder_thesis || "",
+      l.goal || "",
+      l.next_action || "",
       l.notes || "",
       new Date(l.created_at).toLocaleDateString()
     ]);
@@ -1003,7 +1159,12 @@ export default function Sourcing() {
   };
 
   // Filters logic
-  const filteredLeads = leads.filter(l => {
+  const leadsFilteredByTab = leads.filter(l => {
+    if (activeTab === "hq_dump") return l.is_hq_dump === true;
+    return l.is_hq_dump === false;
+  });
+
+  const filteredLeads = leadsFilteredByTab.filter(l => {
     const searchLower = searchQuery.toLowerCase();
     const matchSearch = 
       l.company.toLowerCase().includes(searchLower) ||
@@ -1018,17 +1179,17 @@ export default function Sourcing() {
   });
 
   // Stats Calculations
-  const statsTotal = leads.length;
-  const statsIcpAvg = leads.length > 0
-    ? Number((leads.reduce((sum, l) => sum + (l.icp_score || 0), 0) / leads.length).toFixed(1))
+  const statsTotal = leadsFilteredByTab.length;
+  const statsIcpAvg = leadsFilteredByTab.length > 0
+    ? Number((leadsFilteredByTab.reduce((sum, l) => sum + (l.icp_score || 0), 0) / leadsFilteredByTab.length).toFixed(1))
     : 0;
-  const statsSaasCount = leads.filter(l => l.priority === "High").length;
-  const statsSaasRatio = leads.length > 0
-    ? Math.round((statsSaasCount / leads.length) * 100)
+  const statsSaasCount = leadsFilteredByTab.filter(l => l.priority === "High").length;
+  const statsSaasRatio = leadsFilteredByTab.length > 0
+    ? Math.round((statsSaasCount / leadsFilteredByTab.length) * 100)
     : 0;
-  const statsContactedCount = leads.filter(l => l.is_contacted).length;
-  const statsContactRate = leads.length > 0
-    ? Math.round((statsContactedCount / leads.length) * 100)
+  const statsContactedCount = leadsFilteredByTab.filter(l => l.is_contacted).length;
+  const statsContactRate = leadsFilteredByTab.length > 0
+    ? Math.round((statsContactedCount / leadsFilteredByTab.length) * 100)
     : 0;
 
   const renderKanbanColumn = (title: string, leadsList: Lead[], borderClass: string, badgeClass: string) => {
@@ -1058,8 +1219,18 @@ export default function Sourcing() {
 
                 <div className="flex justify-between items-center text-[11px] text-muted-foreground border-t border-border/30 pt-2.5">
                   <div className="flex items-center gap-1.5">
-                    {lead.employee_count ? <span>{lead.employee_count} emp</span> : <span>Untracked size</span>}
-                    {lead.priority && <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                    <span className="truncate max-w-[130px] inline-block font-mono text-[10px]" title={lead.website}>
+                      {lead.website.replace(/^https?:\/\/(www\.)?/, "").split('/')[0]}
+                    </span>
+                    {lead.priority && (
+                      <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                        lead.priority === "High" ? "border-rose-500/20 text-rose-500 bg-rose-500/5" :
+                        lead.priority === "Medium" ? "border-amber-500/20 text-amber-500 bg-amber-500/5" :
+                        "border-muted text-muted-foreground"
+                      }`}>
+                        {lead.priority}
+                      </Badge>
+                    )}
                   </div>
                   
                   <div className="flex items-center gap-1">
@@ -1091,19 +1262,50 @@ export default function Sourcing() {
 
                 <div className="flex items-center justify-between border-t border-border/30 pt-2.5 mt-1">
                   <div className="flex items-center gap-1">
-                    {lead.notion_sync_status === "synced" ? (
-                      <span className="text-[9px] font-mono text-emerald-500 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                    {activeTab === "hq_dump" ? (
+                      lead.icp_score !== null && lead.icp_score >= 10 ? (
+                        <button 
+                          onClick={() => {
+                            setGraduatingLead(lead);
+                            setShowGraduationModal(true);
+                          }}
+                          className="text-[9px] font-mono text-emerald-500 hover:text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1"
+                        >
+                          <ArrowUpRight className="h-2.5 w-2.5" /> Graduate
+                        </button>
+                      ) : (
+                        <span 
+                          className="text-[9px] font-mono text-muted-foreground/45 bg-muted/15 px-1.5 py-0.5 rounded border border-border/40 flex items-center gap-1 cursor-not-allowed"
+                          title="Locked: ICP Score must be >= 10 to graduate"
+                        >
+                          <Lock className="h-2.5 w-2.5" /> Locked
+                        </span>
+                      )
                     ) : (
-                      <button 
-                        onClick={() => syncSingleLeadWithProgress(lead)} 
-                        className="text-[9px] font-mono text-muted-foreground hover:text-primary bg-secondary/50 px-1.5 py-0.5 rounded border border-border/60 hover:bg-secondary transition-colors"
-                      >
-                        Push Notion
-                      </button>
+                      lead.notion_sync_status === "synced" ? (
+                        <span className="text-[9px] font-mono text-emerald-500 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                      ) : (
+                        <button 
+                          onClick={() => syncSingleLeadWithProgress(lead)} 
+                          className="text-[9px] font-mono text-muted-foreground hover:text-primary bg-secondary/50 px-1.5 py-0.5 rounded border border-border/60 hover:bg-secondary transition-colors"
+                        >
+                          Push Notion
+                        </button>
+                      )
                     )}
                   </div>
 
                   <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => {
+                        setPreviewLead(lead);
+                        setShowPreviewModal(true);
+                      }}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground"
+                      title="Edit lead details"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </button>
                     <button 
                       onClick={() => toggleContacted(lead.id, lead.is_contacted)}
                       className="p-1 rounded hover:bg-muted text-muted-foreground"
@@ -1217,19 +1419,55 @@ export default function Sourcing() {
                 </div>
 
                 <div className="flex gap-2">
-                  {activeSplitLead.notion_sync_status === "synced" ? (
-                    <Badge className="bg-emerald-500/15 text-emerald-600 border border-emerald-500/20 px-2.5 py-1.5 text-xs">
-                      Synced to Notion
-                    </Badge>
+                  {activeTab === "hq_dump" ? (
+                    activeSplitLead.icp_score !== null && activeSplitLead.icp_score >= 10 ? (
+                      <Button
+                        onClick={() => {
+                          setGraduatingLead(activeSplitLead);
+                          setShowGraduationModal(true);
+                        }}
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-1.5"
+                      >
+                        <ArrowUpRight className="h-3.5 w-3.5" /> Graduate to CRM
+                      </Button>
+                    ) : (
+                      <Button
+                        disabled
+                        size="sm"
+                        className="bg-muted text-muted-foreground/50 border border-border text-xs font-semibold gap-1.5 cursor-not-allowed"
+                        title="Locked: ICP Score must be >= 10 to graduate"
+                      >
+                        <Lock className="h-3.5 w-3.5" /> Locked
+                      </Button>
+                    )
                   ) : (
-                    <Button 
-                      onClick={() => syncSingleLeadWithProgress(activeSplitLead)}
-                      size="sm"
-                      className="bg-primary text-primary-foreground text-xs font-semibold gap-1.5"
-                    >
-                      <Database className="h-3.5 w-3.5" /> Push to Notion
-                    </Button>
+                    activeSplitLead.notion_sync_status === "synced" ? (
+                      <Badge className="bg-emerald-500/15 text-emerald-600 border border-emerald-500/20 px-2.5 py-1.5 text-xs">
+                        Synced to Notion
+                      </Badge>
+                    ) : (
+                      <Button 
+                        onClick={() => syncSingleLeadWithProgress(activeSplitLead)}
+                        size="sm"
+                        className="bg-primary text-primary-foreground text-xs font-semibold gap-1.5"
+                      >
+                        <Database className="h-3.5 w-3.5" /> Push to Notion
+                      </Button>
+                    )
                   )}
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setPreviewLead(activeSplitLead);
+                      setShowPreviewModal(true);
+                    }}
+                    className="text-xs text-muted-foreground hover:bg-secondary border-border gap-1.5"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" /> Edit
+                  </Button>
                   
                   <Button 
                     variant="outline" 
@@ -1248,16 +1486,16 @@ export default function Sourcing() {
                   <span className="text-xs font-semibold text-foreground block">{activeSplitLead.prospect || "Unknown"}</span>
                 </div>
                 <div className="rounded-lg border border-border/50 p-3 bg-muted/15 space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Employee Size</span>
-                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.employee_count || "Size untracked"}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Website</span>
+                  <a href={activeSplitLead.website} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary hover:underline block truncate">{activeSplitLead.website.replace(/^https?:\/\/(www\.)?/, "")}</a>
                 </div>
                 <div className="rounded-lg border border-border/50 p-3 bg-muted/15 space-y-1">
                   <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">ICP SCORE</span>
                   <span className="text-xs font-semibold text-foreground block">{activeSplitLead.icp_score !== null ? `${activeSplitLead.icp_score}/15` : "TBD"}</span>
                 </div>
                 <div className="rounded-lg border border-border/50 p-3 bg-muted/15 space-y-1">
-                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">High Priority Model</span>
-                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.priority ? "Yes" : "No"}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">Priority</span>
+                  <span className="text-xs font-semibold text-foreground block">{activeSplitLead.priority || "Low"}</span>
                 </div>
               </div>
 
@@ -1360,8 +1598,18 @@ export default function Sourcing() {
 
               <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5">
                 <div className="flex items-center gap-1.5">
-                  {lead.employee_count ? <span>{lead.employee_count} emp</span> : <span>Untracked size</span>}
-                  {lead.priority && <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                  <span className="truncate max-w-[100px] inline-block font-mono text-[10px]" title={lead.website}>
+                    {lead.website.replace(/^https?:\/\/(www\.)?/, "").split('/')[0]}
+                  </span>
+                  {lead.priority && (
+                    <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                      lead.priority === "High" ? "border-rose-500/20 text-rose-500 bg-rose-500/5" :
+                      lead.priority === "Medium" ? "border-amber-500/20 text-amber-500 bg-amber-500/5" :
+                      "border-muted text-muted-foreground"
+                    }`}>
+                      {lead.priority}
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   {lead.linkedin_url && (
@@ -1391,21 +1639,52 @@ export default function Sourcing() {
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-border/30 pt-3 mt-1 text-xs">
+             <div className="flex items-center justify-between border-t border-border/30 pt-3 mt-1 text-xs">
               <div className="flex items-center gap-2">
-                {lead.notion_sync_status === "synced" ? (
-                  <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                {activeTab === "hq_dump" ? (
+                  lead.icp_score !== null && lead.icp_score >= 10 ? (
+                    <button 
+                      onClick={() => {
+                        setGraduatingLead(lead);
+                        setShowGraduationModal(true);
+                      }}
+                      className="text-[10px] font-mono text-emerald-500 hover:text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1"
+                    >
+                      <ArrowUpRight className="h-3 w-3" /> Graduate
+                    </button>
+                  ) : (
+                    <span 
+                      className="text-[10px] font-mono text-muted-foreground/45 bg-muted/15 px-2 py-0.5 rounded border border-border/40 flex items-center gap-1 cursor-not-allowed"
+                      title="Locked: ICP Score must be >= 10 to graduate"
+                    >
+                      <Lock className="h-3 w-3" /> Locked
+                    </span>
+                  )
                 ) : (
-                  <button 
-                    onClick={() => syncSingleLeadWithProgress(lead)} 
-                    className="text-[10px] font-mono text-muted-foreground hover:text-primary bg-secondary/50 px-2 py-0.5 rounded border border-border/60 hover:bg-secondary transition-colors"
-                  >
-                    Push Notion
-                  </button>
+                  lead.notion_sync_status === "synced" ? (
+                    <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                  ) : (
+                    <button 
+                      onClick={() => syncSingleLeadWithProgress(lead)} 
+                      className="text-[10px] font-mono text-muted-foreground hover:text-primary bg-secondary/50 px-2 py-0.5 rounded border border-border/60 hover:bg-secondary transition-colors"
+                    >
+                      Push Notion
+                    </button>
+                  )
                 )}
               </div>
 
               <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => {
+                    setPreviewLead(lead);
+                    setShowPreviewModal(true);
+                  }}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground"
+                  title="Edit lead details"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
                 <button 
                   onClick={() => toggleContacted(lead.id, lead.is_contacted)}
                   className="p-1 rounded hover:bg-muted text-muted-foreground"
@@ -1462,126 +1741,162 @@ export default function Sourcing() {
             </div>
           </div>
 
+          {/* ── Tab Switching Header ── */}
+          <div className="flex border-b border-border/40 pb-px gap-6 mb-2">
+            <button
+              onClick={() => setActiveTab("hq_dump")}
+              className={`pb-2.5 text-sm font-semibold transition-all relative ${
+                activeTab === "hq_dump"
+                  ? "text-primary border-b-2 border-primary font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              📂 HQ Dump
+              <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                activeTab === "hq_dump" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              }`}>
+                {leads.filter(l => l.is_hq_dump).length}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab("pipeline")}
+              className={`pb-2.5 text-sm font-semibold transition-all relative ${
+                activeTab === "pipeline"
+                  ? "text-primary border-b-2 border-primary font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              💼 Pipeline CRM
+              <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                activeTab === "pipeline" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              }`}>
+                {leads.filter(l => !l.is_hq_dump).length}
+              </span>
+            </button>
+          </div>
+
           {/* ── Two-Column Layout ── */}
           <div className="flex flex-col xl:flex-row gap-6">
 
             {/* ─── LEFT: Sourcing Sidebar ─── */}
-            <div className={`xl:w-80 shrink-0 space-y-4 transition-all duration-300 ${showSidebar ? "block" : "hidden"}`}>
+            {activeTab === "hq_dump" && (
+              <div className={`xl:w-80 shrink-0 space-y-4 transition-all duration-300 ${showSidebar ? "block" : "hidden"}`}>
 
-              {/* Sourcing Input Card */}
-              <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
-                <div className="flex border-b border-border/40">
-                  <button
-                    type="button"
-                    onClick={() => setSourcingMode("url")}
-                    className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
-                      sourcingMode === "url"
-                        ? "bg-primary/5 text-primary border-b-2 border-primary"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    🔗 URL Scanner
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSourcingMode("text")}
-                    className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
-                      sourcingMode === "text"
-                        ? "bg-primary/5 text-primary border-b-2 border-primary"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    📋 Paste Text
-                  </button>
-                </div>
+                {/* Sourcing Input Card */}
+                <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
+                  <div className="flex border-b border-border/40">
+                    <button
+                      type="button"
+                      onClick={() => setSourcingMode("url")}
+                      className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
+                        sourcingMode === "url"
+                          ? "bg-primary/5 text-primary border-b-2 border-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      🔗 URL Scanner
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSourcingMode("text")}
+                      className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
+                        sourcingMode === "text"
+                          ? "bg-primary/5 text-primary border-b-2 border-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      📋 Paste Text
+                    </button>
+                  </div>
 
-                <div className="p-4">
-                  <form onSubmit={handleSource} className="flex flex-col gap-3">
-                    {sourcingMode === "url" ? (
-                      <div className="flex flex-col gap-2">
-                        <Textarea
-                          placeholder={`One URL per line:\nhttps://stripe.com\nhttps://linear.app`}
-                          value={urlsInput}
-                          onChange={(e) => setUrlsInput(e.target.value)}
-                          className="min-h-[100px] text-xs bg-background font-sans resize-y"
-                          required={sourcingMode === "url"}
-                        />
-                        {/* Batch mode indicator */}
-                        {(() => {
-                          const count = urlsInput.trim().split(/\n/).map(u => u.trim()).filter(Boolean).length;
-                          return count > 1 ? (
-                            <div className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 flex items-center gap-1.5">
-                              <Play className="h-3 w-3 text-primary shrink-0" />
-                              <span className="text-[10px] text-primary font-semibold font-mono">{count} URLs detected — batch mode</span>
-                            </div>
-                          ) : null;
+                  <div className="p-4">
+                    <form onSubmit={handleSource} className="flex flex-col gap-3">
+                      {sourcingMode === "url" ? (
+                        <div className="flex flex-col gap-2">
+                          <Textarea
+                            placeholder={`One URL per line:\nhttps://stripe.com\nhttps://linear.app`}
+                            value={urlsInput}
+                            onChange={(e) => setUrlsInput(e.target.value)}
+                            className="min-h-[100px] text-xs bg-background font-sans resize-y"
+                            required={sourcingMode === "url"}
+                          />
+                          {/* Batch mode indicator */}
+                          {(() => {
+                            const count = urlsInput.trim().split(/\n/).map(u => u.trim()).filter(Boolean).length;
+                            return count > 1 ? (
+                              <div className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 flex items-center gap-1.5">
+                                <Play className="h-3 w-3 text-primary shrink-0" />
+                                <span className="text-[10px] text-primary font-semibold font-mono">{count} URLs detected — batch mode</span>
+                              </div>
+                            ) : null;
+                          })()}
+                          <div className="rounded-md border border-amber-500/15 bg-amber-500/[0.02] p-2 flex gap-1.5 items-start">
+                            <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-muted-foreground leading-normal">
+                              LinkedIn &amp; X/Twitter block crawlers — use Paste Text instead. Max 20 URLs per batch.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          <Textarea
+                            placeholder="Paste raw startup information, product descriptions, or founder profiles — multiple companies OK..."
+                            value={rawTextInput}
+                            onChange={(e) => setRawTextInput(e.target.value)}
+                            className="min-h-[140px] text-xs bg-background font-sans resize-y"
+                            required={sourcingMode === "text"}
+                          />
+                          <div className="rounded-md border border-primary/15 bg-primary/[0.02] p-2 flex gap-1.5 items-start">
+                            <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-muted-foreground leading-normal">
+                              Paste text about multiple founders — AI will extract all profiles at once.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <Button 
+                        type="submit"
+                        disabled={sourcing || (sourcingMode === "url" ? !urlsInput.trim() : !rawTextInput.trim())}
+                        className="h-9 gap-1.5 font-medium w-full"
+                      >
+                        {sourcing ? (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {bulkProgress ? `Processing ${bulkProgress.current}/${bulkProgress.total}...` : "Analyzing..."}</>
+                        ) : (() => {
+                          const urlCount = sourcingMode === "url" ? urlsInput.trim().split(/\n/).filter(Boolean).length : 0;
+                          if (urlCount > 1) return <><Play className="h-3.5 w-3.5" /> Batch Analyze {urlCount} URLs</>;
+                          return <><ArrowRight className="h-3.5 w-3.5" /> {sourcingMode === "url" ? "Analyze URL" : "Extract All Profiles"}</>;
                         })()}
-                        <div className="rounded-md border border-amber-500/15 bg-amber-500/[0.02] p-2 flex gap-1.5 items-start">
-                          <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                          <p className="text-[10px] text-muted-foreground leading-normal">
-                            LinkedIn &amp; X/Twitter block crawlers — use Paste Text instead. Max 20 URLs per batch.
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <Textarea
-                          placeholder="Paste raw startup information, product descriptions, or founder profiles — multiple companies OK..."
-                          value={rawTextInput}
-                          onChange={(e) => setRawTextInput(e.target.value)}
-                          className="min-h-[140px] text-xs bg-background font-sans resize-y"
-                          required={sourcingMode === "text"}
-                        />
-                        <div className="rounded-md border border-primary/15 bg-primary/[0.02] p-2 flex gap-1.5 items-start">
-                          <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                          <p className="text-[10px] text-muted-foreground leading-normal">
-                            Paste text about multiple founders — AI will extract all profiles at once.
-                          </p>
-                        </div>
+                      </Button>
+                    </form>
+
+                    {/* AI Pipeline Steps */}
+                    {sourcing && (
+                      <div className="mt-4 pt-4 border-t border-border/40 space-y-2.5">
+                        <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Pipeline Status</p>
+                        {[
+                          sourcingMode === "url" ? "Crawling target URL..." : "Reading raw text block...",
+                          "Sourcing founder identities via AI...",
+                          "Scoring ICP index...",
+                          "Staging preview data...",
+                        ].map((step, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            {sourcingStep > i + 1 ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                            ) : sourcingStep === i + 1 ? (
+                              <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
+                            ) : (
+                              <div className="h-3.5 w-3.5 rounded-full border border-muted shrink-0" />
+                            )}
+                            <span className={sourcingStep === i + 1 ? "text-foreground font-medium" : "text-muted-foreground"}>{i + 1}. {step}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
-
-                    <Button 
-                      type="submit"
-                      disabled={sourcing || (sourcingMode === "url" ? !urlsInput.trim() : !rawTextInput.trim())}
-                      className="h-9 gap-1.5 font-medium w-full"
-                    >
-                      {sourcing ? (
-                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {bulkProgress ? `Processing ${bulkProgress.current}/${bulkProgress.total}...` : "Analyzing..."}</>
-                      ) : (() => {
-                        const urlCount = sourcingMode === "url" ? urlsInput.trim().split(/\n/).filter(Boolean).length : 0;
-                        if (urlCount > 1) return <><Play className="h-3.5 w-3.5" /> Batch Analyze {urlCount} URLs</>;
-                        return <><ArrowRight className="h-3.5 w-3.5" /> {sourcingMode === "url" ? "Analyze URL" : "Extract All Profiles"}</>;
-                      })()}
-                    </Button>
-                  </form>
-
-                  {/* AI Pipeline Steps */}
-                  {sourcing && (
-                    <div className="mt-4 pt-4 border-t border-border/40 space-y-2.5">
-                      <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Pipeline Status</p>
-                      {[
-                        sourcingMode === "url" ? "Crawling target URL..." : "Reading raw text block...",
-                        "Sourcing founder identities via AI...",
-                        "Scoring ICP index...",
-                        "Staging preview data...",
-                      ].map((step, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs">
-                          {sourcingStep > i + 1 ? (
-                            <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                          ) : sourcingStep === i + 1 ? (
-                            <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
-                          ) : (
-                            <div className="h-3.5 w-3.5 rounded-full border border-muted shrink-0" />
-                          )}
-                          <span className={sourcingStep === i + 1 ? "text-foreground font-medium" : "text-muted-foreground"}>{i + 1}. {step}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* ─── RIGHT: Pipeline Table ─── */}
             <div className="flex-1 min-w-0">
@@ -1622,19 +1937,21 @@ export default function Sourcing() {
                       <SelectItem value="grid">Card Grid</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={toggleSidebar} 
-                    className="w-full sm:w-auto h-9 text-xs gap-1.5 border-border/60 bg-card font-medium"
-                    title={showSidebar ? "Hide sourcing inputs panel" : "Show sourcing inputs panel"}
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    <span>{showSidebar ? "Hide Scanner" : "Show Scanner"}</span>
-                  </Button>
+                  {activeTab === "hq_dump" && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={toggleSidebar} 
+                      className="w-full sm:w-auto h-9 text-xs gap-1.5 border-border/60 bg-card font-medium"
+                      title={showSidebar ? "Hide sourcing inputs panel" : "Show sourcing inputs panel"}
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      <span>{showSidebar ? "Hide Scanner" : "Show Scanner"}</span>
+                    </Button>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5 shrink-0">
-                  <span><strong>{filteredLeads.length}</strong> of <strong>{leads.length}</strong> leads</span>
+                  <span><strong>{filteredLeads.length}</strong> of <strong>{leadsFilteredByTab.length}</strong> leads</span>
                   <button onClick={fetchLeads} className="p-1 text-muted-foreground/60 hover:text-foreground transition-colors" title="Refresh">
                     <RefreshCw className="h-3 w-3" />
                   </button>
@@ -1649,7 +1966,9 @@ export default function Sourcing() {
                     selected prospects
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleBulkExportNotion} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Export Notion</Button>
+                    {activeTab === "pipeline" && (
+                      <Button variant="outline" size="sm" onClick={handleBulkExportNotion} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Export Notion</Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => handleBulkMarkContacted(true)} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Mark Contacted</Button>
                     <Button variant="outline" size="sm" onClick={() => handleBulkMarkContacted(false)} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-primary/5">Uncontacted</Button>
                     <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="h-8 text-[11px] gap-1 px-2.5 font-medium hover:bg-destructive/15 text-destructive">Delete</Button>
@@ -1701,7 +2020,9 @@ export default function Sourcing() {
                         <TableHead className="w-[100px] min-w-[100px] text-center font-mono text-[10px] tracking-wider uppercase py-3">ICP Score</TableHead>
                         <TableHead className="w-[90px] min-w-[90px] text-center font-mono text-[10px] tracking-wider uppercase py-3">Contacted</TableHead>
                         <TableHead className="w-[140px] min-w-[140px] font-mono text-[10px] tracking-wider uppercase py-3">Reply Status</TableHead>
-                        <TableHead className="w-[120px] min-w-[120px] font-mono text-[10px] tracking-wider uppercase py-3">Notion Sync</TableHead>
+                        {activeTab === "pipeline" && (
+                          <TableHead className="w-[120px] min-w-[120px] font-mono text-[10px] tracking-wider uppercase py-3">Notion Sync</TableHead>
+                        )}
                         <TableHead className="min-w-[300px] font-mono text-[10px] tracking-wider uppercase py-3">Outreach Notes / Strategy</TableHead>
                         <TableHead className="w-[120px] min-w-[100px] text-right font-mono text-[10px] tracking-wider uppercase py-3">Actions</TableHead>
                       </TableRow>
@@ -1747,13 +2068,20 @@ export default function Sourcing() {
                               </div>
                             </TableCell>
 
-                            {/* Founder & Team size */}
+                            {/* Founder & Priority */}
                             <TableCell className="align-middle min-w-[160px]">
                               <div className="flex flex-col">
                                 <span className="text-sm text-foreground">{lead.prospect || "Unknown"}</span>
-                                <span className="text-[11px] text-muted-foreground mt-0.5">
-                                  {lead.employee_count ? `${lead.employee_count} employees` : "Size untracked"}
-                                  {lead.priority && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 border-primary/20 text-primary bg-primary/5">SaaS</Badge>}
+                                <span className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                                  {lead.priority && (
+                                    <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                                      lead.priority === "High" ? "border-rose-500/20 text-rose-500 bg-rose-500/5" :
+                                      lead.priority === "Medium" ? "border-amber-500/20 text-amber-500 bg-amber-500/5" :
+                                      "border-muted text-muted-foreground"
+                                    }`}>
+                                      {lead.priority} Priority
+                                    </Badge>
+                                  )}
                                 </span>
                               </div>
                             </TableCell>
@@ -1831,48 +2159,50 @@ export default function Sourcing() {
                             </TableCell>
 
                             {/* Notion Sync Status */}
-                            <TableCell className="align-middle min-w-[120px]">
-                              <div className="flex items-center gap-1.5">
-                                {lead.notion_sync_status === "synced" && (
-                                  <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 font-medium text-[10px] px-1.5 py-0.5">
-                                    Synced
-                                  </Badge>
-                                )}
-                                {lead.notion_sync_status === "syncing" && (
-                                  <Badge variant="outline" className="border-primary/25 bg-primary/5 text-primary font-medium text-[10px] px-1.5 py-0.5 flex items-center gap-1">
-                                    <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing
-                                  </Badge>
-                                )}
-                                {lead.notion_sync_status === "failed" && (
-                                  <div className="flex items-center gap-1" title={lead.notion_sync_error || "Sync failed"}>
-                                    <Badge variant="outline" className="border-destructive/25 bg-destructive/5 text-destructive font-medium text-[10px] px-1.5 py-0.5">
-                                      Failed
+                            {activeTab === "pipeline" && (
+                              <TableCell className="align-middle min-w-[120px]">
+                                <div className="flex items-center gap-1.5">
+                                  {lead.notion_sync_status === "synced" && (
+                                    <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 font-medium text-[10px] px-1.5 py-0.5">
+                                      Synced
                                     </Badge>
-                                    <button 
-                                      onClick={() => syncSingleLeadWithProgress(lead)}
-                                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                      title="Retry Sync"
-                                    >
-                                      <RefreshCw className="h-3 w-3" />
-                                    </button>
-                                  </div>
-                                )}
-                                {(lead.notion_sync_status === "not_synced" || !lead.notion_sync_status) && (
-                                  <div className="flex items-center gap-1">
-                                    <Badge variant="outline" className="border-border/60 bg-muted/20 text-muted-foreground font-medium text-[10px] px-1.5 py-0.5">
-                                      Unsynced
+                                  )}
+                                  {lead.notion_sync_status === "syncing" && (
+                                    <Badge variant="outline" className="border-primary/25 bg-primary/5 text-primary font-medium text-[10px] px-1.5 py-0.5 flex items-center gap-1">
+                                      <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing
                                     </Badge>
-                                    <button 
-                                      onClick={() => syncSingleLeadWithProgress(lead)}
-                                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-primary"
-                                      title="Sync to Notion"
-                                    >
-                                      <Play className="h-3 w-3 fill-current" />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
+                                  )}
+                                  {lead.notion_sync_status === "failed" && (
+                                    <div className="flex items-center gap-1" title={lead.notion_sync_error || "Sync failed"}>
+                                      <Badge variant="outline" className="border-destructive/25 bg-destructive/5 text-destructive font-medium text-[10px] px-1.5 py-0.5">
+                                        Failed
+                                      </Badge>
+                                      <button 
+                                        onClick={() => syncSingleLeadWithProgress(lead)}
+                                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                        title="Retry Sync"
+                                      >
+                                        <RefreshCw className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  )}
+                                  {(lead.notion_sync_status === "not_synced" || !lead.notion_sync_status) && (
+                                    <div className="flex items-center gap-1">
+                                      <Badge variant="outline" className="border-border/60 bg-muted/20 text-muted-foreground font-medium text-[10px] px-1.5 py-0.5">
+                                        Unsynced
+                                      </Badge>
+                                      <button 
+                                        onClick={() => syncSingleLeadWithProgress(lead)}
+                                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-primary"
+                                        title="Sync to Notion"
+                                      >
+                                        <Play className="h-3 w-3 fill-current" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
 
                             {/* Notes (Clean display, click to open full dialog editor) */}
                             <TableCell className="align-middle text-xs min-w-[300px]">
@@ -1898,16 +2228,56 @@ export default function Sourcing() {
                             {/* Integrations & Delete actions */}
                             <TableCell className="align-middle text-right min-w-[100px]">
                               <div className="flex items-center justify-end gap-1.5">
+                                {activeTab === "hq_dump" ? (
+                                  lead.icp_score !== null && lead.icp_score >= 10 ? (
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10"
+                                      onClick={() => {
+                                        setGraduatingLead(lead);
+                                        setShowGraduationModal(true);
+                                      }}
+                                      title="Graduate to CRM"
+                                    >
+                                      <ArrowUpRight className="h-4 w-4" />
+                                    </Button>
+                                  ) : (
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8 text-muted-foreground/40 cursor-not-allowed"
+                                      disabled
+                                      title="Locked: ICP Score must be >= 10 to graduate"
+                                    >
+                                      <Lock className="h-4 w-4" />
+                                    </Button>
+                                  )
+                                ) : (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                                    onClick={() => syncSingleLeadWithProgress(lead)}
+                                    title="Export to Notion"
+                                  >
+                                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                                      <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
+                                    </svg>
+                                  </Button>
+                                )}
+
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
                                   className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                                  onClick={() => syncSingleLeadWithProgress(lead)}
-                                  title="Export to Notion"
+                                  onClick={() => {
+                                    setPreviewLead(lead);
+                                    setShowPreviewModal(true);
+                                  }}
+                                  title="Edit prospect details"
                                 >
-                                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                                    <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
-                                  </svg>
+                                  <Edit2 className="h-3.5 w-3.5" />
                                 </Button>
 
                                 <Button 
@@ -2216,242 +2586,131 @@ export default function Sourcing() {
       </Dialog>
 
 
-      {/* ── Dialog: Bulk Preview & Save ── */}
-      <Dialog open={showBulkPreviewModal} onOpenChange={(open) => {
-        if (!open && !bulkSaving) {
-          setShowBulkPreviewModal(false);
-          setBulkPreviewLeads([]);
-          setBulkSelectedIndices([]);
-        }
-      }}>
-        <DialogContent className="sm:max-w-[820px] bg-card border border-border/80 max-h-[90vh] flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="text-xl flex items-center gap-2">
-              <Play className="h-5 w-5 text-primary" />
-              Bulk Extract Preview
-              <span className="text-sm font-normal text-muted-foreground ml-1">
-                — {bulkPreviewLeads.length} prospect{bulkPreviewLeads.length === 1 ? "" : "s"} extracted
-              </span>
+      {/* ── Dialog: Graduate Lead ── */}
+      <Dialog open={showGraduationModal} onOpenChange={setShowGraduationModal}>
+        <DialogContent className="sm:max-w-[420px] bg-card border border-border/80">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2 text-emerald-500">
+              <ArrowUpRight className="h-5 w-5 shrink-0" /> Graduate Prospect
             </DialogTitle>
             <DialogDescription>
-              Select which prospects to add to your pipeline. You can edit names inline before saving.
+              Are you sure you want to graduate <strong className="text-foreground">{graduatingLead?.company}</strong> to the active Pipeline CRM?
             </DialogDescription>
           </DialogHeader>
 
-          {/* Select-All Controls */}
-          <div className="flex items-center gap-3 px-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => setBulkSelectedIndices(bulkPreviewLeads.map((_, i) => i))}
-              className="text-[11px] font-mono text-primary hover:underline"
-            >
-              Select All
-            </button>
-            <span className="text-muted-foreground text-xs">·</span>
-            <button
-              type="button"
-              onClick={() => setBulkSelectedIndices([])}
-              className="text-[11px] font-mono text-muted-foreground hover:text-foreground hover:underline"
-            >
-              Deselect All
-            </button>
-            <span className="ml-auto text-[11px] font-mono text-muted-foreground">
-              {bulkSelectedIndices.length} of {bulkPreviewLeads.length} selected
-            </span>
+          <div className="py-4 space-y-3 text-xs text-muted-foreground">
+            <p>
+              This lead has passed the qualification threshold with an ICP score of <strong className="text-foreground">{graduatingLead?.icp_score}/15</strong>.
+            </p>
+            <p>
+              Graduating this lead will:
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Move it from the raw staging <strong>HQ Dump</strong> to the active <strong>Pipeline CRM</strong>.</li>
+              <li>Unlock Notion Database synchronization features for this contact.</li>
+            </ul>
           </div>
 
-          {/* Leads Table */}
-          <div className="flex-1 overflow-y-auto rounded-lg border border-border/50 min-h-0">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-muted/60 backdrop-blur-sm border-b border-border/50 z-10">
-                <tr>
-                  <th className="w-8 py-2.5 px-3"></th>
-                  <th className="py-2.5 px-3 text-left font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">Company</th>
-                  <th className="py-2.5 px-3 text-left font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">Founder</th>
-                  <th className="py-2.5 px-3 text-center font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">ICP</th>
-                  <th className="py-2.5 px-3 text-center font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">SaaS</th>
-                  <th className="py-2.5 px-3 text-center font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">Emp.</th>
-                  <th className="py-2.5 px-3 text-left font-semibold text-muted-foreground font-mono uppercase tracking-wider text-[10px]">Source</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {bulkPreviewLeads.map((lead, i) => {
-                  const isSelected = bulkSelectedIndices.includes(i);
-                  const hasError = !!(lead as any)._error;
-                  return (
-                    <tr
-                      key={i}
-                      onClick={() => setBulkSelectedIndices(prev =>
-                        prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
-                      )}
-                      className={`cursor-pointer transition-colors ${
-                        isSelected
-                          ? "bg-primary/5 hover:bg-primary/8"
-                          : "bg-transparent hover:bg-muted/30 opacity-50"
-                      } ${hasError ? "bg-rose-500/5" : ""}`}
-                    >
-                      <td className="py-2.5 px-3">
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={(checked) => {
-                            setBulkSelectedIndices(prev =>
-                              checked ? [...prev, i] : prev.filter(x => x !== i)
-                            );
-                          }}
-                          onClick={e => e.stopPropagation()}
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          className="w-full bg-transparent text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 rounded px-1 -mx-1"
-                          value={lead.company || ""}
-                          onClick={e => e.stopPropagation()}
-                          onChange={e => setBulkPreviewLeads(prev => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], company: e.target.value };
-                            return next;
-                          })}
-                        />
-                        {hasError && (
-                          <span className="text-[9px] text-rose-500 font-mono block mt-0.5">extraction failed</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          className="w-full bg-transparent text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 rounded px-1 -mx-1"
-                          value={lead.prospect || ""}
-                          placeholder="Unknown"
-                          onClick={e => e.stopPropagation()}
-                          onChange={e => setBulkPreviewLeads(prev => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], prospect: e.target.value };
-                            return next;
-                          })}
-                        />
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className={`font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded border ${getIcpBadgeClass(lead.icp_score ?? null)}`}>
-                          {lead.icp_score ?? "—"}/15
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {lead.priority
-                          ? <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/20">Yes</span>
-                          : <span className="text-[10px] text-muted-foreground">No</span>
-                        }
-                      </td>
-                      <td className="py-2.5 px-3 text-center text-muted-foreground">
-                        {lead.employee_count ?? "—"}
-                      </td>
-                      <td className="py-2.5 px-3 max-w-[150px]">
-                        {lead.source ? (
-                          <a
-                            href={lead.source}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="text-primary hover:underline truncate block text-[10px] font-mono"
-                            title={lead.source}
-                          >
-                            {lead.source.replace(/^https?:\/\/(www\.)?/, "").slice(0, 28)}…
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground/40 italic">Text paste</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <DialogFooter className="shrink-0 flex-row gap-2 sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={bulkSaving}
-              onClick={() => {
-                setShowBulkPreviewModal(false);
-                setBulkPreviewLeads([]);
-                setBulkSelectedIndices([]);
-              }}
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowGraduationModal(false);
+              setGraduatingLead(null);
+            }}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              disabled={bulkSelectedIndices.length === 0 || bulkSaving}
-              onClick={handleBulkSave}
-              className="gap-1.5"
+            <Button 
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => graduatingLead && handleGraduateLead(graduatingLead)}
             >
-              {bulkSaving ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
-              ) : (
-                <><CheckCircle2 className="h-3.5 w-3.5" /> Save {bulkSelectedIndices.length} of {bulkPreviewLeads.length} to Pipeline</>
-              )}
+              Confirm Graduation
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog: Preview & Edit Sourced Lead ── */}
+      {/* ── Dialog: Edit Lead Details ── */}
       <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-        <DialogContent className="sm:max-w-[500px] bg-card border border-border/80">
+        <DialogContent className="sm:max-w-[550px] bg-card border border-border/80">
           <form onSubmit={savePreviewLeadToPipeline}>
             <DialogHeader>
               <DialogTitle className="text-xl flex items-center gap-2">
-                <Target className="h-5 w-5 text-primary" /> Review Extracted Lead
+                <SlidersHorizontal className="h-5 w-5 text-primary" /> Edit Lead Details
               </DialogTitle>
               <DialogDescription>
-                Verify and refine details extracted by Atlas AI before saving them to your active outreach pipeline.
+                Modify details and strategic scoring for <strong className="text-foreground">{previewLead?.company}</strong>.
               </DialogDescription>
             </DialogHeader>
+
             {previewLead && (
               <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-company">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-company">
                       Company Name *
                     </label>
                     <Input 
-                      id="p-company" 
+                      id="edit-company" 
                       value={previewLead.company || ""} 
                       onChange={e => setPreviewLead(prev => ({ ...prev!, company: e.target.value }))}
                       required
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-founder">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-founder">
                       Founder Name
                     </label>
                     <Input 
-                      id="p-founder" 
+                      id="edit-founder" 
                       value={previewLead.prospect || ""} 
                       onChange={e => setPreviewLead(prev => ({ ...prev!, prospect: e.target.value }))}
-                      placeholder="e.g. John Doe"
+                      placeholder="e.g. Jane Doe"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-linkedin">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-website">
+                      Website URL *
+                    </label>
+                    <Input 
+                      id="edit-website" 
+                      value={previewLead.website || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, website: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-goal">
+                      Stated Goal
+                    </label>
+                    <Input 
+                      id="edit-goal" 
+                      value={previewLead.goal || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, goal: e.target.value }))}
+                      placeholder="e.g. Scale operations"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-linkedin">
                       LinkedIn Profile URL
                     </label>
                     <Input 
-                      id="p-linkedin" 
+                      id="edit-linkedin" 
                       value={previewLead.linkedin_url || ""} 
                       onChange={e => setPreviewLead(prev => ({ ...prev!, linkedin_url: e.target.value }))}
                       placeholder="https://linkedin.com/in/..."
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-twitter">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-twitter">
                       Twitter / X Handle
                     </label>
                     <Input 
-                      id="p-twitter" 
+                      id="edit-twitter" 
                       value={previewLead.twitter_url || ""} 
                       onChange={e => setPreviewLead(prev => ({ ...prev!, twitter_url: e.target.value }))}
                       placeholder="@handle"
@@ -2459,84 +2718,69 @@ export default function Sourcing() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-employees">
-                      Employees
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-icp">
+                      ICP Score (0-15)
                     </label>
-                    <Input 
-                      id="p-employees" 
-                      type="number"
-                      value={previewLead.employee_count !== null ? String(previewLead.employee_count) : ""} 
-                      onChange={e => setPreviewLead(prev => ({ ...prev!, employee_count: e.target.value === "" ? null : parseInt(e.target.value) }))}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-icp">
-                      ICP Score (0-10)
-                    </label>
-                    <Input 
-                      id="p-icp" 
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={previewLead.icp_score !== null ? String(previewLead.icp_score) : ""} 
-                      onChange={e => setPreviewLead(prev => ({ ...prev!, icp_score: e.target.value === "" ? null : parseInt(e.target.value) }))}
-                    />
-                  </div>
-                  <div className="flex items-center justify-center pt-5">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <Checkbox 
-                        checked={previewLead.priority === "High"} 
-                        onCheckedChange={(checked) => setPreviewLead(prev => ({ ...prev!, priority: checked ? "High" : "Low" }))}
-                      />
-                      <span className="text-xs font-semibold text-muted-foreground">High Priority</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-url">
-                    Source / Website URL
-                  </label>
-                  <Input 
-                    id="p-url" 
-                    value={previewLead.source || ""} 
-                    onChange={e => setPreviewLead(prev => ({ ...prev!, source: e.target.value }))}
-                    placeholder="https://..."
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="p-notes">
-                    Strategy / Outreach Notes
-                  </label>
-                  <Textarea 
-                    id="p-notes" 
-                    value={previewLead.notes || ""} 
-                    onChange={e => setPreviewLead(prev => ({ ...prev!, notes: e.target.value }))}
-                    className="min-h-[100px]"
-                  />
-                </div>
-                
-                {/* Auto Push options */}
-                <div className="border-t border-border/40 pt-3 mt-1 flex flex-col gap-2">
-                  <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground">Pipeline Integrations:</span>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <Checkbox 
-                        checked={autoNotion} 
-                        onCheckedChange={(checked) => {
-                          setAutoNotion(!!checked);
-                          localStorage.setItem("atlas.sourcing.auto_notion", String(!!checked));
+                    <div className="flex gap-2">
+                      <Input 
+                        id="edit-icp" 
+                        type="number"
+                        min="0"
+                        max="15"
+                        value={previewLead.icp_score !== null && previewLead.icp_score !== undefined ? String(previewLead.icp_score) : ""} 
+                        onChange={e => {
+                          const val = e.target.value === "" ? 0 : Math.min(15, Math.max(0, parseInt(e.target.value)));
+                          const nextPriority = val >= 13 ? "High" : val >= 11 ? "Medium" : "Low";
+                          setPreviewLead(prev => ({ ...prev!, icp_score: val, priority: nextPriority }));
                         }}
                       />
-                      <span className="text-xs text-foreground">Auto-push to Notion</span>
-                    </label>
+                      <div className="flex items-center justify-center font-semibold text-xs border border-border bg-muted/30 px-3 rounded-lg min-w-[70px]">
+                        {previewLead.priority || "Low"}
+                      </div>
+                    </div>
                   </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-next-action">
+                      Next Outreach Action
+                    </label>
+                    <Input 
+                      id="edit-next-action" 
+                      value={previewLead.next_action || ""} 
+                      onChange={e => setPreviewLead(prev => ({ ...prev!, next_action: e.target.value }))}
+                      placeholder="e.g. Reach out regarding product feedback"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-thesis">
+                    Founder Thesis / Stated Problem
+                  </label>
+                  <Input 
+                    id="edit-thesis" 
+                    value={previewLead.founder_thesis || ""} 
+                    onChange={e => setPreviewLead(prev => ({ ...prev!, founder_thesis: e.target.value }))}
+                    placeholder="No dominant constraint specified"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-notes">
+                    Strategy & Outreach Notes (Markdown supported)
+                  </label>
+                  <Textarea 
+                    id="edit-notes" 
+                    value={previewLead.notes || ""} 
+                    onChange={e => setPreviewLead(prev => ({ ...prev!, notes: e.target.value }))}
+                    className="min-h-[120px]"
+                    placeholder="Write notes and strategic analysis details here..."
+                  />
                 </div>
               </div>
             )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => {
                 setShowPreviewModal(false);
@@ -2545,7 +2789,7 @@ export default function Sourcing() {
                 Cancel
               </Button>
               <Button type="submit">
-                Save & Add to Pipeline
+                Save Changes
               </Button>
             </DialogFooter>
           </form>
