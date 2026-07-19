@@ -66,6 +66,15 @@ interface Lead {
   goal: string | null;
   next_action: string | null;
   stage: string;
+  draft_message: string | null;
+  contact_channel: string | null;
+  stale_data_warning: boolean;
+  score_founder_active?: number;
+  score_buying_signal?: number;
+  score_icp_fit?: number;
+  score_reachable?: number;
+  score_atlas_relevance?: number;
+  is_below_threshold?: boolean;
 }
 
 interface NotionDatabase {
@@ -87,8 +96,11 @@ export default function Sourcing() {
   const [saasFilter, setSaasFilter] = useState("all"); // all, saas, non-saas
 
   // Bulk sourcing state
-  const [bulkPreviewLeads, setBulkPreviewLeads] = useState<Partial<Lead>[]>([]);
+  const [bulkPreviewLeads, setBulkPreviewLeads] = useState<Lead[]>([]);
+  const [rejectedLeads, setRejectedLeads] = useState<any[]>([]);
   const [showBulkPreviewModal, setShowBulkPreviewModal] = useState(false);
+  const [generatingDraftIndices, setGeneratingDraftIndices] = useState<Record<number, boolean>>({});
+  const [generatingActiveDraft, setGeneratingActiveDraft] = useState(false);
   const [bulkSelectedIndices, setBulkSelectedIndices] = useState<number[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
@@ -139,8 +151,11 @@ export default function Sourcing() {
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
 
   // Sourcing mode state
-  const [sourcingMode, setSourcingMode] = useState<"url" | "text">("url");
+  const [sourcingMode, setSourcingMode] = useState<"url" | "text" | "hn">("url");
   const [rawTextInput, setRawTextInput] = useState("");
+  const [hnQueryType, setHnQueryType] = useState("Show HN");
+  const [hnCustomQuery, setHnCustomQuery] = useState("");
+  const [hnTimeRange, setHnTimeRange] = useState("past_week");
 
   // Preview & Organize Staging Flow state
   const [previewLead, setPreviewLead] = useState<Partial<Lead> | null>(null);
@@ -249,18 +264,69 @@ export default function Sourcing() {
     e.preventDefault();
 
     const isUrlMode = sourcingMode === "url";
+    const isHnMode = sourcingMode === "hn";
+
+    // ── HACKER NEWS MODE ─────────────────────────────────────────────
+    if (isHnMode) {
+      setSourcing(true);
+      setSourcingStep(1);
+      const stepInterval = setInterval(() => {
+        setSourcingStep(prev => (prev < 3 ? prev + 1 : prev));
+      }, 600);
+
+      try {
+        const activeQuery = hnQueryType === "custom" ? hnCustomQuery.trim() : hnQueryType;
+        if (!activeQuery) {
+          throw new Error("Search query cannot be empty");
+        }
+
+        const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+          body: { 
+            action: "hn-source", 
+            query: activeQuery, 
+            time_range: hnTimeRange 
+          },
+          signal: AbortSignal.timeout(55000)
+        });
+
+        if (invokeError) throw new Error(invokeError.message ?? "HN sourcing failed");
+        if (data?.error) throw new Error(data.error);
+
+        const extracted: Lead[] = data?.leads || [];
+        const rejected: any[] = data?.rejected || [];
+        if (extracted.length === 0 && rejected.length === 0) {
+          throw new Error("No leads extracted from Hacker News. Try a different query or time range.");
+        }
+
+        clearInterval(stepInterval);
+        setSourcingStep(4);
+        await new Promise(r => setTimeout(r, 200));
+
+        setBulkPreviewLeads(extracted);
+        setRejectedLeads(rejected);
+        setBulkSelectedIndices(extracted.map((_, idx) => idx));
+        setShowBulkPreviewModal(true);
+      } catch (err: any) {
+        toast.error("HN Sourcing failed: " + err.message);
+      } finally {
+        clearInterval(stepInterval);
+        setSourcing(false);
+        setSourcingStep(0);
+      }
+      return;
+    }
+
     const input = isUrlMode ? urlsInput.trim() : rawTextInput.trim();
     if (!input) return;
 
     // Parse URLs — split on newlines, filter empty
     const parsedUrls = isUrlMode
       ? input.split(/\n/).map(u => u.trim()).filter(Boolean)
-      : [];
-
+      : [];    
     const isMultiUrl = isUrlMode && parsedUrls.length > 1;
     const isSingleUrl = isUrlMode && parsedUrls.length === 1;
 
-    // ── SINGLE URL → use direct staging save ────────────────────────
+    // ── SINGLE URL ──────────────────────────────────────────────────
     if (isSingleUrl) {
       let targetUrl = parsedUrls[0];
       if (!/^https?:\/\//i.test(targetUrl)) targetUrl = "https://" + targetUrl;
@@ -273,47 +339,32 @@ export default function Sourcing() {
       }, 600);
 
       try {
-        const { data: parsedLead, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-          body: { action: "source", url: targetUrl }
+        const { data: responseObj, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+          body: { action: "source", url: targetUrl },
+          signal: AbortSignal.timeout(55000)
         });
         if (invokeError) throw new Error(invokeError.message ?? "Failed to source lead");
-        if (parsedLead?.error) throw new Error(parsedLead.error);
-        if (!parsedLead) throw new Error("No data returned from sourcing service");
+        if (responseObj?.error) throw new Error(responseObj.error);
+        if (!responseObj || !responseObj.leads || responseObj.leads.length === 0) {
+          if (responseObj && responseObj.rejected && responseObj.rejected.length > 0) {
+            setRejectedLeads(responseObj.rejected);
+            setBulkPreviewLeads([]);
+            setBulkSelectedIndices([]);
+            setShowBulkPreviewModal(true);
+            toast.error(`Sourcing disqualified: ${responseObj.rejected[0].reason}`);
+            return;
+          }
+          throw new Error("No data returned from sourcing service");
+        }
         
         clearInterval(stepInterval);
         setSourcingStep(4);
         await new Promise(r => setTimeout(r, 200));
 
-        // Save directly to database with is_hq_dump: true
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Unauthorized");
-
-        const { data, error } = await supabase
-          .from("pipeline_crm")
-          .insert({
-            user_id: user.id,
-            company: (parsedLead.company || "Unknown").trim(),
-            prospect: (parsedLead.prospect || "Unknown Prospect").trim(),
-            website: parsedLead.website?.trim() || parsedLead.source?.trim() || targetUrl,
-            founder_thesis: parsedLead.founder_thesis?.trim() || "No dominant constraint specified",
-            goal: parsedLead.goal?.trim() || null,
-            icp_score: parsedLead.icp_score ?? 10,
-            next_action: parsedLead.next_action?.trim() || null,
-            notes: parsedLead.notes?.trim() || null,
-            priority: parsedLead.priority || "Low",
-            source: parsedLead.source?.trim() || targetUrl,
-            stage: parsedLead.stage || "Sourced",
-            exported_to_notion: false,
-            linkedin_url: parsedLead.linkedin_url?.trim() || null,
-            twitter_url: parsedLead.twitter_url?.trim() || null,
-            is_hq_dump: true
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        setLeads(prev => [data, ...prev]);
-        toast.success(`Successfully saved ${data.company} to HQ Dump!`);
+        setBulkPreviewLeads(responseObj.leads);
+        setRejectedLeads(responseObj.rejected || []);
+        setBulkSelectedIndices(responseObj.leads.map((_, idx) => idx));
+        setShowBulkPreviewModal(true);
       } catch (err: any) {
         toast.error("Sourcing failed: " + err.message);
       } finally {
@@ -324,55 +375,42 @@ export default function Sourcing() {
       return;
     }
 
-    // ── MULTIPLE URLS → bulk-source and save directly ─────────────────────────
+    // ── MULTIPLE URLS ────────────────────────────────────────────────
     if (isMultiUrl) {
       setSourcing(true);
       setUrlsInput("");
       setBulkProgress({ current: 0, total: parsedUrls.length });
       setSourcingStep(1);
+      const stepInterval = setInterval(() => {
+        setSourcingStep(prev => (prev < 3 ? prev + 1 : prev));
+      }, 600);
 
       try {
         const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-          body: { action: "bulk-source", urls: parsedUrls }
+          body: { action: "bulk-source", urls: parsedUrls },
+          signal: AbortSignal.timeout(55000)
         });
         if (invokeError) throw new Error(invokeError.message ?? "Bulk sourcing failed");
         if (data?.error) throw new Error(data.error);
-        const extracted: Partial<Lead>[] = data?.leads || [];
-        if (extracted.length === 0) throw new Error("No leads extracted from URLs");
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Unauthorized");
+        const extracted: Lead[] = data?.leads || [];
+        const rejected: any[] = data?.rejected || [];
+        if (extracted.length === 0 && rejected.length === 0) {
+          throw new Error("No leads extracted from URLs");
+        }
 
-        const rows = extracted.map(l => ({
-          user_id: user.id,
-          company: (l.company || "Unknown").trim(),
-          prospect: (l.prospect || "Unknown Prospect").trim(),
-          website: l.website?.trim() || l.source?.trim() || "https://unknown.com",
-          founder_thesis: l.founder_thesis?.trim() || "No dominant constraint specified",
-          goal: l.goal?.trim() || null,
-          icp_score: l.icp_score ?? 10,
-          next_action: l.next_action?.trim() || null,
-          notes: l.notes?.trim() || null,
-          priority: l.priority || "Low",
-          source: l.source?.trim() || "https://unknown.com",
-          stage: l.stage || "Sourced",
-          exported_to_notion: false,
-          linkedin_url: l.linkedin_url?.trim() || null,
-          twitter_url: l.twitter_url?.trim() || null,
-          is_hq_dump: true
-        }));
+        clearInterval(stepInterval);
+        setSourcingStep(4);
+        await new Promise(r => setTimeout(r, 200));
 
-        const { data: saved, error } = await supabase
-          .from("pipeline_crm")
-          .insert(rows)
-          .select();
-
-        if (error) throw error;
-        setLeads(prev => [...(saved || []), ...prev]);
-        toast.success(`Extracted and saved ${rows.length} prospects to HQ Dump!`);
+        setBulkPreviewLeads(extracted);
+        setRejectedLeads(rejected);
+        setBulkSelectedIndices(extracted.map((_, idx) => idx));
+        setShowBulkPreviewModal(true);
       } catch (err: any) {
         toast.error("Bulk sourcing failed: " + err.message);
       } finally {
+        clearInterval(stepInterval);
         setSourcing(false);
         setSourcingStep(0);
         setBulkProgress(null);
@@ -380,7 +418,7 @@ export default function Sourcing() {
       return;
     }
 
-    // ── TEXT MODE → bulk-source and save directly ─────────────────────────────
+    // ── TEXT MODE ────────────────────────────────────────────────────
     if (!isUrlMode) {
       setSourcing(true);
       setRawTextInput("");
@@ -391,7 +429,8 @@ export default function Sourcing() {
 
       try {
         const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
-          body: { action: "bulk-source", raw_text: input }
+          body: { action: "bulk-source", raw_text: input },
+          signal: AbortSignal.timeout(55000)
         });
         if (invokeError) {
           let detail = invokeError.message ?? "Bulk text extraction failed";
@@ -407,43 +446,18 @@ export default function Sourcing() {
           throw new Error(detail);
         }
         if (data?.error) throw new Error(data.error);
-        const extracted: Partial<Lead>[] = data?.leads || [];
-        if (extracted.length === 0) throw new Error("No leads found in pasted text");
+        const extracted: Lead[] = data?.leads || [];
+        const rejected: any[] = data?.rejected || [];
+        if (extracted.length === 0 && rejected.length === 0) throw new Error("No leads found in pasted text");
         
         clearInterval(stepInterval);
         setSourcingStep(4);
         await new Promise(r => setTimeout(r, 200));
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Unauthorized");
-
-        const rows = extracted.map(l => ({
-          user_id: user.id,
-          company: (l.company || "Unknown").trim(),
-          prospect: (l.prospect || "Unknown Prospect").trim(),
-          website: l.website?.trim() || l.source?.trim() || "https://unknown.com",
-          founder_thesis: l.founder_thesis?.trim() || "No dominant constraint specified",
-          goal: l.goal?.trim() || null,
-          icp_score: l.icp_score ?? 10,
-          next_action: l.next_action?.trim() || null,
-          notes: l.notes?.trim() || null,
-          priority: l.priority || "Low",
-          source: l.source?.trim() || "https://unknown.com",
-          stage: l.stage || "Sourced",
-          exported_to_notion: false,
-          linkedin_url: l.linkedin_url?.trim() || null,
-          twitter_url: l.twitter_url?.trim() || null,
-          is_hq_dump: true
-        }));
-
-        const { data: saved, error } = await supabase
-          .from("pipeline_crm")
-          .insert(rows)
-          .select();
-
-        if (error) throw error;
-        setLeads(prev => [...(saved || []), ...prev]);
-        toast.success(`Extracted and saved ${rows.length} prospects to HQ Dump!`);
+        setBulkPreviewLeads(extracted);
+        setRejectedLeads(rejected);
+        setBulkSelectedIndices(extracted.map((_, idx) => idx));
+        setShowBulkPreviewModal(true);
       } catch (err: any) {
         toast.error("Extraction failed: " + err.message);
         console.error("[bulk-source text] Error:", err);
@@ -476,27 +490,50 @@ export default function Sourcing() {
   };
 
   // Perform actual Notion export
-  const performExportToNotion = async (lead: Lead | Partial<Lead>, dbId: string) => {
+  const performExportToNotion = async (lead: Lead | Partial<Lead>, dbId: string, behavior?: "update" | "duplicate" | "skip") => {
     try {
-      const { data: body, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+      const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
+      const defaultBehavior = behavior || notionIntegration?.settings?.notion_duplicate_behavior || "duplicate";
+
+      const { data: body, error: invokeError } = await supabase.functions.invoke("notion-sync", {
         body: {
-          action: "export-notion",
+          action: "sync",
           lead,
-          database_id: dbId
-        }
+          database_id: dbId,
+          duplicate_behavior: defaultBehavior,
+          field_mappings: notionIntegration?.settings?.field_mappings
+        },
+        signal: AbortSignal.timeout(55000)
       });
 
-      if (invokeError) throw new Error(invokeError.message ?? "Notion export failed");
+      if (invokeError) throw new Error(invokeError.message ?? "Notion sync failed");
+      if (body?.error) throw new Error(body.error);
 
-      // If it has an ID (already saved in DB), mark as exported
-      if (lead.id) {
-        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, exported_to_notion: true } : l));
-        await supabase
-          .from("pipeline_crm")
-          .update({ exported_to_notion: true }).eq("id", lead.id);
+      if (body?.duplicate_detected) {
+        return { success: false, duplicate_detected: true, existing_page_id: body.existing_page_id };
       }
 
-      return { success: true };
+      // If it has an ID (already saved in DB), mark as exported and sync fields
+      if (lead.id) {
+        setLeads(prev => prev.map(l => l.id === lead.id ? { 
+          ...l, 
+          exported_to_notion: true, 
+          notion_page_id: body.page_id, 
+          notion_sync_status: "synced", 
+          is_hq_dump: true 
+        } : l));
+        await supabase
+          .from("pipeline_crm")
+          .update({ 
+            exported_to_notion: true, 
+            notion_page_id: body.page_id, 
+            notion_sync_status: "synced", 
+            is_hq_dump: true 
+          })
+          .eq("id", lead.id);
+      }
+
+      return { success: true, page_id: body.page_id };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
@@ -517,67 +554,24 @@ export default function Sourcing() {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, notion_sync_status: "syncing" } : l));
 
     try {
-      toast.loading("Querying Notion database for duplicates...", { id: toastId });
-      
-      const payload: any = {
-        action: "export-notion",
-        lead: {
-          id: lead.id,
-          company: lead.company,
-          prospect: lead.prospect,
-          linkedin_url: lead.linkedin_url,
-          twitter_url: lead.twitter_url,
-          priority: lead.priority,
-          icp_score: lead.icp_score,
-          notes: lead.notes,
-          is_contacted: lead.is_contacted,
-          reply_status: lead.reply_status,
-          source: lead.source,
-          website: lead.website,
-          founder_thesis: lead.founder_thesis,
-          goal: lead.goal,
-          next_action: lead.next_action,
-          stage: lead.stage
-        },
-        database_id: dbId,
-        duplicate_behavior: behavior || notionIntegration?.settings?.notion_duplicate_behavior,
-        field_mappings: notionIntegration?.settings?.field_mappings
-      };
+      toast.loading("Querying Notion database & syncing...", { id: toastId });
+      const res = await performExportToNotion(lead, dbId, behavior);
 
-      toast.loading("Publishing rich blocks layout to Notion page...", { id: toastId });
-      
-      const { data, error } = await supabase.functions.invoke("sourcing-machine", {
-        body: payload
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      if (data?.duplicate_detected) {
-        toast.dismiss(toastId);
-        // Reset local lead status to not_synced
-        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, notion_sync_status: "not_synced" } : l));
-        
-        // Open conflict choices dialog
-        setConflictLead(lead);
-        setConflictDbId(dbId);
-        setShowConflictModal(true);
-        return;
+          if (!res.success) {
+        if (res.duplicate_detected) {
+          toast.dismiss(toastId);
+          setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, notion_sync_status: "not_synced" } : l));
+          
+          // Open conflict choices dialog
+          setConflictLead(lead);
+          setConflictDbId(dbId);
+          setShowConflictModal(true);
+          return;
+        }
+        throw new Error(res.error || "Notion sync failed");
       }
 
-      toast.loading("Updating intelligence logs...", { id: toastId });
-      
-      // Update local state to synced
-      setLeads(prev => prev.map(l => l.id === lead.id ? { 
-        ...l, 
-        notion_sync_status: "synced",
-        notion_page_id: data.page_id,
-        notion_sync_error: null,
-        exported_to_notion: true
-      } : l));
-
-      toast.success(`Successfully pushed ${lead.company} to Notion!`, { id: toastId });
-
+      toast.success(`Successfully pushed ${lead.company} to Notion Staging!`, { id: toastId });
     } catch (err: any) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { 
         ...l, 
@@ -787,6 +781,14 @@ export default function Sourcing() {
         founder_thesis: l.founder_thesis?.trim() || "No dominant constraint specified",
         goal: l.goal?.trim() || null,
         icp_score: l.icp_score ?? 10,
+        score_founder_active: l.score_founder_active ?? 0,
+        score_buying_signal: l.score_buying_signal ?? 0,
+        score_icp_fit: l.score_icp_fit ?? 0,
+        score_reachable: l.score_reachable ?? 0,
+        score_atlas_relevance: l.score_atlas_relevance ?? 0,
+        stale_data_warning: l.stale_data_warning || false,
+        draft_message: l.draft_message || null,
+        contact_channel: l.contact_channel || null,
         next_action: l.next_action?.trim() || null,
         notes: l.notes?.trim() || null,
         priority: l.priority || "Low",
@@ -794,7 +796,8 @@ export default function Sourcing() {
         stage: l.stage || "Sourced",
         exported_to_notion: false,
         linkedin_url: l.linkedin_url?.trim() || null,
-        twitter_url: l.twitter_url?.trim() || null
+        twitter_url: l.twitter_url?.trim() || null,
+        is_hq_dump: true
       }));
 
       const { data: saved, error } = await supabase
@@ -856,6 +859,14 @@ export default function Sourcing() {
             founder_thesis: previewLead.founder_thesis?.trim() || "No dominant constraint specified",
             goal: previewLead.goal?.trim() || null,
             icp_score: previewLead.icp_score ?? 10,
+            score_founder_active: previewLead.score_founder_active ?? 0,
+            score_buying_signal: previewLead.score_buying_signal ?? 0,
+            score_icp_fit: previewLead.score_icp_fit ?? 0,
+            score_reachable: previewLead.score_reachable ?? 0,
+            score_atlas_relevance: previewLead.score_atlas_relevance ?? 0,
+            stale_data_warning: previewLead.stale_data_warning || false,
+            draft_message: previewLead.draft_message || null,
+            contact_channel: previewLead.contact_channel || null,
             next_action: previewLead.next_action?.trim() || null,
             notes: previewLead.notes?.trim() || null,
             priority: previewLead.priority || "Low",
@@ -886,6 +897,14 @@ export default function Sourcing() {
             founder_thesis: previewLead.founder_thesis?.trim() || "No dominant constraint specified",
             goal: previewLead.goal?.trim() || null,
             icp_score: previewLead.icp_score ?? 10,
+            score_founder_active: previewLead.score_founder_active ?? 0,
+            score_buying_signal: previewLead.score_buying_signal ?? 0,
+            score_icp_fit: previewLead.score_icp_fit ?? 0,
+            score_reachable: previewLead.score_reachable ?? 0,
+            score_atlas_relevance: previewLead.score_atlas_relevance ?? 0,
+            stale_data_warning: previewLead.stale_data_warning || false,
+            draft_message: previewLead.draft_message || null,
+            contact_channel: previewLead.contact_channel || null,
             next_action: previewLead.next_action?.trim() || null,
             notes: previewLead.notes?.trim() || null,
             priority: previewLead.priority || "Low",
@@ -1008,21 +1027,41 @@ export default function Sourcing() {
   // Graduate lead from HQ Dump to CRM
   const handleGraduateLead = async (lead: Lead) => {
     if (!lead) return;
+    const toastId = toast.loading(`Graduating ${lead.company} to Pipeline CRM in Notion...`);
     try {
-      const { error } = await supabase
-        .from("pipeline_crm")
-        .update({ is_hq_dump: false })
-        .eq("id", lead.id);
+      const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
+      const dbId = notionIntegration?.settings?.notion_database_id || defaultNotionDb;
 
-      if (error) throw error;
+      const { data, error: invokeError } = await supabase.functions.invoke("notion-sync", {
+        body: {
+          action: "graduate",
+          notion_page_id: lead.notion_page_id,
+          lead_id: lead.id,
+          database_id: dbId,
+          field_mappings: notionIntegration?.settings?.field_mappings
+        },
+        signal: AbortSignal.timeout(55000)
+      });
+
+      if (invokeError) throw new Error(invokeError.message ?? "Notion graduation failed");
+      if (data?.error) throw new Error(data.error);
 
       // Update local state
-      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, is_hq_dump: false } : l));
-      toast.success(`Successfully graduated ${lead.company} to Pipeline CRM!`);
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, is_hq_dump: false, stage: "Sourced" } : l));
+      toast.success(`Successfully graduated ${lead.company} to Pipeline CRM!`, { id: toastId });
       setShowGraduationModal(false);
       setGraduatingLead(null);
     } catch (err: any) {
-      toast.error("Failed to graduate lead: " + err.message);
+      toast.error(`Graduation failed: ${err.message}. Graduating locally in database...`, { id: toastId });
+      const { error } = await supabase
+        .from("pipeline_crm")
+        .update({ is_hq_dump: false, stage: "Sourced" })
+        .eq("id", lead.id);
+      if (!error) {
+        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, is_hq_dump: false, stage: "Sourced" } : l));
+        setShowGraduationModal(false);
+        setGraduatingLead(null);
+      }
     }
   };
 
@@ -1591,9 +1630,14 @@ export default function Sourcing() {
                   <span className="font-semibold text-sm text-foreground block truncate">{lead.company}</span>
                   <span className="text-xs text-muted-foreground block truncate">{lead.prospect || "Unknown founder"}</span>
                 </div>
-                <Badge variant="outline" className={`font-mono text-xs shrink-0 font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                  {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
-                </Badge>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {lead.stale_data_warning && (
+                    <Badge variant="destructive" className="text-[8px] h-4 px-1 py-0 uppercase shrink-0 font-bold tracking-wider scale-90" title="Metrics data is older than 6 months">STALE</Badge>
+                  )}
+                  <Badge variant="outline" className={`font-mono text-xs shrink-0 font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
+                    {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
+                  </Badge>
+                </div>
               </div>
 
               <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5">
@@ -1624,6 +1668,35 @@ export default function Sourcing() {
                   )}
                 </div>
               </div>
+
+              {/* Rubric Score Components Breakdown */}
+              {(() => {
+                const rub = getRubricBreakdown(lead);
+                return (
+                  <div className="grid grid-cols-5 gap-1 text-[9px] text-center text-muted-foreground bg-muted/20 p-2 rounded-lg border border-border/30">
+                    <div>
+                      <span className="block text-[8px] font-semibold text-muted-foreground/80 leading-none">ACTIVE</span>
+                      <span className="font-mono font-bold mt-0.5 block">{rub.founder_active}/3</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-semibold text-muted-foreground/80 leading-none">SIGNAL</span>
+                      <span className="font-mono font-bold mt-0.5 block">{rub.buying_signal}/3</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-semibold text-muted-foreground/80 leading-none">ICP FIT</span>
+                      <span className="font-mono font-bold mt-0.5 block">{rub.icp_fit}/3</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-semibold text-muted-foreground/80 leading-none">REACH</span>
+                      <span className="font-mono font-bold mt-0.5 block">{rub.reachable}/3</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-semibold text-muted-foreground/80 leading-none">ATLAS</span>
+                      <span className="font-mono font-bold mt-0.5 block">{rub.atlas_relevance}/3</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {lead.notes && (
                 <div 
@@ -1705,6 +1778,86 @@ export default function Sourcing() {
         ))}
       </div>
     );
+  };
+
+  const getRubricBreakdown = (lead: Lead) => {
+    if (lead.score_founder_active !== undefined && lead.score_founder_active !== null) {
+      return {
+        founder_active: lead.score_founder_active,
+        buying_signal: lead.score_buying_signal ?? 0,
+        icp_fit: lead.score_icp_fit ?? 0,
+        reachable: lead.score_reachable ?? 0,
+        atlas_relevance: lead.score_atlas_relevance ?? 0
+      };
+    }
+    const notes = lead.notes || "";
+    const mActive = notes.match(/\*\*Founder Active Publicly\*\*:\s*(\d+)/i);
+    const mBuying = notes.match(/\*\*Clear Buying Signal\*\*:\s*(\d+)/i);
+    const mIcp = notes.match(/\*\*ICP Fit\*\*:\s*(\d+)/i);
+    const mReachable = notes.match(/\*\*Reachable\*\*:\s*(\d+)/i);
+    const mAtlas = notes.match(/\*\*Atlas Relevance\*\*:\s*(\d+)/i);
+    return {
+      founder_active: mActive ? parseInt(mActive[1]) : 0,
+      buying_signal: mBuying ? parseInt(mBuying[1]) : 0,
+      icp_fit: mIcp ? parseInt(mIcp[1]) : 0,
+      reachable: mReachable ? parseInt(mReachable[1]) : 0,
+      atlas_relevance: mAtlas ? parseInt(mAtlas[1]) : 0
+    };
+  };
+
+  const handleGenerateDraftForPreview = async (index: number) => {
+    const lead = bulkPreviewLeads[index];
+    if (!lead) return;
+
+    setGeneratingDraftIndices(prev => ({ ...prev, [index]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke("draft-generator", {
+        body: { lead },
+        signal: AbortSignal.timeout(55000)
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setBulkPreviewLeads(prev => prev.map((l, i) => i === index ? {
+        ...l,
+        draft_message: data.draft_message,
+        contact_channel: data.contact_channel
+      } : l));
+      
+      toast.success(`Generated outreach draft for ${lead.company}!`);
+    } catch (err: any) {
+      toast.error(`Failed to generate draft: ${err.message}`);
+    } finally {
+      setGeneratingDraftIndices(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const handleGenerateDraftForActive = async () => {
+    if (!previewLead) return;
+
+    setGeneratingActiveDraft(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("draft-generator", {
+        body: { lead: previewLead },
+        signal: AbortSignal.timeout(55000)
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setPreviewLead(prev => prev ? {
+        ...prev,
+        draft_message: data.draft_message,
+        contact_channel: data.contact_channel
+      } : null);
+      
+      toast.success(`Generated outreach draft!`);
+    } catch (err: any) {
+      toast.error(`Failed to generate draft: ${err.message}`);
+    } finally {
+      setGeneratingActiveDraft(false);
+    }
   };
 
   return (
@@ -1807,6 +1960,17 @@ export default function Sourcing() {
                     >
                       📋 Paste Text
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setSourcingMode("hn")}
+                      className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${
+                        sourcingMode === "hn"
+                          ? "bg-primary/5 text-primary border-b-2 border-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      📰 Hacker News
+                    </button>
                   </div>
 
                   <div className="p-4">
@@ -1837,7 +2001,7 @@ export default function Sourcing() {
                             </p>
                           </div>
                         </div>
-                      ) : (
+                      ) : sourcingMode === "text" ? (
                         <div className="flex flex-col gap-2">
                           <Textarea
                             placeholder="Paste raw startup information, product descriptions, or founder profiles — multiple companies OK..."
@@ -1853,16 +2017,83 @@ export default function Sourcing() {
                             </p>
                           </div>
                         </div>
+                      ) : (
+                        <div className="flex flex-col gap-3 text-xs">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground" htmlFor="hn-query-type">
+                              Search Stream / Topic
+                            </label>
+                            <select
+                              id="hn-query-type"
+                              value={hnQueryType}
+                              onChange={(e) => setHnQueryType(e.target.value)}
+                              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                              <option value="Show HN">"Show HN" (Recommended)</option>
+                              <option value="launching">"launching"</option>
+                              <option value="funding">"funding"</option>
+                              <option value="custom">Custom Query...</option>
+                            </select>
+                          </div>
+
+                          {hnQueryType === "custom" && (
+                            <div className="space-y-1.5 animate-in fade-in duration-200">
+                              <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="hn-custom-query">
+                                Custom Search Keywords
+                              </label>
+                              <Input
+                                id="hn-custom-query"
+                                placeholder="e.g. AI builder"
+                                value={hnCustomQuery}
+                                onChange={(e) => setHnCustomQuery(e.target.value)}
+                                className="h-8 text-xs"
+                                required={sourcingMode === "hn" && hnQueryType === "custom"}
+                              />
+                            </div>
+                          )}
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground" htmlFor="hn-time-range">
+                              Time Filter Range
+                            </label>
+                            <select
+                              id="hn-time-range"
+                              value={hnTimeRange}
+                              onChange={(e) => setHnTimeRange(e.target.value)}
+                              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                              <option value="past_24h">Past 24 Hours</option>
+                              <option value="past_week">Past Week</option>
+                              <option value="past_month">Past Month</option>
+                            </select>
+                          </div>
+
+                          <div className="rounded-md border border-primary/15 bg-primary/[0.02] p-2 flex gap-1.5 items-start">
+                            <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-muted-foreground leading-normal">
+                              Pulls Show HN stories via Algolia search, automatically extracts company/founder profiles, scores them against the ICP rubric, and puts them into review.
+                            </p>
+                          </div>
+                        </div>
                       )}
 
                       <Button 
                         type="submit"
-                        disabled={sourcing || (sourcingMode === "url" ? !urlsInput.trim() : !rawTextInput.trim())}
+                        disabled={
+                          sourcing || 
+                          (sourcingMode === "url" 
+                            ? !urlsInput.trim() 
+                            : sourcingMode === "text" 
+                              ? !rawTextInput.trim() 
+                              : (hnQueryType === "custom" && !hnCustomQuery.trim())
+                          )
+                        }
                         className="h-9 gap-1.5 font-medium w-full"
                       >
                         {sourcing ? (
                           <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {bulkProgress ? `Processing ${bulkProgress.current}/${bulkProgress.total}...` : "Analyzing..."}</>
                         ) : (() => {
+                          if (sourcingMode === "hn") return <><ArrowRight className="h-3.5 w-3.5" /> Pull from Hacker News</>;
                           const urlCount = sourcingMode === "url" ? urlsInput.trim().split(/\n/).filter(Boolean).length : 0;
                           if (urlCount > 1) return <><Play className="h-3.5 w-3.5" /> Batch Analyze {urlCount} URLs</>;
                           return <><ArrowRight className="h-3.5 w-3.5" /> {sourcingMode === "url" ? "Analyze URL" : "Extract All Profiles"}</>;
@@ -1875,7 +2106,7 @@ export default function Sourcing() {
                       <div className="mt-4 pt-4 border-t border-border/40 space-y-2.5">
                         <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Pipeline Status</p>
                         {[
-                          sourcingMode === "url" ? "Crawling target URL..." : "Reading raw text block...",
+                          sourcingMode === "url" ? "Crawling target URL..." : sourcingMode === "hn" ? "Querying Hacker News API..." : "Reading raw text block...",
                           "Sourcing founder identities via AI...",
                           "Scoring ICP index...",
                           "Staging preview data...",
@@ -2118,9 +2349,24 @@ export default function Sourcing() {
 
                             {/* ICP Score */}
                             <TableCell className="align-middle text-center min-w-[100px]">
-                              <Badge variant="outline" className={`font-mono text-xs font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                                {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
-                              </Badge>
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Badge variant="outline" className={`font-mono text-xs font-semibold px-2 py-0.5 border ${getIcpBadgeClass(lead.icp_score)}`}>
+                                    {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
+                                  </Badge>
+                                  {lead.stale_data_warning && (
+                                    <Badge variant="destructive" className="text-[8px] h-4 px-1 py-0 uppercase shrink-0 font-bold tracking-wider scale-90" title="Metrics data is older than 6 months">STALE</Badge>
+                                  )}
+                                </div>
+                                {(() => {
+                                  const rub = getRubricBreakdown(lead);
+                                  return (
+                                    <div className="text-[9px] text-muted-foreground whitespace-nowrap scale-90 leading-tight">
+                                      FA:{rub.founder_active} BS:{rub.buying_signal} ICP:{rub.icp_fit} R:{rub.reachable} AR:{rub.atlas_relevance}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
                             </TableCell>
 
                             {/* Contacted checkbox */}
@@ -2301,6 +2547,243 @@ export default function Sourcing() {
       </div> {/* end right column */}
       </div> {/* end two-column layout */}
       </div> {/* end page content */}
+
+      {/* ── Dialog: Bulk Sourcing Preview & Review step ── */}
+      <Dialog open={showBulkPreviewModal} onOpenChange={(open) => {
+        if (!open) {
+          setShowBulkPreviewModal(false);
+          setBulkPreviewLeads([]);
+          setRejectedLeads([]);
+          setBulkSelectedIndices([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[950px] bg-card border border-border/80 max-h-[90vh] overflow-hidden flex flex-col p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <SlidersHorizontal className="h-5 w-5 text-primary" /> Sourcing Review & Staging
+            </DialogTitle>
+            <DialogDescription>
+              Review extracted startup candidates, evaluate score breakdowns, generate personalized outreach, and push to Notion HQ Dump.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto my-4 pr-1 space-y-6">
+            {/* Valid Candidates Table */}
+            {bulkPreviewLeads.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    Valid Prospects ({bulkPreviewLeads.length})
+                  </h3>
+                  <div className="text-xs text-muted-foreground">
+                    Selected: {bulkSelectedIndices.length} of {bulkPreviewLeads.length}
+                  </div>
+                </div>
+
+                <div className="border border-border/60 rounded-xl overflow-hidden bg-background/50">
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow>
+                        <TableHead className="w-[50px] text-center"></TableHead>
+                        <TableHead className="w-[180px]">Company & Founder</TableHead>
+                        <TableHead className="w-[120px] text-center">Score Rubric</TableHead>
+                        <TableHead className="w-[200px]">Problem & Stale check</TableHead>
+                        <TableHead className="w-[300px]">Outreach Draft & Contact</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {bulkPreviewLeads.map((lead, index) => {
+                        const isSelected = bulkSelectedIndices.includes(index);
+                        const isBelowThreshold = lead.is_below_threshold || (lead.icp_score !== undefined && lead.icp_score < 10);
+                        return (
+                          <TableRow key={index} className={`hover:bg-muted/10 transition-colors ${isBelowThreshold ? 'bg-amber-500/[0.02]' : ''}`}>
+                            <TableCell className="text-center align-top pt-4">
+                              <Checkbox 
+                                checked={isSelected} 
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setBulkSelectedIndices(prev => [...prev, index]);
+                                  } else {
+                                    setBulkSelectedIndices(prev => prev.filter(i => i !== index));
+                                  }
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell className="align-top pt-4 space-y-1.5">
+                              <div>
+                                <Input 
+                                  value={lead.company || ""} 
+                                  onChange={e => setBulkPreviewLeads(prev => prev.map((l, idx) => idx === index ? { ...l, company: e.target.value } : l))}
+                                  className="h-7 text-xs font-semibold px-2 py-0.5 rounded-md border-border/40"
+                                  placeholder="Company"
+                                />
+                              </div>
+                              <div>
+                                <Input 
+                                  value={lead.prospect || ""} 
+                                  onChange={e => setBulkPreviewLeads(prev => prev.map((l, idx) => idx === index ? { ...l, prospect: e.target.value } : l))}
+                                  className="h-7 text-xs px-2 py-0.5 rounded-md border-border/40"
+                                  placeholder="Founder name"
+                                />
+                              </div>
+                              <div className="flex gap-1">
+                                <Input 
+                                  value={lead.website || ""} 
+                                  onChange={e => setBulkPreviewLeads(prev => prev.map((l, idx) => idx === index ? { ...l, website: e.target.value } : l))}
+                                  className="h-6 text-[10px] px-1.5 py-0.5 rounded border-border/30 text-muted-foreground w-full"
+                                  placeholder="Website"
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top pt-4 text-center">
+                              <div className="inline-flex flex-col items-center gap-1">
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isBelowThreshold ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                                  {lead.icp_score}/15
+                                </span>
+                                <span className="text-[9px] text-muted-foreground text-center">
+                                  FA:{lead.score_founder_active ?? 0} BS:{lead.score_buying_signal ?? 0}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground text-center">
+                                  ICP:{lead.score_icp_fit ?? 0} R:{lead.score_reachable ?? 0}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground text-center">
+                                  AR:{lead.score_atlas_relevance ?? 0}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top pt-4 space-y-2">
+                              <Textarea 
+                                value={lead.founder_thesis || ""} 
+                                onChange={e => setBulkPreviewLeads(prev => prev.map((l, idx) => idx === index ? { ...l, founder_thesis: e.target.value } : l))}
+                                className="min-h-[50px] text-xs leading-relaxed px-2 py-1 rounded-md border-border/40 font-sans"
+                                placeholder="Problem Quote"
+                              />
+                              <div className="flex items-center gap-2">
+                                <Checkbox 
+                                  id={`stale-${index}`}
+                                  checked={lead.stale_data_warning || false}
+                                  onCheckedChange={(checked) => {
+                                    setBulkPreviewLeads(prev => prev.map((l, idx) => idx === index ? { ...l, stale_data_warning: !!checked } : l));
+                                  }}
+                                />
+                                <label htmlFor={`stale-${index}`} className="text-[10px] text-muted-foreground cursor-pointer flex items-center gap-1">
+                                  Stale Metrics Claim
+                                  {lead.stale_data_warning && (
+                                    <Badge variant="destructive" className="h-4 text-[8px] px-1 uppercase tracking-wider scale-90">STALE</Badge>
+                                  )}
+                                </label>
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-top pt-4 space-y-2">
+                              {lead.draft_message ? (
+                                <Textarea 
+                                  value={lead.draft_message} 
+                                  onChange={e => setBulkPreviewLeads(prev => prev.map((l, idx) => idx === index ? { ...l, draft_message: e.target.value } : l))}
+                                  className="min-h-[70px] text-xs font-mono px-2 py-1 rounded-md border-border/40 bg-muted/20"
+                                  placeholder="Outreach message"
+                                />
+                              ) : (
+                                <Button 
+                                  type="button"
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="w-full text-xs font-medium border-dashed border-primary/40 text-primary hover:bg-primary/5"
+                                  onClick={() => handleGenerateDraftForPreview(index)}
+                                  disabled={generatingDraftIndices[index]}
+                                >
+                                  {generatingDraftIndices[index] ? (
+                                    <>
+                                      <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                                      Generating...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Play className="h-3 w-3 mr-1.5 text-primary" />
+                                      Generate Outreach Draft
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-semibold text-muted-foreground">Resolved Contact Channel</label>
+                                <Input 
+                                  value={lead.contact_channel || ""} 
+                                  onChange={e => setBulkPreviewLeads(prev => prev.map((l, idx) => idx === index ? { ...l, contact_channel: e.target.value } : l))}
+                                  className={`h-6 text-[10px] px-2 py-0.5 rounded border-border/30 ${!lead.contact_channel || lead.contact_channel.includes("not found") ? 'border-destructive/60 bg-destructive/5 text-destructive' : ''}`}
+                                  placeholder="e.g. Email/handle (unresolved warning state)"
+                                />
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-xs text-muted-foreground bg-muted/10 border border-dashed border-border rounded-xl">
+                No valid prospects identified in this batch.
+              </div>
+            )}
+
+            {/* Collapsed Rejected Section */}
+            {rejectedLeads.length > 0 && (
+              <div className="border border-border/50 rounded-xl overflow-hidden bg-muted/5">
+                <details className="group">
+                  <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/20 select-none transition-colors">
+                    <span className="text-xs font-semibold text-destructive flex items-center gap-2">
+                      <X className="h-4 w-4 shrink-0 text-destructive" />
+                      Hard-Rejected Candidates ({rejectedLeads.length})
+                    </span>
+                    <span className="text-[10px] text-muted-foreground group-open:hidden">Show Rejected</span>
+                    <span className="text-[10px] text-muted-foreground hidden group-open:inline">Hide Rejected</span>
+                  </summary>
+                  <div className="p-4 pt-0 border-t border-border/30 max-h-[250px] overflow-y-auto space-y-2">
+                    {rejectedLeads.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center text-xs p-2.5 rounded-lg border border-border/30 bg-background/50">
+                        <div className="space-y-0.5">
+                          <div className="font-semibold text-foreground">{item.company || "Unknown Company"}</div>
+                          <div className="text-[10px] text-muted-foreground">Founder: {item.prospect || "Unknown Founder"}</div>
+                        </div>
+                        <div className="text-[10px] text-destructive bg-destructive/10 px-2 py-0.5 rounded-full font-medium">
+                          {item.reason}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="border-t border-border/60 pt-4 flex items-center gap-2 justify-end">
+            <Button variant="outline" onClick={() => {
+              setShowBulkPreviewModal(false);
+              setBulkPreviewLeads([]);
+              setRejectedLeads([]);
+              setBulkSelectedIndices([]);
+            }}>
+              Discard Batch
+            </Button>
+            <Button 
+              className="bg-primary text-primary-foreground hover:bg-primary/95"
+              onClick={handleBulkSave}
+              disabled={bulkSelectedIndices.length === 0 || bulkSaving}
+            >
+              {bulkSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                  Saving to Staging...
+                </>
+              ) : (
+                `Push Selected (${bulkSelectedIndices.length}) to Notion Staging`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Dialog: Add Lead Manually ── */}
       <Dialog open={showManualModal} onOpenChange={setShowManualModal}>
@@ -2718,27 +3201,111 @@ export default function Sourcing() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-5 gap-2 border border-border/60 p-3 rounded-lg bg-muted/20">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-muted-foreground">Founder Active</label>
+                    <Input 
+                      type="number" min="0" max="3"
+                      value={previewLead.score_founder_active ?? 0}
+                      onChange={e => {
+                        const v = Math.min(3, Math.max(0, parseInt(e.target.value) || 0));
+                        setPreviewLead(prev => {
+                          const next = { ...prev!, score_founder_active: v };
+                          next.icp_score = (next.score_founder_active ?? 0) + (next.score_buying_signal ?? 0) + (next.score_icp_fit ?? 0) + (next.score_reachable ?? 0) + (next.score_atlas_relevance ?? 0);
+                          next.priority = next.icp_score >= 13 ? "High" : next.icp_score >= 11 ? "Medium" : "Low";
+                          return next;
+                        });
+                      }}
+                      className="h-7 text-xs px-1 text-center"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-muted-foreground">Buying Signal</label>
+                    <Input 
+                      type="number" min="0" max="3"
+                      value={previewLead.score_buying_signal ?? 0}
+                      onChange={e => {
+                        const v = Math.min(3, Math.max(0, parseInt(e.target.value) || 0));
+                        setPreviewLead(prev => {
+                          const next = { ...prev!, score_buying_signal: v };
+                          next.icp_score = (next.score_founder_active ?? 0) + (next.score_buying_signal ?? 0) + (next.score_icp_fit ?? 0) + (next.score_reachable ?? 0) + (next.score_atlas_relevance ?? 0);
+                          next.priority = next.icp_score >= 13 ? "High" : next.icp_score >= 11 ? "Medium" : "Low";
+                          return next;
+                        });
+                      }}
+                      className="h-7 text-xs px-1 text-center"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-muted-foreground">ICP Fit</label>
+                    <Input 
+                      type="number" min="0" max="3"
+                      value={previewLead.score_icp_fit ?? 0}
+                      onChange={e => {
+                        const v = Math.min(3, Math.max(0, parseInt(e.target.value) || 0));
+                        setPreviewLead(prev => {
+                          const next = { ...prev!, score_icp_fit: v };
+                          next.icp_score = (next.score_founder_active ?? 0) + (next.score_buying_signal ?? 0) + (next.score_icp_fit ?? 0) + (next.score_reachable ?? 0) + (next.score_atlas_relevance ?? 0);
+                          next.priority = next.icp_score >= 13 ? "High" : next.icp_score >= 11 ? "Medium" : "Low";
+                          return next;
+                        });
+                      }}
+                      className="h-7 text-xs px-1 text-center"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-muted-foreground">Reachable</label>
+                    <Input 
+                      type="number" min="0" max="3"
+                      value={previewLead.score_reachable ?? 0}
+                      onChange={e => {
+                        const v = Math.min(3, Math.max(0, parseInt(e.target.value) || 0));
+                        setPreviewLead(prev => {
+                          const next = { ...prev!, score_reachable: v };
+                          next.icp_score = (next.score_founder_active ?? 0) + (next.score_buying_signal ?? 0) + (next.score_icp_fit ?? 0) + (next.score_reachable ?? 0) + (next.score_atlas_relevance ?? 0);
+                          next.priority = next.icp_score >= 13 ? "High" : next.icp_score >= 11 ? "Medium" : "Low";
+                          return next;
+                        });
+                      }}
+                      className="h-7 text-xs px-1 text-center"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-muted-foreground">Atlas Rel.</label>
+                    <Input 
+                      type="number" min="0" max="3"
+                      value={previewLead.score_atlas_relevance ?? 0}
+                      onChange={e => {
+                        const v = Math.min(3, Math.max(0, parseInt(e.target.value) || 0));
+                        setPreviewLead(prev => {
+                          const next = { ...prev!, score_atlas_relevance: v };
+                          next.icp_score = (next.score_founder_active ?? 0) + (next.score_buying_signal ?? 0) + (next.score_icp_fit ?? 0) + (next.score_reachable ?? 0) + (next.score_atlas_relevance ?? 0);
+                          next.priority = next.icp_score >= 13 ? "High" : next.icp_score >= 11 ? "Medium" : "Low";
+                          return next;
+                        });
+                      }}
+                      className="h-7 text-xs px-1 text-center"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground" htmlFor="edit-icp">
-                      ICP Score (0-15)
+                    <label className="text-xs font-semibold text-muted-foreground">
+                      ICP Score Total: <span className="font-bold text-primary">{previewLead.icp_score ?? 10}/15</span> ({previewLead.priority || "Low"})
                     </label>
-                    <div className="flex gap-2">
-                      <Input 
-                        id="edit-icp" 
-                        type="number"
-                        min="0"
-                        max="15"
-                        value={previewLead.icp_score !== null && previewLead.icp_score !== undefined ? String(previewLead.icp_score) : ""} 
-                        onChange={e => {
-                          const val = e.target.value === "" ? 0 : Math.min(15, Math.max(0, parseInt(e.target.value)));
-                          const nextPriority = val >= 13 ? "High" : val >= 11 ? "Medium" : "Low";
-                          setPreviewLead(prev => ({ ...prev!, icp_score: val, priority: nextPriority }));
-                        }}
+                    <div className="flex items-center gap-2 mt-1">
+                      <Checkbox 
+                        id="active-stale"
+                        checked={previewLead.stale_data_warning || false}
+                        onCheckedChange={checked => setPreviewLead(prev => prev ? { ...prev, stale_data_warning: !!checked } : null)}
                       />
-                      <div className="flex items-center justify-center font-semibold text-xs border border-border bg-muted/30 px-3 rounded-lg min-w-[70px]">
-                        {previewLead.priority || "Low"}
-                      </div>
+                      <label htmlFor="active-stale" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1">
+                        Metrics Claim is Stale (&gt;6m old)
+                        {previewLead.stale_data_warning && (
+                          <Badge variant="destructive" className="h-4 text-[9px] px-1 py-0 select-none">STALE</Badge>
+                        )}
+                      </label>
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -2764,6 +3331,41 @@ export default function Sourcing() {
                     onChange={e => setPreviewLead(prev => ({ ...prev!, founder_thesis: e.target.value }))}
                     placeholder="No dominant constraint specified"
                   />
+                </div>
+
+                <div className="space-y-1.5 border border-border/40 p-3 rounded-lg bg-muted/10 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-muted-foreground">Personalized Outreach Draft</label>
+                    <Button 
+                      type="button" size="sm" variant="outline" className="h-7 text-xs font-medium"
+                      onClick={handleGenerateDraftForActive}
+                      disabled={generatingActiveDraft}
+                    >
+                      {generatingActiveDraft ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate Draft"
+                      )}
+                    </Button>
+                  </div>
+                  <Textarea 
+                    value={previewLead.draft_message || ""} 
+                    onChange={e => setPreviewLead(prev => prev ? { ...prev, draft_message: e.target.value } : null)}
+                    className="min-h-[85px] text-xs font-mono bg-background border-border/30"
+                    placeholder="No outreach draft generated yet. Click 'Generate Draft' or write one here..."
+                  />
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground">Resolved Contact Channel</label>
+                    <Input 
+                      value={previewLead.contact_channel || ""} 
+                      onChange={e => setPreviewLead(prev => prev ? { ...prev, contact_channel: e.target.value } : null)}
+                      className={`h-7 text-xs px-2 rounded-md ${!previewLead.contact_channel || previewLead.contact_channel.includes("not found") ? 'border-destructive/50 bg-destructive/5 text-destructive' : ''}`}
+                      placeholder="e.g. Email address or social handle"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

@@ -147,13 +147,16 @@ function extractJson(raw: string, expectArray = false): any {
 
     if (recovered.length > 0) {
       console.log(`[extractJson] Truncation recovery: salvaged ${recovered.length} complete profile(s) from truncated array.`);
-      return recovered;
+      const resultObj = [...recovered] as any;
+      resultObj.partial = true;
+      resultObj.recovered_count = recovered.length;
+      return resultObj;
     }
-    throw new Error(`Unterminated JSON array in AI response (0 complete objects recovered — response may be empty)`);
+    throw new Error(`Response was cut off and no complete profiles could be salvaged. Try a smaller text batch.`);
   }
 
   if (end === -1) {
-    throw new Error(`Unterminated JSON object in AI response`);
+    throw new Error(`Unterminated JSON object in AI response. Response was cut off.`);
   }
 
   // ── NORMAL PATH ─────────────────────────────────────────────────────────────
@@ -176,6 +179,7 @@ async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`,
     },
+    signal: AbortSignal.timeout(50000), // 50 seconds timeout
     body: JSON.stringify({
       model,
       temperature: 0.3,
@@ -186,7 +190,13 @@ async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string
       ],
     }),
   });
-  if (!res.ok) throw new Error(`Kimi AI error: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    const errorText = await res.text();
+    if (res.status === 401) {
+      throw new Error("AUTH_ERROR: Moonshot (Kimi) API key is invalid or expired.");
+    }
+    throw new Error(`Kimi AI error: ${res.status} ${errorText}`);
+  }
   const data = await res.json();
   return extractJson(data.choices[0].message.content, expectArray);
 }
@@ -199,6 +209,7 @@ async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: s
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`,
     },
+    signal: AbortSignal.timeout(50000), // 50 seconds timeout
     body: JSON.stringify({
       model: "meta/llama-3.1-8b-instruct",
       temperature: 0.3,
@@ -209,7 +220,43 @@ async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: s
       ],
     }),
   });
-  if (!res.ok) throw new Error(`NVIDIA NIM error: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    const errorText = await res.text();
+    if (res.status === 401) {
+      throw new Error("AUTH_ERROR: NVIDIA NIM API key is invalid or expired.");
+    }
+    throw new Error(`NVIDIA NIM error: ${res.status} ${errorText}`);
+  }
+  const data = await res.json();
+  return extractJson(data.choices[0].message.content, expectArray);
+}
+
+// Call Groq API
+async function callGroq(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    signal: AbortSignal.timeout(50000), // 50 seconds timeout
+    body: JSON.stringify({
+      model: "llama-3.1-70b-versatile",
+      temperature: 0.3,
+      max_tokens: 2048,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    if (res.status === 401) {
+      throw new Error("AUTH_ERROR: Groq API key is invalid or expired.");
+    }
+    throw new Error(`Groq API error: ${res.status} ${errorText}`);
+  }
   const data = await res.json();
   return extractJson(data.choices[0].message.content, expectArray);
 }
@@ -421,10 +468,7 @@ function validateAndEvaluateLead(lead: any, sourceUrl: string): { disqualified: 
   const scoreAtlasRelevance = lead.score_atlas_relevance ?? 0;
   
   const totalScore = scoreFounderActive + scoreBuyingSignal + scoreIcpFit + scoreReachable + scoreAtlasRelevance;
-  
-  if (totalScore < 10) {
-    return { disqualified: true, reason: `Disqualified ICP score: ${totalScore}/15 (< 10)` };
-  }
+  const staleWarning = lead.stale_data_warning || false;
 
   // Determine priority
   let priority = "Low";
@@ -462,6 +506,13 @@ ${lead.notes || "No evaluation details provided."}`;
       founder_thesis: thesis,
       goal: lead.goal || "Scale operations",
       icp_score: totalScore,
+      score_founder_active: scoreFounderActive,
+      score_buying_signal: scoreBuyingSignal,
+      score_icp_fit: scoreIcpFit,
+      score_reachable: scoreReachable,
+      score_atlas_relevance: scoreAtlasRelevance,
+      is_below_threshold: totalScore < 10,
+      stale_data_warning: staleWarning,
       next_action: nextAction,
       notes: notesContent,
       priority,
@@ -556,6 +607,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
       const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
       let extracted: any = null;
 
@@ -580,6 +632,7 @@ Given the HTML scraping or raw page text, extract details strictly matching the 
     - score_atlas_relevance: Atlas relevance
 13. Notes: Brief detailed evaluation reasoning for the score.
 14. Next Action: Actionable outreach recommendation.
+15. stale_data_warning: Boolean. Identify any dates, times, or time periods in the text, especially those related to revenue or MRR claims. Assuming the current date is July 2026, if a metrics claim is associated with a date that is older than 6 months relative to July 2026 (i.e. before January 2026), set this to true. Otherwise, set it to false.
 
 Return ONLY a valid JSON object matching this exact schema:
 {
@@ -600,14 +653,25 @@ Return ONLY a valid JSON object matching this exact schema:
   "score_reachable": number,
   "score_atlas_relevance": number,
   "notes": "string",
-  "next_action": "string"
+  "next_action": "string",
+  "stale_data_warning": boolean
 }`;
 
       if (kimiApiKey && kimiApiKey !== "your-kimi-api-key") {
         try {
           extracted = await callKimi(systemPrompt, contentToAnalyze, kimiApiKey);
         } catch (kimiErr: any) {
-          console.warn("Kimi failed, trying NVIDIA NIM:", kimiErr.message);
+          console.warn("Kimi failed, trying Groq fallback:", kimiErr.message);
+          if (kimiErr.message.includes("AUTH_ERROR")) throw kimiErr;
+        }
+      }
+
+      if (!extracted && groqApiKey) {
+        try {
+          extracted = await callGroq(systemPrompt, contentToAnalyze, groqApiKey);
+        } catch (groqErr: any) {
+          console.warn("Groq failed, trying NVIDIA NIM:", groqErr.message);
+          if (groqErr.message.includes("AUTH_ERROR")) throw groqErr;
         }
       }
 
@@ -616,42 +680,42 @@ Return ONLY a valid JSON object matching this exact schema:
           extracted = await callNvidiaNim(systemPrompt, contentToAnalyze, nimApiKey);
         } catch (nimErr: any) {
           console.error("NVIDIA NIM failed:", nimErr.message);
+          if (nimErr.message.includes("AUTH_ERROR")) throw nimErr;
         }
       }
 
-      // Falls back to mock if AI key is missing or fails
       if (!extracted) {
-        console.log("Using smart mock fallback parser...");
-        extracted = {
-          company_name: "MockStartup",
-          founder_name: "Jane Doe",
-          linkedin_url: "https://linkedin.com/in/mockfounder",
-          twitter_url: "@mockfounder",
-          employee_count: 5,
-          funding_status: "Bootstrapped",
-          social_followers: 250,
-          has_major_press: false,
-          ph_top_5: false,
-          founder_thesis: "doesn't know which acquisition channel to invest in to scale consistently",
-          goal: "Get first 10 customers",
-          score_founder_active: 2,
-          score_buying_signal: 3,
-          score_icp_fit: 3,
-          score_reachable: 2,
-          score_atlas_relevance: 2,
-          notes: "Mock fallback parsed data.",
-          next_action: "Send direct message with diagnostic roadmap."
-        };
+        throw new Error("AI extraction failed to produce a structured profile. Check inputs or try again.");
       }
 
       const evaluation = validateAndEvaluateLead(extracted, sourceUrl || "https://unknown.com");
       if (evaluation.disqualified) {
-        return new Response(JSON.stringify({ disqualified: true, reason: evaluation.reason }), {
+        if (evaluation.reason === "No self-disclosed dominant constraint/stated problem found in content") {
+          return new Response(JSON.stringify({ 
+            error: "No founder-voice content detected in this text — this source may not contain the kind of first-person narrative this tool looks for" 
+          }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        return new Response(JSON.stringify({
+          leads: [],
+          rejected: [{
+            company: extracted.company_name || extracted.company || "Unknown",
+            prospect: extracted.founder_name || extracted.prospect || "Unknown Founder",
+            reason: evaluation.reason || "Disqualified",
+            raw_data: extracted
+          }],
+          total: 1
+        }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
 
-      return new Response(JSON.stringify(evaluation.evaluatedLead), {
+      return new Response(JSON.stringify({
+        leads: [evaluation.evaluatedLead],
+        rejected: [],
+        total: 1
+      }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
@@ -682,6 +746,7 @@ Given the HTML scraping or raw page text, extract details strictly matching the 
     - score_atlas_relevance: Atlas relevance
 13. Notes: Brief detailed evaluation reasoning for the score.
 14. Next Action: Actionable outreach recommendation.
+15. stale_data_warning: Boolean. Identify any dates, times, or time periods in the text, especially those related to revenue or MRR claims. Assuming the current date is July 2026, if a metrics claim is associated with a date that is older than 6 months relative to July 2026 (i.e. before January 2026), set this to true. Otherwise, set it to false.
 
 Return ONLY a valid JSON object matching this exact schema:
 {
@@ -702,17 +767,22 @@ Return ONLY a valid JSON object matching this exact schema:
   "score_reachable": number,
   "score_atlas_relevance": number,
   "notes": "string",
-  "next_action": "string"
+  "next_action": "string",
+  "stale_data_warning": boolean
 }`;
 
       const callAi = async (systemPrompt: string, userPrompt: string): Promise<any> => {
         if (kimiApiKey) {
-          try { return await callKimi(systemPrompt, userPrompt, kimiApiKey); } catch (_) {}
+          try { 
+            return await callKimi(systemPrompt, userPrompt, kimiApiKey); 
+          } catch (err: any) { 
+            if (err.message.includes("AUTH_ERROR")) throw err;
+          }
         }
         if (nimApiKey) {
           return await callNvidiaNim(systemPrompt, userPrompt, nimApiKey);
         }
-        throw new Error("All AI providers failed");
+        throw new Error("All AI providers failed. Check API keys and network status.");
       };
 
       // ── CASE A: Batch URLs ──────────────────────────────────────────────────
@@ -727,6 +797,7 @@ Return ONLY a valid JSON object matching this exact schema:
         // Process all URLs in parallel (capped at MAX_URLS) for speed
         const settled = await Promise.allSettled(
           urls.map(async (url) => {
+            console.log(`Sourcing URL inside batch: ${url}`);
             const isSocial = url.includes("linkedin.com") || url.includes("x.com") || url.includes("twitter.com");
             let contentToAnalyze = "";
             if (!isSocial) {
@@ -735,21 +806,47 @@ Return ONLY a valid JSON object matching this exact schema:
             } else {
               contentToAnalyze = `URL: ${url}\nNote: Social media profile — extract from URL patterns only.`;
             }
-            return callAi(singleSystemPrompt, contentToAnalyze);
+            return await callAi(singleSystemPrompt, contentToAnalyze);
           })
         );
 
         const results: any[] = [];
+        const rejected: any[] = [];
+        let authErrorStr = "";
         settled.forEach((r, i) => {
           if (r.status === "fulfilled") {
             const evaluation = validateAndEvaluateLead(r.value, urls[i]);
-            if (!evaluation.disqualified) results.push(evaluation.evaluatedLead);
+            if (!evaluation.disqualified) {
+              results.push(evaluation.evaluatedLead);
+            } else {
+              rejected.push({
+                company: r.value.company_name || r.value.company || "Unknown",
+                prospect: r.value.founder_name || r.value.prospect || "Unknown Founder",
+                reason: evaluation.reason || "Disqualified",
+                raw_data: r.value
+              });
+            }
           } else {
             console.warn(`Failed to source URL ${urls[i]}:`, r.reason?.message);
+            if (r.reason?.message?.includes("AUTH_ERROR")) {
+              authErrorStr = r.reason.message;
+            }
+            rejected.push({
+              company: "Unknown",
+              prospect: "Unknown",
+              reason: r.reason?.message || "Failed to load/parse page",
+              raw_data: null
+            });
           }
         });
 
-        return new Response(JSON.stringify({ leads: results, total: results.length }), {
+        if (authErrorStr) {
+          return new Response(JSON.stringify({ error: authErrorStr }), {
+            status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        return new Response(JSON.stringify({ leads: results, rejected, total: results.length + rejected.length }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
@@ -778,6 +875,7 @@ For EACH distinct company or founder profile you find in the text, extract:
     - score_atlas_relevance: Atlas relevance
 13. Notes: Brief detailed evaluation reasoning for the score.
 14. Next Action: Actionable outreach recommendation.
+15. stale_data_warning: Boolean. Identify any dates, times, or time periods in the text, especially those related to revenue or MRR claims. Assuming the current date is July 2026, if a metrics claim is associated with a date that is older than 6 months relative to July 2026 (i.e. before January 2026), set this to true. Otherwise, set it to false.
 
 IMPORTANT: Extract ALL distinct startups/founders found in the text.
 Return ONLY a valid JSON array matching this exact schema:
@@ -799,39 +897,74 @@ Return ONLY a valid JSON array matching this exact schema:
   "score_reachable": number,
   "score_atlas_relevance": number,
   "notes": "string",
-  "next_action": "string"
+  "next_action": "string",
+  "stale_data_warning": boolean
 }]`;
 
-        let arrayResult: any[] = [];
+        let arrayResult: any = [];
         try {
-          // Use the same robust extractJson with expectArray=true — handles fences and balanced brackets
           if (kimiApiKey) {
             try {
               // 32k model + 8192 max_tokens to prevent mid-array truncation on multi-profile pastes
               arrayResult = await callKimi(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`, kimiApiKey, true, "moonshot-v1-32k", 8192);
             } catch (e: any) {
               console.warn("Kimi bulk failed:", e.message);
+              if (e.message.includes("AUTH_ERROR")) throw e;
             }
           }
-          if (!arrayResult.length && nimApiKey) {
+          if ((!arrayResult || !arrayResult.length) && groqApiKey) {
+            try {
+              arrayResult = await callGroq(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`, groqApiKey, true);
+            } catch (e: any) {
+              console.warn("Groq bulk failed:", e.message);
+              if (e.message.includes("AUTH_ERROR")) throw e;
+            }
+          }
+          if ((!arrayResult || !arrayResult.length) && nimApiKey) {
             arrayResult = await callNvidiaNim(bulkSystemPrompt, `Raw Text:\n${body.raw_text}`, nimApiKey, true);
           }
         } catch (err: any) {
           console.error("Bulk text AI failed:", err.message);
+          if (err.message.includes("AUTH_ERROR")) {
+            return new Response(JSON.stringify({ error: err.message }), {
+              status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
           return new Response(JSON.stringify({ error: "AI extraction failed: " + err.message }), {
             status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
 
         const filteredLeads: any[] = [];
-        for (const item of arrayResult) {
+        const rejectedLeads: any[] = [];
+        const items = Array.isArray(arrayResult) ? arrayResult : [];
+        
+        for (const item of items) {
           const evaluation = validateAndEvaluateLead(item, body.url || "https://unknown.com");
           if (!evaluation.disqualified) {
             filteredLeads.push(evaluation.evaluatedLead);
+          } else {
+            rejectedLeads.push({
+              company: item.company_name || item.company || "Unknown",
+              prospect: item.founder_name || item.prospect || "Unknown Founder",
+              reason: evaluation.reason || "Disqualified",
+              raw_data: item
+            });
           }
         }
 
-        return new Response(JSON.stringify({ leads: filteredLeads, total: filteredLeads.length }), {
+        const responseObj: any = {
+          leads: filteredLeads,
+          rejected: rejectedLeads,
+          total: filteredLeads.length + rejectedLeads.length
+        };
+
+        if (arrayResult.partial) {
+          responseObj.partial = true;
+          responseObj.recovered_count = arrayResult.recovered_count;
+        }
+
+        return new Response(JSON.stringify(responseObj), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
@@ -839,6 +972,192 @@ Return ONLY a valid JSON array matching this exact schema:
       return new Response(JSON.stringify({ error: "urls[] or raw_text is required for bulk-source" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
+    }
+
+    // ── HACKER NEWS SOURCING ACTION ──────────────────────────────────────────────
+    if (body.action === "hn-source") {
+      const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
+
+      const query = body.query || "Show HN";
+      const timeRange = body.time_range || "past_week";
+
+      // Calculate Unix timestamp cutoff based on timeRange
+      const now = Math.floor(Date.now() / 1000);
+      let cutoffTimestamp = now - 7 * 24 * 60 * 60; // default 7 days (past_week)
+      if (timeRange === "past_24h") {
+        cutoffTimestamp = now - 24 * 60 * 60;
+      } else if (timeRange === "past_month") {
+        cutoffTimestamp = now - 30 * 24 * 60 * 60;
+      }
+
+      try {
+        // Fetch top stories from Algolia Search API
+        const algoliaUrl = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&tags=story&numericFilters=created_at_i>=${cutoffTimestamp}`;
+        const searchRes = await fetch(algoliaUrl, {
+          signal: AbortSignal.timeout(15000), // 15 seconds timeout for Algolia fetch
+        });
+
+        if (!searchRes.ok) {
+          throw new Error(`Algolia HN search failed: ${searchRes.status} ${searchRes.statusText}`);
+        }
+
+        const searchData = await searchRes.json();
+        const hits = searchData.hits || [];
+        
+        // Grab top 10 stories with URLs or text content
+        const topStories = hits.slice(0, 10);
+        if (topStories.length === 0) {
+          return new Response(JSON.stringify({
+            leads: [],
+            rejected: [],
+            total: 0,
+            message: "No Hacker News stories found matching the criteria."
+          }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // Map stories to a readable text block
+        const hnTextBlock = topStories.map((story: any) => {
+          const hnLink = `https://news.ycombinator.com/item?id=${story.objectID}`;
+          return `HN Thread Link: ${hnLink}
+Author: ${story.author}
+Title: ${story.title}
+Website: ${story.url || "No website link"}
+Story Text: ${story.story_text || "No story description text"}
+`;
+        }).join("\n---\n\n");
+
+        // Pass text block to AI parser using existing bulk prompt
+        const bulkSystemPrompt = `You are Atlas HQ — an intelligent B2B sales machine designed to parse startup landing pages or social profiles.
+Given a collection of Hacker News Show HN thread submissions (including titles, URLs, and descriptions), extract founder/company details strictly matching the following guidelines:
+1. Company Name: The name of the company or project.
+2. Founder Name: Extract the author username of the submission or founder name if mentioned in the title/text.
+3. Founder's LinkedIn profile URL (or null)
+4. Founder's X (Twitter) handle (or null)
+5. Estimated number of employees/team size (integer, guess based on context, default to 5)
+6. Funding Status (e.g. "Pre-seed", "Seed", "Series A+", "VC-funded", "Bootstrapped")
+7. Social Media Followers (total estimated follower count on Twitter/LinkedIn, e.g. 500)
+8. Prior Major Press Coverage (boolean, true/false if they have major press)
+9. Product Hunt Top-5 (boolean, true/false if they have been previously featured in Product Hunt's top-5 of the day)
+10. Founder Thesis: Sourced from the author's own words in the description/text, extract a quote or close paraphrase of a self-disclosed problem/constraint (e.g., "churn eating growth," "doesn't know which acquisition channel to invest in"). This MUST be a real problem they stated. If no self-disclosed constraint or problem can be found in the text, return null. DO NOT guess/invent one if not mentioned.
+11. Goal: Stated goal or target they want to achieve.
+12. Rubric scores (from 0 to 3 points each):
+    - score_founder_active: Founder active publicly
+    - score_buying_signal: Clear buying signal
+    - score_icp_fit: ICP fit
+    - score_reachable: Reachable
+    - score_atlas_relevance: Atlas relevance
+13. Notes: Brief detailed evaluation reasoning for the score.
+14. Next Action: Actionable outreach recommendation.
+15. stale_data_warning: Boolean. Identify any dates, times, or time periods in the text, especially those related to revenue or MRR claims. Assuming the current date is July 2026, if a metrics claim is associated with a date that is older than 6 months relative to July 2026 (i.e. before January 2026), set this to true. Otherwise, set it to false.
+
+Return ONLY a valid JSON array of objects matching this exact schema:
+[{
+  "company_name": "string",
+  "founder_name": "string or null",
+  "linkedin_url": "string or null",
+  "twitter_url": "string or null",
+  "employee_count": number,
+  "funding_status": "string",
+  "social_followers": number,
+  "has_major_press": boolean,
+  "ph_top_5": boolean,
+  "founder_thesis": "string or null",
+  "goal": "string or null",
+  "score_founder_active": number,
+  "score_buying_signal": number,
+  "score_icp_fit": number,
+  "score_reachable": number,
+  "score_atlas_relevance": number,
+  "notes": "string",
+  "next_action": "string",
+  "stale_data_warning": boolean
+}]`;
+
+        let arrayResult: any = [];
+        if (kimiApiKey) {
+          try {
+            arrayResult = await callKimi(bulkSystemPrompt, `Hacker News Stories:\n${hnTextBlock}`, kimiApiKey, true, "moonshot-v1-32k", 8192);
+          } catch (e: any) {
+            console.warn("Kimi HN sourcing failed:", e.message);
+            if (e.message.includes("AUTH_ERROR")) throw e;
+          }
+        }
+        if ((!arrayResult || !arrayResult.length) && groqApiKey) {
+          try {
+            arrayResult = await callGroq(bulkSystemPrompt, `Hacker News Stories:\n${hnTextBlock}`, groqApiKey, true);
+          } catch (e: any) {
+            console.warn("Groq HN sourcing failed:", e.message);
+            if (e.message.includes("AUTH_ERROR")) throw e;
+          }
+        }
+        if ((!arrayResult || !arrayResult.length) && nimApiKey) {
+          try {
+            arrayResult = await callNvidiaNim(bulkSystemPrompt, `Hacker News Stories:\n${hnTextBlock}`, nimApiKey, true);
+          } catch (e: any) {
+            console.warn("NIM HN sourcing failed:", e.message);
+            if (e.message.includes("AUTH_ERROR")) throw e;
+          }
+        }
+
+        const filteredLeads: any[] = [];
+        const rejectedLeads: any[] = [];
+        const items = Array.isArray(arrayResult) ? arrayResult : [];
+        
+        for (let idx = 0; idx < items.length; idx++) {
+          const item = items[idx];
+          let matchedSource = `https://news.ycombinator.com/`;
+          
+          const compLower = (item.company_name || "").toLowerCase();
+          const matchedHit = topStories.find((story: any) => 
+            (story.title || "").toLowerCase().includes(compLower) || 
+            (story.story_text || "").toLowerCase().includes(compLower)
+          );
+          if (matchedHit) {
+            matchedSource = matchedHit.url || `https://news.ycombinator.com/item?id=${matchedHit.objectID}`;
+          }
+
+          const evaluation = validateAndEvaluateLead(item, matchedSource);
+          if (!evaluation.disqualified) {
+            filteredLeads.push(evaluation.evaluatedLead);
+          } else {
+            rejectedLeads.push({
+              company: item.company_name || item.company || "Unknown",
+              prospect: item.founder_name || item.prospect || "Unknown Founder",
+              reason: evaluation.reason || "Disqualified",
+              raw_data: item
+            });
+          }
+        }
+
+        const responseObj: any = {
+          leads: filteredLeads,
+          rejected: rejectedLeads,
+          total: filteredLeads.length + rejectedLeads.length
+        };
+
+        if (arrayResult.partial) {
+          responseObj.partial = true;
+          responseObj.recovered_count = arrayResult.recovered_count;
+        }
+
+        return new Response(JSON.stringify(responseObj), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err: any) {
+        console.error("Hacker News Sourcing Action Error:", err.message);
+        if (err.message.includes("AUTH_ERROR")) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        return new Response(JSON.stringify({ error: "HN sourcing extraction failed: " + err.message }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
     }
 
     // ── LIST NOTION DATABASES ACTION ──────────────────────────────────────────────
