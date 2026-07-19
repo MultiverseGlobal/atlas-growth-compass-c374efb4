@@ -416,17 +416,19 @@ function validateDatabaseSchema(properties: any, customMappings?: Record<string,
 function validateAndEvaluateLead(lead: any, sourceUrl: string): { disqualified: boolean; reason?: string; evaluatedLead?: any } {
   const prospect = lead.founder_name || lead.prospect;
   const company = lead.company_name || lead.company;
-  const website = lead.website || lead.company_url || sourceUrl;
+  // Bug fix #7: Do NOT fall back to sourceUrl as the company website — that leads to HN/PH URLs
+  // being stored as the company's website. Only use an explicit company URL or null.
+  const rawWebsite = lead.website || lead.company_url || null;
+  const website = rawWebsite && /^https?:\/\//i.test(rawWebsite) ? rawWebsite : null;
   
-  if (!prospect || !prospect.trim()) {
+  if (!prospect || !prospect.trim() || prospect === "founder name not found — needs manual research") {
     return { disqualified: true, reason: "Missing founder name" };
   }
   if (!company || !company.trim()) {
     return { disqualified: true, reason: "Missing company name" };
   }
-  if (!website || !website.trim() || !/^https?:\/\//i.test(website)) {
-    return { disqualified: true, reason: "Missing or invalid working website/source URL" };
-  }
+  // Bug fix #3: Don't require a website to pass — leave it blank rather than rejecting or fabricating
+  // (HN posts rarely have explicit company URLs in the story text)
 
   // Hard disqualifiers check
   const funding = (lead.funding_status || "").toLowerCase();
@@ -446,6 +448,19 @@ function validateAndEvaluateLead(lead: any, sourceUrl: string): { disqualified: 
     return { disqualified: true, reason: `Disqualified follower count: ${followers} (1000+ followers on socials)` };
   }
 
+  // Bug fix #5: Also detect text-based fame signals — e.g. "100k users", "50k followers", "viral"
+  const notesText = (lead.notes || "").toLowerCase();
+  const thesisText = (lead.founder_thesis || "").toLowerCase();
+  const rawTextSignal = notesText + " " + thesisText;
+  const famePatterns = /\b(\d+)\s*k\+?\s*(users|followers|downloads|installs|stars|subscribers)\b/gi;
+  let fameMatch;
+  while ((fameMatch = famePatterns.exec(rawTextSignal)) !== null) {
+    const count = parseInt(fameMatch[1], 10) * 1000;
+    if (count >= 10000) {
+      return { disqualified: true, reason: `Disqualified recognizable founder: text signals ${fameMatch[0]} which suggests high reach/fame` };
+    }
+  }
+
   if (lead.has_major_press) {
     return { disqualified: true, reason: "Disqualified due to prior major press coverage" };
   }
@@ -461,11 +476,16 @@ function validateAndEvaluateLead(lead: any, sourceUrl: string): { disqualified: 
   }
 
   // Score check against 15-point rubric
-  const scoreFounderActive = lead.score_founder_active ?? 0;
-  const scoreBuyingSignal = lead.score_buying_signal ?? 0;
-  const scoreIcpFit = lead.score_icp_fit ?? 0;
-  const scoreReachable = lead.score_reachable ?? 0;
-  const scoreAtlasRelevance = lead.score_atlas_relevance ?? 0;
+  const scoreFounderActive = typeof lead.score_founder_active === 'number' ? lead.score_founder_active : 0;
+  const scoreBuyingSignal = typeof lead.score_buying_signal === 'number' ? lead.score_buying_signal : 0;
+  const scoreIcpFit = typeof lead.score_icp_fit === 'number' ? lead.score_icp_fit : 0;
+  const scoreReachable = typeof lead.score_reachable === 'number' ? lead.score_reachable : 0;
+  const scoreAtlasRelevance = typeof lead.score_atlas_relevance === 'number' ? lead.score_atlas_relevance : 0;
+  
+  // Bug fix #4: Detect old-format scoring — if any rubric field is > 3 it's from the old rubric system
+  if (scoreFounderActive > 3 || scoreBuyingSignal > 3 || scoreIcpFit > 3 || scoreReachable > 3 || scoreAtlasRelevance > 3) {
+    return { disqualified: true, reason: "Disqualified: legacy scoring format detected — scores exceed 3/3 per category" };
+  }
   
   const totalScore = scoreFounderActive + scoreBuyingSignal + scoreIcpFit + scoreReachable + scoreAtlasRelevance;
   const staleWarning = lead.stale_data_warning || false;
@@ -495,16 +515,18 @@ function validateAndEvaluateLead(lead: any, sourceUrl: string): { disqualified: 
 ## Evaluation Details
 ${lead.notes || "No evaluation details provided."}`;
 
-  const nextAction = lead.next_action || `Reach out on ${lead.linkedin_url ? "LinkedIn" : lead.twitter_url ? "X" : "available channels"} regarding their constraint: "${thesis}".`;
+  // Bug fix #7: Don't build outreach with placeholder name
+  const displayName = (prospect && prospect !== "founder name not found — needs manual research") ? prospect : "the founder";
+  const nextAction = lead.next_action || `Reach out to ${displayName} on ${lead.linkedin_url ? "LinkedIn" : lead.twitter_url ? "X" : "available channels"} regarding their constraint: "${thesis}".`;
 
   return {
     disqualified: false,
     evaluatedLead: {
       prospect,
       company,
-      website,
+      website: website || null, // Bug fix #7: null if no real company URL found
       founder_thesis: thesis,
-      goal: lead.goal || "Scale operations",
+      goal: lead.goal || null,
       icp_score: totalScore,
       score_founder_active: scoreFounderActive,
       score_buying_signal: scoreBuyingSignal,
@@ -620,33 +642,44 @@ Deno.serve(async (req: Request) => {
       const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
       let extracted: any = null;
 
-      const systemPrompt = `You are Atlas HQ — an intelligent B2B sales machine designed to parse startup landing pages or social profiles.
-Given the HTML scraping or raw page text, extract details strictly matching the following guidelines:
-1. Company Name
-2. Founder Name
-3. Founder's LinkedIn profile URL (or null)
-4. Founder's X (Twitter) handle (or null)
-5. Estimated number of employees/team size (integer, guess based on context, default to 5)
-6. Funding Status (e.g. "Pre-seed", "Seed", "Series A+", "VC-funded", "Bootstrapped")
-7. Social Media Followers (total estimated follower count on Twitter/LinkedIn, e.g. 500)
-8. Prior Major Press Coverage (boolean, true/false if they have major press)
-9. Product Hunt Top-5 (boolean, true/false if they have been previously featured in Product Hunt's top-5 of the day)
-10. Founder Thesis: Sourced from the founder's own words, extract a quote or close paraphrase of a self-disclosed problem/constraint (e.g., "churn eating growth," "doesn't know which acquisition channel to invest in"). This MUST be a real problem they stated. If no self-disclosed constraint or problem can be found in the text, return null. DO NOT guess/invent one if not mentioned.
-11. Goal: Stated goal or target they want to achieve.
-12. Rubric scores (from 0 to 3 points each):
-    - score_founder_active: Founder active publicly
-    - score_buying_signal: Clear buying signal
-    - score_icp_fit: ICP fit
-    - score_reachable: Reachable
-    - score_atlas_relevance: Atlas relevance
-13. Notes: Brief detailed evaluation reasoning for the score.
-14. Next Action: Actionable outreach recommendation.
-15. stale_data_warning: Boolean. Identify any dates, times, or time periods in the text, especially those related to revenue or MRR claims. Assuming the current date is July 2026, if a metrics claim is associated with a date that is older than 6 months relative to July 2026 (i.e. before January 2026), set this to true. Otherwise, set it to false.
+      const systemPrompt = `You are Atlas HQ — an intelligent B2B sales machine designed to parse startup landing pages and text content from founders.
+Given the raw page text or scraped HTML, extract details strictly matching the following guidelines:
 
-Return ONLY a valid JSON object matching this exact schema:
+1. Company Name: Name of the startup or product.
+2. Founder Name: CRITICAL — Look hard for any real human name in the text. Check for:
+   - Author byline, signature, or "by [Name]"
+   - First-person writing where a name appears near a quote
+   - HN username if it appears to be a real name (e.g. "johndoe" → may be real; try the full thread text)
+   - "Hi, I'm [Name]" or "I'm the founder of..."
+   - Social profile links that contain a real name handle
+   If you are confident you have found a real human name, return it.
+   If no real founder name can be found in the text, return the exact string: "founder name not found — needs manual research"
+   NEVER invent a name, guess a name, or use a placeholder like "John Doe" or "Jane Doe".
+3. Company Website URL: The real company or product's own domain (e.g. feedcheck.io, velane.com). NOT the HN URL, NOT producthunt.com. If no company domain is mentioned, return null.
+4. Founder's LinkedIn profile URL (or null)
+5. Founder's X (Twitter) handle (or null) — must be a real @handle from the text, not invented
+6. Estimated number of employees/team size (integer, default to 2 for solo/small indie hackers)
+7. Funding Status: "Bootstrapped" unless explicitly stated otherwise
+8. Social Media Followers: Only use a number if explicitly stated. Default to 0.
+9. Prior Major Press Coverage (boolean): true only if text explicitly mentions TechCrunch, Wired, Forbes, Product Hunt #1, etc.
+10. Product Hunt Top-5 (boolean): true only if text explicitly mentions being featured in PH top 5.
+11. Founder Thesis: A self-disclosed problem/constraint from the founder's own words. Must be a direct quote or close paraphrase from the text. Return null if nothing is stated. DO NOT fabricate.
+12. Goal: Stated goal (or null).
+13. Rubric scores (each from 0-3, MUST reflect this specific candidate's actual text — do NOT use default values):
+    - score_founder_active (0-3): Is the founder visibly active and building in public?
+    - score_buying_signal (0-3): Does the text signal a clear pain point / willingness to invest in solutions?
+    - score_icp_fit (0-3): Is this a B2B SaaS solo/micro founder without a big sales team?
+    - score_reachable (0-3): Are there real contact channels (Twitter, LinkedIn, HN, personal email)?
+    - score_atlas_relevance (0-3): Does Atlas's ICP (outbound/growth for micro-SaaS) match their stated problem?
+14. Notes: 2-4 sentences of UNIQUE reasoning for THIS candidate specifically. Do not use template phrases like "Founder has a clear vision" — explain what you actually read.
+15. Next Action: Specific outreach suggestion for THIS person — include their name, channel, and their specific constraint.
+16. stale_data_warning: true if any metrics/revenue claims are older than Jan 2026 (assume current date is July 2026).
+
+Return ONLY a valid JSON object:
 {
   "company_name": "string",
-  "founder_name": "string or null",
+  "founder_name": "string (real name or 'founder name not found — needs manual research')",
+  "website": "string or null",
   "linkedin_url": "string or null",
   "twitter_url": "string or null",
   "employee_count": number,
@@ -1037,34 +1070,43 @@ Story Text: ${story.story_text || "No story description text"}
 `;
         }).join("\n---\n\n");
 
-        // Pass text block to AI parser using existing bulk prompt
-        const bulkSystemPrompt = `You are Atlas HQ — an intelligent B2B sales machine designed to parse startup landing pages or social profiles.
-Given a collection of Hacker News Show HN thread submissions (including titles, URLs, and descriptions), extract founder/company details strictly matching the following guidelines:
-1. Company Name: The name of the company or project.
-2. Founder Name: Extract the author username of the submission or founder name if mentioned in the title/text.
-3. Founder's LinkedIn profile URL (or null)
-4. Founder's X (Twitter) handle (or null)
-5. Estimated number of employees/team size (integer, guess based on context, default to 5)
-6. Funding Status (e.g. "Pre-seed", "Seed", "Series A+", "VC-funded", "Bootstrapped")
-7. Social Media Followers (total estimated follower count on Twitter/LinkedIn, e.g. 500)
-8. Prior Major Press Coverage (boolean, true/false if they have major press)
-9. Product Hunt Top-5 (boolean, true/false if they have been previously featured in Product Hunt's top-5 of the day)
-10. Founder Thesis: Sourced from the author's own words in the description/text, extract a quote or close paraphrase of a self-disclosed problem/constraint (e.g., "churn eating growth," "doesn't know which acquisition channel to invest in"). This MUST be a real problem they stated. If no self-disclosed constraint or problem can be found in the text, return null. DO NOT guess/invent one if not mentioned.
-11. Goal: Stated goal or target they want to achieve.
-12. Rubric scores (from 0 to 3 points each):
-    - score_founder_active: Founder active publicly
-    - score_buying_signal: Clear buying signal
-    - score_icp_fit: ICP fit
-    - score_reachable: Reachable
-    - score_atlas_relevance: Atlas relevance
-13. Notes: Brief detailed evaluation reasoning for the score.
-14. Next Action: Actionable outreach recommendation.
-15. stale_data_warning: Boolean. Identify any dates, times, or time periods in the text, especially those related to revenue or MRR claims. Assuming the current date is July 2026, if a metrics claim is associated with a date that is older than 6 months relative to July 2026 (i.e. before January 2026), set this to true. Otherwise, set it to false.
+        // Pass text block to AI parser using hardened HN-specific prompt
+        const bulkSystemPrompt = `You are Atlas HQ — an intelligent B2B sales machine parsing Hacker News "Show HN" submissions to identify solo/micro-SaaS founders worth cold outreach.
 
-Return ONLY a valid JSON array of objects matching this exact schema:
+For EACH submission, extract the following. You MUST produce a separate entry for each HN story — do not merge or skip any.
+
+1. Company Name: The startup or product name from the HN title.
+2. Founder Name — CRITICAL: This is the most important field.
+   - First check: the HN submission Author field is the username of the person who posted it. If it resembles a real name (e.g. "manuarora", "john_doe", "alice123") use it as-is.
+   - Second check: scan the Story Text for phrases like "Hi, I'm [Name]", "I'm [Name], founder of", "built by [Name]".
+   - If you find a real human name with high confidence, return it.
+   - If not found with confidence, return the exact string: "founder name not found — needs manual research"
+   - NEVER invent a name. NEVER use "John Doe", "Jane Doe", or any generic placeholder.
+3. Company Website: The real company/product domain from the "Website" field or story text (e.g. feedcheck.io). NOT news.ycombinator.com. NOT producthunt.com. If no company domain found, return null.
+4. Founder's LinkedIn profile URL (or null — only if explicitly in text)
+5. Founder's X (Twitter) handle (or null — only if explicitly in text)
+6. Employee count (integer, default 1-2 for solo founders posting on HN)
+7. Funding Status: "Bootstrapped" unless text explicitly says otherwise
+8. Social Media Followers: 0 unless text explicitly states a number. NOTE: if text mentions "Xk+ users" or "Xk followers" where X >= 10, set social_followers to that number * 1000.
+9. has_major_press (boolean): true only if text explicitly mentions major press outlets or going viral
+10. ph_top_5 (boolean): true only if explicitly mentioned
+11. Founder Thesis: A direct quote or tight paraphrase of the founder's self-disclosed pain point from their own submission text. Must come from their actual words. Return null if not found. Never fabricate.
+12. Goal: What they're trying to achieve (or null)
+13. Rubric scores — UNIQUE PER ENTRY, based on what you actually read. DO NOT use the same scores for multiple entries.
+    - score_founder_active (0-3): Active publicly? Posting, sharing metrics, engaging?
+    - score_buying_signal (0-3): Clear pain/desire to invest in tools to grow?
+    - score_icp_fit (0-3): Is this a B2B micro/solo SaaS founder without a big sales team?
+    - score_reachable (0-3): Reachable via HN, Twitter, LinkedIn, or email in text?
+    - score_atlas_relevance (0-3): Does their stated problem align with outbound/growth tooling Atlas provides?
+14. Notes: 2-4 sentences of SPECIFIC reasoning for THIS candidate. Do not reuse phrases across entries. Reference what you actually read in their submission.
+15. Next Action: Specific, personalized outreach suggestion for THIS person — include their name/handle, the channel, and their specific stated constraint.
+16. stale_data_warning: true if any revenue/metrics claims are older than Jan 2026 (current date = July 2026)
+
+Return ONLY a valid JSON array — one object per story. No commentary, no markdown:
 [{
   "company_name": "string",
-  "founder_name": "string or null",
+  "founder_name": "string (real name or 'founder name not found — needs manual research')",
+  "website": "string or null",
   "linkedin_url": "string or null",
   "twitter_url": "string or null",
   "employee_count": number,
