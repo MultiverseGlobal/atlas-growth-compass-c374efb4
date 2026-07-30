@@ -125,7 +125,7 @@ export default function HqDiscover() {
         user_id: user.id,
         prospect: lead.company,
         company: lead.company,
-        website: lead.website || null,
+        website: lead.website || "https://unknown.com",
         founder_thesis: "Dream 100 ICP #1 Marketing Agency",
         notes: lead.description || null,
         source: lead.source || "clutch",

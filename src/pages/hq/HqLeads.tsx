@@ -142,7 +142,7 @@ export default function HqLeads() {
         user_id: user.id,
         prospect: newName.trim(),
         company: newName.trim(),
-        website: newWebsite.trim() || null,
+        website: newWebsite.trim() || "https://unknown.com",
         founder_thesis: "Dream 100 ICP #1 Marketing Agency",
         stage: "new",
         icp_score: 5,
