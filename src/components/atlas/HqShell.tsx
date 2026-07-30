@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, Users, Shield, Compass, 
   LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon, Lock,
-  Settings as SettingsIcon
+  Settings as SettingsIcon, TrendingUp, MessageSquare, FileText, Target
 } from "lucide-react";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,9 +14,11 @@ import { useTheme } from "@/hooks/useTheme";
 
 const hqNav = [
   { to: "/hq/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/hq/prospects", icon: Users, label: "Prospects" },
-  { to: "/hq/settings", icon: SettingsIcon, label: "Settings" },
-  { to: "/hq/team", icon: Shield, label: "Team & Health" },
+  { to: "/hq/leads",     icon: Target,          label: "Leads" },
+  { to: "/hq/pipeline",  icon: TrendingUp,       label: "Pipeline" },
+  { to: "/hq/outreach",  icon: MessageSquare,    label: "Outreach" },
+  { to: "/hq/report",    icon: FileText,         label: "Report" },
+  { to: "/hq/settings",  icon: SettingsIcon,     label: "Settings" },
 ];
 
 const STORAGE_KEY = "atlas.hq.sidebar.collapsed";
@@ -109,7 +111,7 @@ export default function HqShell() {
             {!collapsed && (
               <div className="flex flex-col">
                 <span className="font-bold text-xs tracking-tight font-display">ATLAS HQ</span>
-                <span className="text-[9px] text-primary/80 font-semibold uppercase tracking-wider">Admin Console</span>
+                <span className="text-[9px] text-primary/80 font-semibold uppercase tracking-wider">Revenue OS</span>
               </div>
             )}
           </div>

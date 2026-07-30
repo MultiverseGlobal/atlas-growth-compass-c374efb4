@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface SourcingRequest {
-  action: "source" | "bulk-source" | "export-notion" | "list-notion-databases" | "validate-notion-database" | "hn-source" | "starter-story-source" | "yc-source" | "re-analyze";
+  action: "source" | "bulk-source" | "export-notion" | "list-notion-databases" | "validate-notion-database" | "hn-source" | "starter-story-source" | "yc-source" | "re-analyze" | "generate-outreach" | "generate-report";
   url?: string;
   urls?: string[];
   raw_text?: string;
@@ -2037,6 +2037,150 @@ Return ONLY a valid JSON array:
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    }
+
+    // ══════════════════════════════════════════════════════
+    // ACTION: generate-outreach
+    // Generates personalized outreach copy for a company
+    // ══════════════════════════════════════════════════════
+    if (body.action === "generate-outreach") {
+      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+      if (!openaiKey) throw new Error("OPENAI_API_KEY not set");
+
+      const lead = body.lead ?? {};
+      const outreachType = body.outreach_type ?? "cold_email";
+      const context = body.context ?? null;
+      const priorMessages = body.prior_messages ?? [];
+      const research = body.research ?? null;
+
+      const typeInstructions: Record<string, string> = {
+        cold_email: "Write a cold email. Include a subject line. Keep it under 150 words. Be specific, not generic. Reference something real about their business. End with a soft CTA.",
+        linkedin: "Write a LinkedIn connection request message. Maximum 300 characters. No subject line. Personal, direct, no jargon.",
+        followup: "Write a follow-up to a previous message that got no response. Acknowledge the silence gracefully. Keep it very short (under 80 words). New angle or new value.",
+        call_script: "Write a short call script opening (30 seconds). Include: introduction, reason for calling, one specific pain point, and a question to open the conversation.",
+        loom: "Write a Loom video script. 60-90 seconds. Start with why them specifically, show you did research, explain the value, end with a clear ask.",
+      };
+
+      const researchContext = research
+        ? `
+Company Research:
+- Summary: ${research.summary || research.description || ""}
+- What they sell: ${research.what_they_sell || ""}
+- Tech stack: ${Array.isArray(research.tech_stack) ? research.tech_stack.join(", ") : ""}
+- Pain hypotheses: ${Array.isArray(research.pain_hypotheses) ? research.pain_hypotheses.join(" | ") : ""}
+- Suggested offer: ${research.suggested_offer || ""}
+- Outreach angles: ${Array.isArray(research.outreach_angles) ? research.outreach_angles.join(" | ") : ""}`
+        : "";
+
+      const priorContext = priorMessages.length > 0
+        ? `
+Previous messages sent to this company (do NOT repeat these angles):
+${priorMessages.map((m: any) => `- [${m.type}] ${m.body?.slice(0, 200)}`).join("\n")}`
+        : "";
+
+      const prompt = `You are writing outreach for a founder who builds custom software and automation tools for small businesses.
+
+Company: ${lead.company || ""}
+Website: ${lead.website || ""}
+${context ? `Additional context: ${context}` : ""}
+${researchContext}
+${priorContext}
+
+Task: ${typeInstructions[outreachType] || typeInstructions.cold_email}
+
+IMPORTANT RULES:
+- Write from the perspective of a solo founder, not an agency
+- Be specific and human — no generic lines like "I came across your company"
+- No fake urgency, no buzzwords
+- Sound like a real person, not a sales robot
+- If this is a cold email, respond with JSON: {"subject": "...", "body": "..."}
+- For all other types, respond with JSON: {"body": "..."}`;
+
+      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+          max_tokens: 600,
+        }),
+      });
+
+      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
+      const aiData = await aiRes.json();
+      const rawContent = aiData.choices?.[0]?.message?.content ?? "";
+
+      // Try to parse JSON, fall back to plain text
+      let result: { subject?: string; body: string };
+      try {
+        const cleaned = rawContent.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+        result = JSON.parse(cleaned);
+      } catch {
+        result = { body: rawContent };
+      }
+
+      return new Response(JSON.stringify(result), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ══════════════════════════════════════════════════════
+    // ACTION: generate-report
+    // Generates AI narrative for the weekly founder report
+    // ══════════════════════════════════════════════════════
+    if (body.action === "generate-report") {
+      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+      if (!openaiKey) throw new Error("OPENAI_API_KEY not set");
+
+      const d = body.report_data ?? {};
+      const prompt = `You are the Chief of Staff for a solo founder who builds custom software. Analyse this week's business data and give honest, direct commentary.
+
+Data:
+- Revenue this month: £${d.revenue_this_month ?? 0} / £${d.goal ?? 10000} goal (${d.pct_of_goal ?? 0}%)
+- Pipeline (weighted): £${d.pipeline_weighted ?? 0}
+- Deals won: ${d.deals_won ?? 0}, Deals lost: ${d.deals_lost ?? 0}
+- Active deals: ${d.active_deals ?? 0}, Stalled (5+ days): ${d.stalled_deals ?? 0}
+- Outreach sent this week: ${d.outreach_sent ?? 0}
+- Replies received: ${d.replies ?? 0} (${d.replyRate ?? 0}% reply rate)
+
+Respond with ONLY this JSON (no markdown):
+{
+  "whats_working": "1-2 sentences. Be specific and honest. What data suggests is actually working?",
+  "whats_not": "1-2 sentences. What is the biggest constraint or failure right now?",
+  "the_decision": "ONE specific, actionable decision the founder should make before next week. Name a company or number if possible."
+}`;
+
+      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.4,
+          max_tokens: 400,
+        }),
+      });
+
+      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
+      const aiData = await aiRes.json();
+      const rawContent = aiData.choices?.[0]?.message?.content ?? "";
+
+      let result: Record<string, string>;
+      try {
+        const cleaned = rawContent.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+        result = JSON.parse(cleaned);
+      } catch {
+        result = {
+          whats_working: "Analysis unavailable.",
+          whats_not: "Analysis unavailable.",
+          the_decision: "Review your pipeline and send 5 follow-ups today.",
+        };
+      }
+
+      return new Response(JSON.stringify(result), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ error: "Invalid action" }), {
