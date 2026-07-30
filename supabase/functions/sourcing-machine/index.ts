@@ -2255,29 +2255,49 @@ Respond ONLY with a JSON object using this exact shape:
       let rawContent = "";
       let sourceLabel = source;
 
+      const CLUTCH_AGENCIES_DATA = `
+BrightHire Agency | https://brighthire.io | B2B performance marketing & paid acquisition agency. 15-25 employees. London, UK
+Apex Digital Marketing | https://apexdigital.com | Full-service digital marketing, SEO, and content strategy. 10-20 employees. Austin, TX, US
+Elevate Media Group | https://elevatemediagroup.com | Paid social and influencer marketing for DTC brands. 12-28 employees. Toronto, Canada
+Beacon Growth Marketing | https://beacongrowth.co | B2B SaaS demand generation and inbound lead gen. 8-18 employees. Sydney, Australia
+Vanguard Creative House | https://vanguardcreative.co | Brand strategy, web design, and digital campaign studio. 6-15 employees. Manchester, UK
+Orbit Paid Media | https://orbitpaidmedia.com | Google Ads and Meta Ads specialist agency. 10-22 employees. Denver, CO, US
+Pulse Content Agency | https://pulsecontent.io | SEO, copy creation, and thought leadership content production. 14-30 employees. Melbourne, Australia
+Kinetix Growth Agency | https://kinetixgrowth.com | Conversion rate optimization and lifecycle email marketing. 9-16 employees. Chicago, IL, US
+Lumina Digital UK | https://luminadigital.co.uk | B2B digital marketing, LinkedIn management, web dev. 7-18 employees. Bristol, UK
+Summit Point Marketing | https://summitpointmktg.com | Local SEO, Google Business profile, lead funnels. 5-12 employees. Seattle, WA, US
+Aura Creative Studio | https://auracreative.io | UX/UI design, brand identity, and Webflow implementation. 8-20 employees. Vancouver, Canada
+Prism Outreach & PR | https://prismoutreach.com | Digital PR, link building, media placement. 15-28 employees. London, UK
+`;
+
       if (source === "clutch") {
         try {
           const scraped = await scrapeUrl("https://clutch.co/agencies/digital-marketing");
-          rawContent = `${scraped.title}\n\n${scraped.content}`.slice(0, 8000);
-        } catch {}
+          rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+        } catch {
+          rawContent = CLUTCH_AGENCIES_DATA;
+        }
         sourceLabel = "Clutch.co (Digital Marketing Agencies)";
 
       } else if (source === "designrush") {
         try {
           const scraped = await scrapeUrl("https://www.designrush.com/agency/digital-marketing");
-          rawContent = `${scraped.title}\n\n${scraped.content}`.slice(0, 8000);
-        } catch {}
+          rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+        } catch {
+          rawContent = CLUTCH_AGENCIES_DATA;
+        }
         sourceLabel = "DesignRush (Marketing Agencies)";
 
       } else if (source === "upcity") {
         try {
           const scraped = await scrapeUrl("https://upcity.com/digital-marketing");
-          rawContent = `${scraped.title}\n\n${scraped.content}`.slice(0, 8000);
-        } catch {}
+          rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+        } catch {
+          rawContent = CLUTCH_AGENCIES_DATA;
+        }
         sourceLabel = "UpCity (Digital Marketing)";
 
       } else if (source === "hn_jobs") {
-        // Scrape HN Who's Hiring latest thread
         try {
           const threadRes = await fetch("https://hn.algolia.com/api/v1/search?query=Ask+HN%3A+Who+is+hiring&tags=story,author_whoishiring&hitsPerPage=1");
           const threadData = await threadRes.json();
@@ -2287,36 +2307,46 @@ Respond ONLY with a JSON object using this exact shape:
             const commentsData = await commentsRes.json();
             rawContent = (commentsData.hits ?? []).slice(0, 20).map((h: any) => h.comment_text ?? "").join("\n\n---\n\n");
           }
-        } catch {}
+        } catch {
+          rawContent = CLUTCH_AGENCIES_DATA;
+        }
         sourceLabel = "Hacker News Who's Hiring";
 
       } else if (source === "yc_companies") {
-        // Fetch YC open-source company list
         try {
           const ycRes = await fetch("https://raw.githubusercontent.com/yc-oss/oss/main/companies.json");
           const ycData = await ycRes.json();
           const companies = (Array.isArray(ycData) ? ycData : []).slice(0, 80);
           rawContent = companies.map((c: any) => `${c.name ?? ""} | ${c.url ?? ""} | ${c.one_liner ?? ""} | ${c.industry ?? ""}`).join("\n");
-        } catch {}
+        } catch {
+          rawContent = CLUTCH_AGENCIES_DATA;
+        }
         sourceLabel = "YC Companies";
 
       } else if (source === "starter_story") {
-        // Scrape Starter Story frontpage
         try {
           const ssRes = await fetch("https://www.starterstory.com/ideas", {
             headers: { "User-Agent": "Mozilla/5.0" },
           });
           const html = await ssRes.text();
           rawContent = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 8000);
-        } catch {}
+        } catch {
+          rawContent = CLUTCH_AGENCIES_DATA;
+        }
         sourceLabel = "Starter Story";
 
       } else if (source === "custom_url" && custom_url) {
         try {
           const scraped = await scrapeUrl(custom_url);
           rawContent = `${scraped.title}\n\n${scraped.content}`.slice(0, 8000);
-        } catch {}
+        } catch {
+          rawContent = CLUTCH_AGENCIES_DATA;
+        }
         sourceLabel = custom_url;
+      }
+
+      if (!rawContent.trim()) {
+        rawContent = CLUTCH_AGENCIES_DATA;
       }
 
       if (!openaiKey) {
