@@ -1,0 +1,626 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<!--[if IE 6]><html class="ie6" xmlns="http://www.w3.org/1999/xhtml"><![endif]-->
+<!--[if IE 7]><html class="lt-ie8 lt-ie9" xmlns="http://www.w3.org/1999/xhtml"><![endif]-->
+<!--[if IE 8]><html class="lt-ie9" xmlns="http://www.w3.org/1999/xhtml"><![endif]-->
+<!--[if gt IE 8]><!--><html xmlns="http://www.w3.org/1999/xhtml"><!--<![endif]-->
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=1" />
+  <meta name="referrer" content="origin" />
+  <meta name="HandheldFriendly" content="true" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>site:clutch.co/profile digital marketing at DuckDuckGo</title>
+  <link title="DuckDuckGo (HTML)" type="application/opensearchdescription+xml" rel="search" href="//duckduckgo.com/opensearch_html_v2.xml" />
+  <link href="//duckduckgo.com/favicon.ico" rel="shortcut icon" />
+  <link rel="icon" href="//duckduckgo.com/favicon.ico" type="image/x-icon" />
+  <link id="icon60" rel="apple-touch-icon" href="//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_60x60.png?v=2"/>
+  <link id="icon76" rel="apple-touch-icon" sizes="76x76" href="//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_76x76.png?v=2"/>
+  <link id="icon120" rel="apple-touch-icon" sizes="120x120" href="//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_120x120.png?v=2"/>
+  <link id="icon152" rel="apple-touch-icon" sizes="152x152" href="//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_152x152.png?v=2"/>
+  <link rel="image_src" href="//duckduckgo.com/assets/icons/meta/DDG-icon_256x256.png">
+  <link rel="stylesheet" media="handheld, all" href="//duckduckgo.com/dist/h.238c80a7d9b754cfcdd5.css" type="text/css"/>
+</head>
+
+<body class="body--html">
+  <a name="top" id="top"></a>
+
+  <form action="/html/" method="post">
+    <input type="text" name="state_hidden" id="state_hidden" />
+  </form>
+
+  <div>
+    <div class="site-wrapper-border"></div>
+
+    <div id="header" class="header cw header--html">
+      <a title="DuckDuckGo" href="/html/" class="header__logo-wrap"></a>
+
+      <form name="x" class="header__form" action="/html/" method="post">
+        <div class="search search--header">
+          <input name="q" autocomplete="off" class="search__input" id="search_form_input_homepage" type="text" value="site:clutch.co/profile digital marketing" />
+          <input name="b" id="search_button_homepage" class="search__button search__button--html" value="" title="Search" alt="Search" type="submit" />
+        </div>
+
+        
+        
+        
+        
+
+        <div class="frm__select">
+          <select name="kl">
+            
+              <option value="" >All Regions</option>
+            
+              <option value="ar-es" >Argentina</option>
+            
+              <option value="au-en" >Australia</option>
+            
+              <option value="at-de" >Austria</option>
+            
+              <option value="be-fr" >Belgium (fr)</option>
+            
+              <option value="be-nl" >Belgium (nl)</option>
+            
+              <option value="br-pt" >Brazil</option>
+            
+              <option value="bg-bg" >Bulgaria</option>
+            
+              <option value="ca-en" >Canada (en)</option>
+            
+              <option value="ca-fr" >Canada (fr)</option>
+            
+              <option value="ct-ca" >Catalonia</option>
+            
+              <option value="cl-es" >Chile</option>
+            
+              <option value="cn-zh" >China</option>
+            
+              <option value="co-es" >Colombia</option>
+            
+              <option value="hr-hr" >Croatia</option>
+            
+              <option value="cz-cs" >Czech Republic</option>
+            
+              <option value="dk-da" >Denmark</option>
+            
+              <option value="ee-et" >Estonia</option>
+            
+              <option value="fi-fi" >Finland</option>
+            
+              <option value="fr-fr" >France</option>
+            
+              <option value="de-de" >Germany</option>
+            
+              <option value="gr-el" >Greece</option>
+            
+              <option value="hk-tzh" >Hong Kong</option>
+            
+              <option value="hu-hu" >Hungary</option>
+            
+              <option value="is-is" >Iceland</option>
+            
+              <option value="in-en" >India (en)</option>
+            
+              <option value="id-en" >Indonesia (en)</option>
+            
+              <option value="ie-en" >Ireland</option>
+            
+              <option value="il-en" >Israel (en)</option>
+            
+              <option value="it-it" >Italy</option>
+            
+              <option value="jp-jp" >Japan</option>
+            
+              <option value="kr-kr" >Korea</option>
+            
+              <option value="lv-lv" >Latvia</option>
+            
+              <option value="lt-lt" >Lithuania</option>
+            
+              <option value="my-en" >Malaysia (en)</option>
+            
+              <option value="mx-es" >Mexico</option>
+            
+              <option value="nl-nl" >Netherlands</option>
+            
+              <option value="nz-en" >New Zealand</option>
+            
+              <option value="no-no" >Norway</option>
+            
+              <option value="pk-en" >Pakistan (en)</option>
+            
+              <option value="pe-es" >Peru</option>
+            
+              <option value="ph-en" >Philippines (en)</option>
+            
+              <option value="pl-pl" >Poland</option>
+            
+              <option value="pt-pt" >Portugal</option>
+            
+              <option value="ro-ro" >Romania</option>
+            
+              <option value="ru-ru" >Russia</option>
+            
+              <option value="xa-ar" >Saudi Arabia</option>
+            
+              <option value="sg-en" >Singapore</option>
+            
+              <option value="sk-sk" >Slovakia</option>
+            
+              <option value="sl-sl" >Slovenia</option>
+            
+              <option value="za-en" >South Africa</option>
+            
+              <option value="es-ca" >Spain (ca)</option>
+            
+              <option value="es-es" >Spain (es)</option>
+            
+              <option value="se-sv" >Sweden</option>
+            
+              <option value="ch-de" >Switzerland (de)</option>
+            
+              <option value="ch-fr" >Switzerland (fr)</option>
+            
+              <option value="tw-tzh" >Taiwan</option>
+            
+              <option value="th-en" >Thailand (en)</option>
+            
+              <option value="tr-tr" >Turkey</option>
+            
+              <option value="us-en" >US (English)</option>
+            
+              <option value="us-es" >US (Spanish)</option>
+            
+              <option value="ua-uk" >Ukraine</option>
+            
+              <option value="uk-en" >United Kingdom</option>
+            
+              <option value="vn-en" >Vietnam (en)</option>
+            
+          </select>
+        </div>
+
+        <div class="frm__select frm__select--last">
+          <select class="" name="df">
+            
+              <option value="" selected>Any Time</option>
+            
+              <option value="d" >Past Day</option>
+            
+              <option value="w" >Past Week</option>
+            
+              <option value="m" >Past Month</option>
+            
+              <option value="y" >Past Year</option>
+            
+          </select>
+        </div>
+      </form>
+    </div>
+
+    
+
+    
+      <!-- Web results are present -->
+      <div>
+        <div class="serp__results">
+          <div id="links" class="results">
+            
+
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fwebfx&amp;rut=29da0e36850131d7158004169088e4442d157d521fefa28f9a27ac35dc71b227">WebFX Reviews (450), Pricing, Services &amp; Verified Ratings - Clutch</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fwebfx&amp;rut=29da0e36850131d7158004169088e4442d157d521fefa28f9a27ac35dc71b227">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fwebfx&amp;rut=29da0e36850131d7158004169088e4442d157d521fefa28f9a27ac35dc71b227">
+                            clutch.co/profile/webfx
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fwebfx&amp;rut=29da0e36850131d7158004169088e4442d157d521fefa28f9a27ac35dc71b227">WebFX is not just a <b>digital</b> <b>marketing</b> agency; we are your strategic partner in achieving unparalleled online success. 🤝 As a leader in tech-enabled <b>digital</b> <b>marketing</b> solutions, we bring together our powerhouse team of over 500 <b>digital</b> experts (SMEs in 150+ different industries), and our innovative <b>marketing</b> tech built to empower our clients.</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fheadquarters%2Ddigital%2Dmarketing&amp;rut=b2b35244e394140f191f2c0ce2caba68ecae1c9ca378f6d64e1bf422ba372e94">Headquarters Digital Marketing Reviews (21), Pricing, Services ... - Clutch</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fheadquarters%2Ddigital%2Dmarketing&amp;rut=b2b35244e394140f191f2c0ce2caba68ecae1c9ca378f6d64e1bf422ba372e94">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fheadquarters%2Ddigital%2Dmarketing&amp;rut=b2b35244e394140f191f2c0ce2caba68ecae1c9ca378f6d64e1bf422ba372e94">
+                            clutch.co/profile/headquarters-digital-marketing
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fheadquarters%2Ddigital%2Dmarketing&amp;rut=b2b35244e394140f191f2c0ce2caba68ecae1c9ca378f6d64e1bf422ba372e94">Headquarters <b>Digital</b> <b>Marketing</b> provided SEO services for a security systems services company. The team worked on on-page and off-page SEO. Headquarters <b>Digital</b> <b>Marketing&#x27;s</b> work delivered minimal value in terms of relevant traffic, engagement, and SEO progress.</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fsmartsites&amp;rut=5ef116a8278bea53bdb716bb411561c8b9abeb581df2ed17fc7e9c0514eec138">SmartSites Reviews (364), Pricing, Services &amp; Verified Ratings</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fsmartsites&amp;rut=5ef116a8278bea53bdb716bb411561c8b9abeb581df2ed17fc7e9c0514eec138">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fsmartsites&amp;rut=5ef116a8278bea53bdb716bb411561c8b9abeb581df2ed17fc7e9c0514eec138">
+                            clutch.co/profile/smartsites
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fsmartsites&amp;rut=5ef116a8278bea53bdb716bb411561c8b9abeb581df2ed17fc7e9c0514eec138">SmartSites is a full-service <b>digital</b> <b>marketing</b> agency providing SEO, paid advertising, and conversion-focused web design services for businesses across the United States. With more than 1,000 5-star reviews and recognition as a nine-time Inc. 5000 fastest-growing company (2017-2025), SmartSites partners with small to mid-sized businesses seeking scalable <b>digital</b> growth. The agency is a ...</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fhunter%2Ddigital%2Dmarketing&amp;rut=ed6789f2bcb05aa6f962491b9f6c453aaa1640bfa2da9cfc250749a6c99e25ac">Hunter Digital Marketing Reviews (13), Pricing, Services ... - Clutch</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fhunter%2Ddigital%2Dmarketing&amp;rut=ed6789f2bcb05aa6f962491b9f6c453aaa1640bfa2da9cfc250749a6c99e25ac">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fhunter%2Ddigital%2Dmarketing&amp;rut=ed6789f2bcb05aa6f962491b9f6c453aaa1640bfa2da9cfc250749a6c99e25ac">
+                            clutch.co/profile/hunter-digital-marketing
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fhunter%2Ddigital%2Dmarketing&amp;rut=ed6789f2bcb05aa6f962491b9f6c453aaa1640bfa2da9cfc250749a6c99e25ac">Hunter <b>Digital</b> <b>Marketing</b> offers good value for cost, with clients noting reasonable pricing and effective outcomes. Specific project costs mentioned include $10,000 for lead generation and $5,000 monthly for ongoing services. They adapt to client needs, making them suitable for various business sizes. This summary is based on verified Clutch reviews.</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fjelly%2Ddigital%2Dmarketing%2Dpr&amp;rut=50efa95e2f0c83f8279d62eb55568f1a058cc19da8464a4422f916cef876ba0a">Jelly Digital Marketing &amp; PR - Clutch</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fjelly%2Ddigital%2Dmarketing%2Dpr&amp;rut=50efa95e2f0c83f8279d62eb55568f1a058cc19da8464a4422f916cef876ba0a">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fjelly%2Ddigital%2Dmarketing%2Dpr&amp;rut=50efa95e2f0c83f8279d62eb55568f1a058cc19da8464a4422f916cef876ba0a">
+                            clutch.co/profile/jelly-digital-marketing-pr
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fjelly%2Ddigital%2Dmarketing%2Dpr&amp;rut=50efa95e2f0c83f8279d62eb55568f1a058cc19da8464a4422f916cef876ba0a">SEO, <b>Digital</b> <b>Marketing</b> &amp; PR We are a high-energy team of go-getters, storytellers, and experts in all things <b>digital</b> who work tirelessly to get your business, product, and message seen and heard by the right people.</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fseota%2Ddigital%2Dmarketing&amp;rut=e9495b51490262415c8ff0c9c924ec4d08823bfe1bec32d5e733be781fd2820f">Seota Digital Marketing Reviews (25), Pricing, Services ... - Clutch</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fseota%2Ddigital%2Dmarketing&amp;rut=e9495b51490262415c8ff0c9c924ec4d08823bfe1bec32d5e733be781fd2820f">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fseota%2Ddigital%2Dmarketing&amp;rut=e9495b51490262415c8ff0c9c924ec4d08823bfe1bec32d5e733be781fd2820f">
+                            clutch.co/profile/seota-digital-marketing
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fseota%2Ddigital%2Dmarketing&amp;rut=e9495b51490262415c8ff0c9c924ec4d08823bfe1bec32d5e733be781fd2820f">Seota <b>Digital</b> <b>Marketing</b> offers competitive pricing, with project costs ranging from $700 to $18,000, depending on the scope. Clients appreciate their value for money, responsiveness, and professionalism, often citing effective communication and timely delivery as key strengths. This summary is based on verified Clutch reviews.</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fonya&amp;rut=003040ea85bd0b6eff0d8dadb9295f821c21a57d8a899c651c6f0c9b95e2cef9">Onya Reviews (30), Pricing, Services &amp; Verified Ratings - Clutch</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fonya&amp;rut=003040ea85bd0b6eff0d8dadb9295f821c21a57d8a899c651c6f0c9b95e2cef9">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fonya&amp;rut=003040ea85bd0b6eff0d8dadb9295f821c21a57d8a899c651c6f0c9b95e2cef9">
+                            clutch.co/profile/onya
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fonya&amp;rut=003040ea85bd0b6eff0d8dadb9295f821c21a57d8a899c651c6f0c9b95e2cef9">Onya creates <b>digital</b> <b>marketing</b> strategies and paid media campaigns that help organizations grow. We specialize in social media advertising, Google advertising, programmatic campaigns, influencer <b>marketing</b>, and strategic consulting — combining smart strategy with creative execution to drive measurable results. Why Organizations Choose Onya: • <b>Digital</b> Done Right: We turn <b>digital</b> complexity ...</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fpico%2Ddigital%2Dmarketing&amp;rut=6ae114db769a0a8a3610e338be4783525fbf0002ddfa1741aefff2411bd39523">Pico Digital Marketing Reviews (11), Pricing, Services ... - Clutch</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fpico%2Ddigital%2Dmarketing&amp;rut=6ae114db769a0a8a3610e338be4783525fbf0002ddfa1741aefff2411bd39523">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fpico%2Ddigital%2Dmarketing&amp;rut=6ae114db769a0a8a3610e338be4783525fbf0002ddfa1741aefff2411bd39523">
+                            clutch.co/profile/pico-digital-marketing
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fpico%2Ddigital%2Dmarketing&amp;rut=6ae114db769a0a8a3610e338be4783525fbf0002ddfa1741aefff2411bd39523">Pico <b>Digital</b> <b>Marketing</b> is praised for their good value for cost across various projects, with clients noting effective budget management and improved ROI. Specific project costs are not disclosed, but clients consistently highlight their reasonable pricing and responsiveness, making them a strong fit for diverse business needs. This summary is based on verified Clutch reviews.</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fpower%2Ddigital&amp;rut=3cf77fd7b914ecbe41ad0789d455aa4cd052168d3df4d6797de2f4417a9e9f11">Power Digital Reviews (66), Pricing, Services &amp; Verified Ratings</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fpower%2Ddigital&amp;rut=3cf77fd7b914ecbe41ad0789d455aa4cd052168d3df4d6797de2f4417a9e9f11">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fpower%2Ddigital&amp;rut=3cf77fd7b914ecbe41ad0789d455aa4cd052168d3df4d6797de2f4417a9e9f11">
+                            clutch.co/profile/power-digital
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fpower%2Ddigital&amp;rut=3cf77fd7b914ecbe41ad0789d455aa4cd052168d3df4d6797de2f4417a9e9f11">Power <b>Digital</b> provides various <b>digital</b> <b>marketing</b> services for a smart locker solutions company. The scope includes SEO, content strategy, social media <b>marketing</b>, and web development, among other tasks.</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+              
+                <div class="result results_links results_links_deep web-result ">
+                  <div class="links_main links_deep result__body"> <!-- This is the visible part -->
+                    
+                      <h2 class="result__title">
+                        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fsq%2Ddigital&amp;rut=6a148bb0f6b47ac350234e71cac8cc0841b4ed6f86f66465db2f44760ed51357">SQ Digital Reviews (25), Pricing, Services &amp; Verified Ratings - Clutch</a>
+                      </h2>
+
+                    
+
+                    
+                      <div class="result__extras">
+                        <div class="result__extras__url">
+                          <span class="result__icon">
+                            <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fsq%2Ddigital&amp;rut=6a148bb0f6b47ac350234e71cac8cc0841b4ed6f86f66465db2f44760ed51357">
+                              <img class="result__icon__img" width="16" height="16" alt="" src="//external-content.duckduckgo.com/ip3/clutch.co.ico" name="i15" />
+                            </a>
+                          </span>
+                          <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fsq%2Ddigital&amp;rut=6a148bb0f6b47ac350234e71cac8cc0841b4ed6f86f66465db2f44760ed51357">
+                            clutch.co/profile/sq-digital
+                          </a>
+                          
+                        </div>
+                      </div>
+                    
+
+                    
+                      
+                        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fclutch.co%2Fprofile%2Fsq%2Ddigital&amp;rut=6a148bb0f6b47ac350234e71cac8cc0841b4ed6f86f66465db2f44760ed51357">SQ <b>Digital</b> is noted for providing good value for cost, with multiple clients highlighting their competitive pricing and effective <b>digital</b> <b>marketing</b> strategies. Specific project costs were not disclosed, but clients consistently praised their proactive service and transparent communication as key benefits. This summary is based on verified Clutch reviews.</a>
+                      
+                    
+
+                    <div class="clear"></div>
+                  </div>
+                </div>
+              
+            
+
+            
+              
+              
+                <div class="nav-link">
+                  <form action="/html/" method="post">
+                    <input type="submit" class='btn btn--alt' value="Next" />
+                    <input type="hidden" name="q" value="site:clutch.co/profile digital marketing" />
+                    <input type="hidden" name="s" value="10" />
+                    <input type="hidden" name="nextParams" value="" />
+                    <input type="hidden" name="v" value="l" />
+                    <input type="hidden" name="o" value="json" />
+                    <input type="hidden" name="dc" value="11" />
+                    <input type="hidden" name="api" value="d.js" />
+                    <input type="hidden" name="vqd" value="4-246099456870585667681240517589482685109" />
+
+                    
+                    
+                    
+                      <input name="kl" value="wt-wt" type="hidden" />
+                    
+                    
+                    
+                    
+                  </form>
+                </div>
+              
+            
+
+            <div class="feedback-btn">
+              <a rel="nofollow" href="//duckduckgo.com/feedback.html" target="_new">Feedback</a>
+            </div>
+            <div class="clear"></div>
+          </div>
+        </div>
+      </div> <!-- links wrapper //-->
+    
+  </div>
+
+  <div id="bottom_spacing2"></div>
+
+  
+    <img src="//duckduckgo.com/t/sl_h"/>
+  
+</body>
+</html>

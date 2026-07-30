@@ -66,6 +66,28 @@ async function scrapeUrl(url: string): Promise<{ title: string; description: str
   }
 }
 
+// Search helper to bypass Cloudflare on directories by fetching live profile snippets via DuckDuckGo
+async function searchDuckDuckGo(query: string): Promise<string> {
+  try {
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html",
+      }
+    });
+    if (!res.ok) return "";
+    const html = await res.text();
+    const matches = html.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi) || [];
+    const snippets = matches.map((m) => m.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+    return snippets.join("\n\n");
+  } catch (err: any) {
+    console.warn("DuckDuckGo search error:", err.message);
+    return "";
+  }
+}
+
 // Robust JSON extractor — strips markdown code fences and uses balanced-brace scanning.
 // When expectArray=true and the array is TRUNCATED (no closing ]), it falls back to
 // truncation recovery: salvages every complete {...} object before the cutoff.
@@ -2255,30 +2277,48 @@ Prism Outreach & PR | https://prismoutreach.com | Digital PR, link building, med
 
       if (source === "clutch") {
         try {
-          const scraped = await scrapeUrl("https://clutch.co/agencies/digital-marketing");
-          rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+          const ddgQuery = `site:clutch.co/profile ${industry !== "Any" ? industry : "digital marketing"} ${keyword ?? ""}`.trim();
+          const liveSnippets = await searchDuckDuckGo(ddgQuery);
+          if (liveSnippets && liveSnippets.length > 200) {
+            rawContent = liveSnippets;
+          } else {
+            const scraped = await scrapeUrl("https://clutch.co/agencies/digital-marketing");
+            rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+          }
         } catch {
           rawContent = CLUTCH_AGENCIES_DATA;
         }
-        sourceLabel = "Clutch.co (Digital Marketing Agencies)";
+        sourceLabel = "Clutch.co";
 
       } else if (source === "designrush") {
         try {
-          const scraped = await scrapeUrl("https://www.designrush.com/agency/digital-marketing");
-          rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+          const ddgQuery = `site:designrush.com/agency ${industry !== "Any" ? industry : "digital marketing"} ${keyword ?? ""}`.trim();
+          const liveSnippets = await searchDuckDuckGo(ddgQuery);
+          if (liveSnippets && liveSnippets.length > 200) {
+            rawContent = liveSnippets;
+          } else {
+            const scraped = await scrapeUrl("https://www.designrush.com/agency/digital-marketing");
+            rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+          }
         } catch {
           rawContent = CLUTCH_AGENCIES_DATA;
         }
-        sourceLabel = "DesignRush (Marketing Agencies)";
+        sourceLabel = "DesignRush";
 
       } else if (source === "upcity") {
         try {
-          const scraped = await scrapeUrl("https://upcity.com/digital-marketing");
-          rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+          const ddgQuery = `site:upcity.com ${industry !== "Any" ? industry : "digital marketing"} ${keyword ?? ""}`.trim();
+          const liveSnippets = await searchDuckDuckGo(ddgQuery);
+          if (liveSnippets && liveSnippets.length > 200) {
+            rawContent = liveSnippets;
+          } else {
+            const scraped = await scrapeUrl("https://upcity.com/digital-marketing");
+            rawContent = scraped.content.length > 200 ? `${scraped.title}\n\n${scraped.content}`.slice(0, 8000) : CLUTCH_AGENCIES_DATA;
+          }
         } catch {
           rawContent = CLUTCH_AGENCIES_DATA;
         }
-        sourceLabel = "UpCity (Digital Marketing)";
+        sourceLabel = "UpCity";
 
       } else if (source === "hn_jobs") {
         try {
