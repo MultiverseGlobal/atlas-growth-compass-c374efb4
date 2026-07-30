@@ -2410,7 +2410,7 @@ Respond ONLY as a JSON object with a single key "leads":
         { company: "Prism Outreach & PR", website: "https://prismoutreach.com", description: "Digital PR, link building, media placement.", industry: "Marketing Agency", team_size: "15-28 employees", location: "London, UK", source: sourceLabel },
       ];
 
-      let leads: any[] = [];
+      let leads: any[] | null = null;
       try {
         const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -2437,13 +2437,16 @@ Respond ONLY as a JSON object with a single key "leads":
           } else {
             const foundArray = Object.values(parsed).find((val) => Array.isArray(val));
             if (foundArray) leads = foundArray as any[];
+            else leads = []; // Successfully parsed but no array found, so empty
           }
         }
       } catch (e) {
         console.warn("Error calling OpenAI in discover-leads:", e);
       }
 
-      if (!leads || leads.length === 0) {
+      // ONLY use fallback if leads is literally null (meaning API failed or threw error)
+      // If leads is [], that means AI worked but found 0 matches in the text.
+      if (!leads) {
         leads = DEFAULT_FALLBACK_AGENCIES;
       }
 
