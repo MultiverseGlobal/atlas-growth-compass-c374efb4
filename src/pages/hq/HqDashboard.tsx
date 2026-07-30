@@ -77,7 +77,7 @@ function typeLabel(t: string) {
 }
 
 export default function HqDashboard() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [revenue, setRevenue] = useState<RevenueData | null>(null);
@@ -89,128 +89,152 @@ export default function HqDashboard() {
   const [nba, setNba] = useState<{ company: string; companyId: string; action: string; reason: string; value: string; confidence: number } | null>(null);
 
   const loadDashboard = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
-      // Revenue summary
-      const { data: revRow } = await supabase
-        .from("atlas_revenue_summary")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      // 1. Revenue summary (safely fallback if view doesn't exist yet)
+      let rev: RevenueData = { revenue_this_month: 0, pipeline_weighted: 0, deals_won_this_month: 0, deals_lost_this_month: 0, avg_deal_size: 0, active_deals: 0 };
+      try {
+        const { data: revRow } = await supabase
+          .from("atlas_revenue_summary")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
 
-      const rev: RevenueData = revRow
-        ? {
+        if (revRow) {
+          rev = {
             revenue_this_month: Number(revRow.revenue_this_month ?? 0),
             pipeline_weighted: Number(revRow.pipeline_weighted ?? 0),
             deals_won_this_month: Number(revRow.deals_won_this_month ?? 0),
             deals_lost_this_month: Number(revRow.deals_lost_this_month ?? 0),
             avg_deal_size: Number(revRow.avg_deal_size ?? 0),
             active_deals: Number(revRow.active_deals ?? 0),
-          }
-        : { revenue_this_month: 0, pipeline_weighted: 0, deals_won_this_month: 0, deals_lost_this_month: 0, avg_deal_size: 0, active_deals: 0 };
+          };
+        }
+      } catch (e) {
+        console.warn("atlas_revenue_summary fallback:", e);
+      }
       setRevenue(rev);
 
-      // Follow-ups due
-      const today = new Date().toISOString().split("T")[0];
-      const { data: fuData } = await supabase
-        .from("atlas_outreach")
-        .select("id, company_id, subject, type, follow_up_due, status")
-        .eq("user_id", user.id)
-        .lte("follow_up_due", today)
-        .in("status", ["sent", "draft"])
-        .order("follow_up_due", { ascending: true })
-        .limit(8);
+      // 2. Follow-ups due
+      try {
+        const todayStr = new Date().toISOString().split("T")[0];
+        const { data: fuData } = await supabase
+          .from("atlas_outreach")
+          .select("id, company_id, subject, type, follow_up_due, status")
+          .eq("user_id", user.id)
+          .lte("follow_up_due", todayStr)
+          .in("status", ["sent", "draft"])
+          .order("follow_up_due", { ascending: true })
+          .limit(8);
 
-      // Get company names for follow-ups
-      const fuCompanyIds = [...new Set((fuData ?? []).map((f: any) => f.company_id))];
-      let fuCompanyMap: Record<string, string> = {};
-      if (fuCompanyIds.length > 0) {
-        const { data: comps } = await supabase
-          .from("pipeline_crm")
-          .select("id, company")
-          .in("id", fuCompanyIds);
-        (comps ?? []).forEach((c: any) => { fuCompanyMap[c.id] = c.company; });
+        const fuCompanyIds = [...new Set((fuData ?? []).map((f: any) => f.company_id))];
+        let fuCompanyMap: Record<string, string> = {};
+        if (fuCompanyIds.length > 0) {
+          const { data: comps } = await supabase
+            .from("pipeline_crm")
+            .select("id, company")
+            .in("id", fuCompanyIds);
+          (comps ?? []).forEach((c: any) => { fuCompanyMap[c.id] = c.company; });
+        }
+        setFollowUps((fuData ?? []).map((f: any) => ({ ...f, company_name: fuCompanyMap[f.company_id] ?? "Unknown" })));
+      } catch (e) {
+        console.warn("Follow-ups fetch fallback:", e);
       }
-      setFollowUps((fuData ?? []).map((f: any) => ({ ...f, company_name: fuCompanyMap[f.company_id] ?? "Unknown" })));
 
-      // Stalled deals (no update in 5+ days, not won/lost)
-      const fiveDaysAgo = new Date();
-      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-      const { data: dealData } = await supabase
-        .from("atlas_deals")
-        .select("id, company_name, stage, value, next_action, next_action_due, updated_at")
-        .eq("user_id", user.id)
-        .not("stage", "in", "(won,lost)")
-        .lte("updated_at", fiveDaysAgo.toISOString())
-        .order("updated_at", { ascending: true })
-        .limit(5);
+      // 3. Stalled deals (no update in 5+ days, not won/lost)
+      try {
+        const fiveDaysAgo = new Date();
+        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+        const { data: dealData } = await supabase
+          .from("atlas_deals")
+          .select("id, company_name, stage, value, next_action, next_action_due, updated_at")
+          .eq("user_id", user.id)
+          .not("stage", "in", "(won,lost)")
+          .lte("updated_at", fiveDaysAgo.toISOString())
+          .order("updated_at", { ascending: true })
+          .limit(5);
 
-      setStalled(
-        (dealData ?? []).map((d: any) => ({
-          ...d,
-          daysSince: Math.floor((Date.now() - new Date(d.updated_at).getTime()) / 86400000),
-        }))
-      );
+        setStalled(
+          (dealData ?? []).map((d: any) => ({
+            ...d,
+            daysSince: Math.floor((Date.now() - new Date(d.updated_at).getTime()) / 86400000),
+          }))
+        );
+      } catch (e) {
+        console.warn("Stalled deals fetch fallback:", e);
+      }
 
-      // Outreach stats this week
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const { data: outData } = await supabase
-        .from("atlas_outreach")
-        .select("status")
-        .eq("user_id", user.id)
-        .gte("created_at", weekAgo.toISOString());
+      // 4. Outreach stats this week
+      try {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const { data: outData } = await supabase
+          .from("atlas_outreach")
+          .select("status")
+          .eq("user_id", user.id)
+          .gte("created_at", weekAgo.toISOString());
 
-      const sentThisWeek = (outData ?? []).filter((o: any) => o.status !== "draft").length;
-      const repliesThisWeek = (outData ?? []).filter((o: any) => ["replied", "booked"].includes(o.status)).length;
-      setOutreachStats({ sentThisWeek, repliesThisWeek });
+        const sentThisWeek = (outData ?? []).filter((o: any) => o.status !== "draft").length;
+        const repliesThisWeek = (outData ?? []).filter((o: any) => ["replied", "booked"].includes(o.status)).length;
+        setOutreachStats({ sentThisWeek, repliesThisWeek });
+      } catch (e) {
+        console.warn("Outreach stats fetch fallback:", e);
+      }
 
-      // Next Best Action — computed from real data, not AI prose
-      // Priority: overdue follow-up on highest value deal > stalled deal > no outreach sent
-      const { data: topDeal } = await supabase
-        .from("atlas_deals")
-        .select("id, company_name, company_id, stage, value, next_action, next_action_due, updated_at")
-        .eq("user_id", user.id)
-        .not("stage", "in", "(won,lost)")
-        .order("value", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // 5. Next Best Action
+      try {
+        const { data: topDeal } = await supabase
+          .from("atlas_deals")
+          .select("id, company_name, company_id, stage, value, next_action, next_action_due, updated_at")
+          .eq("user_id", user.id)
+          .not("stage", "in", "(won,lost)")
+          .order("value", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (topDeal) {
-        const daysSince = Math.floor((Date.now() - new Date(topDeal.updated_at).getTime()) / 86400000);
-        const isOverdue = topDeal.next_action_due && isPast(new Date(topDeal.next_action_due));
-        const action = isOverdue
-          ? `Follow up on ${topDeal.company_name}`
-          : topDeal.stage === "proposal_sent"
-          ? `Chase proposal with ${topDeal.company_name}`
-          : `Move ${topDeal.company_name} forward`;
-        const reason = isOverdue
-          ? `Follow-up was due ${formatDistanceToNow(new Date(topDeal.next_action_due!))} ago — deals go cold fast.`
-          : daysSince >= 5
-          ? `No contact for ${daysSince} days. Deals stall, not fail — one message changes this.`
-          : `Highest value active deal at £${topDeal.value?.toLocaleString()}. Keep the momentum.`;
-        setNba({
-          company: topDeal.company_name,
-          companyId: topDeal.company_id ?? topDeal.id,
-          action,
-          reason,
-          value: `£${topDeal.value?.toLocaleString() ?? "—"}`,
-          confidence: isOverdue ? 95 : daysSince >= 5 ? 87 : 78,
-        });
+        if (topDeal) {
+          const daysSince = Math.floor((Date.now() - new Date(topDeal.updated_at).getTime()) / 86400000);
+          const isOverdue = topDeal.next_action_due && isPast(new Date(topDeal.next_action_due));
+          const action = isOverdue
+            ? `Follow up on ${topDeal.company_name}`
+            : topDeal.stage === "proposal_sent"
+            ? `Chase proposal with ${topDeal.company_name}`
+            : `Move ${topDeal.company_name} forward`;
+          const reason = isOverdue
+            ? `Follow-up was due ${formatDistanceToNow(new Date(topDeal.next_action_due!))} ago — deals go cold fast.`
+            : daysSince >= 5
+            ? `No contact for ${daysSince} days. Deals stall, not fail — one message changes this.`
+            : `Highest value active deal at £${topDeal.value?.toLocaleString()}. Keep the momentum.`;
+          setNba({
+            company: topDeal.company_name,
+            companyId: topDeal.company_id ?? topDeal.id,
+            action,
+            reason,
+            value: `£${topDeal.value?.toLocaleString() ?? "—"}`,
+            confidence: isOverdue ? 95 : daysSince >= 5 ? 87 : 78,
+          });
+        }
+      } catch (e) {
+        console.warn("NBA calculation fallback:", e);
       }
 
     } catch (err: any) {
       console.error(err);
-      toast.error("Dashboard load error: " + err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [user]);
 
-
-
-  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+  useEffect(() => {
+    if (!authLoading) {
+      loadDashboard();
+    }
+  }, [authLoading, loadDashboard]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -218,9 +242,9 @@ export default function HqDashboard() {
   };
 
   const revenuePercent = revenue ? Math.min(100, Math.round((revenue.revenue_this_month / GOAL) * 100)) : 0;
-  const today = format(new Date(), "EEEE, d MMMM yyyy");
+  const todayStrDisplay = format(new Date(), "EEEE, d MMMM yyyy");
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
