@@ -2349,9 +2349,13 @@ Prism Outreach & PR | https://prismoutreach.com | Digital PR, link building, med
         rawContent = CLUTCH_AGENCIES_DATA;
       }
 
-      if (!openaiKey) {
-        return new Response(JSON.stringify([]), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
+
+      if (!openaiKey && !groqApiKey && !kimiApiKey && !nimApiKey) {
+        return new Response(JSON.stringify({ error: "No AI API keys configured. Please add OpenAI, Groq, Kimi, or NIM key." }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -2360,9 +2364,9 @@ Prism Outreach & PR | https://prismoutreach.com | Digital PR, link building, med
         keyword ? `Keyword filter: only companies related to "${keyword}"` : null,
       ].filter(Boolean).join(". ");
 
-      const prompt = `You are a lead research assistant for a B2B Founder OS. Extract target company leads from the content scraped from: ${sourceLabel}
+      const systemPrompt = `You are a lead research assistant for a B2B Founder OS. Extract target company leads from the content scraped from: ${sourceLabel}`;
 
-TARGET ICP CRITERIA:
+      const userPrompt = `TARGET ICP CRITERIA:
 - Industry: Marketing / Digital / Design / Performance Agencies
 - Team size: 5 to 30 employees
 - Location: English-speaking (US, UK, Canada, Australia)
@@ -2411,42 +2415,71 @@ Respond ONLY as a JSON object with a single key "leads":
       ];
 
       let leads: any[] | null = null;
-      try {
-        const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "gpt-4o",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.3,
-            response_format: { type: "json_object" },
-            max_tokens: 1500,
-          }),
-        });
+      let lastError = "No AI providers available.";
 
-        if (aiRes.ok) {
-          const aiData = await aiRes.json();
-          const raw = aiData.choices?.[0]?.message?.content ?? "{}";
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            leads = parsed;
-          } else if (Array.isArray(parsed.leads)) {
-            leads = parsed.leads;
-          } else if (Array.isArray(parsed.companies)) {
-            leads = parsed.companies;
-          } else {
-            const foundArray = Object.values(parsed).find((val) => Array.isArray(val));
-            if (foundArray) leads = foundArray as any[];
-            else leads = []; // Successfully parsed but no array found, so empty
-          }
-        } else {
-          const errText = await aiRes.text();
-          return new Response(JSON.stringify({ error: `OpenAI API returned ${aiRes.status}: ${errText}` }), {
-            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      // 1. Try Groq (Llama 3)
+      if (!leads && groqApiKey) {
+        try {
+          const res = await callGroq(systemPrompt, userPrompt, groqApiKey, false);
+          leads = Array.isArray(res) ? res : (res.leads || res.companies || []);
+        } catch (e: any) { lastError = `Groq Error: ${e.message}`; }
+      }
+
+      // 2. Try Kimi (Moonshot)
+      if (!leads && kimiApiKey) {
+        try {
+          const res = await callKimi(systemPrompt, userPrompt, kimiApiKey, false);
+          leads = Array.isArray(res) ? res : (res.leads || res.companies || []);
+        } catch (e: any) { lastError = `Kimi Error: ${e.message}`; }
+      }
+
+      // 3. Try NIM (Llama 3.1)
+      if (!leads && nimApiKey) {
+        try {
+          const res = await callNvidiaNim(systemPrompt, userPrompt, nimApiKey, false);
+          leads = Array.isArray(res) ? res : (res.leads || res.companies || []);
+        } catch (e: any) { lastError = `NIM Error: ${e.message}`; }
+      }
+
+      // 4. Try OpenAI directly (as fallback if others failed or weren't set)
+      if (!leads && openaiKey) {
+        try {
+          const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "gpt-4o",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+              ],
+              temperature: 0.3,
+              response_format: { type: "json_object" },
+              max_tokens: 1500,
+            }),
           });
+          if (aiRes.ok) {
+            const aiData = await aiRes.json();
+            const raw = aiData.choices?.[0]?.message?.content ?? "{}";
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) leads = parsed;
+            else if (Array.isArray(parsed.leads)) leads = parsed.leads;
+            else if (Array.isArray(parsed.companies)) leads = parsed.companies;
+            else {
+              const foundArray = Object.values(parsed).find((val) => Array.isArray(val));
+              leads = foundArray ? (foundArray as any[]) : [];
+            }
+          } else {
+            const errText = await aiRes.text();
+            lastError = `OpenAI API returned ${aiRes.status}: ${errText}`;
+          }
+        } catch (e: any) {
+          lastError = `OpenAI request failed: ${e.message}`;
         }
-      } catch (e: any) {
-        return new Response(JSON.stringify({ error: `OpenAI API request failed: ${e.message}` }), {
+      }
+
+      if (!leads) {
+        return new Response(JSON.stringify({ error: lastError }), {
           status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
