@@ -1,169 +1,219 @@
-import { useState, useEffect, useRef } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { MessageSquare, Send, Sparkles } from "lucide-react";
+import { Send, Zap, X, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { CompassLoader } from "@/pages/app/Home";
 
 interface Message {
-  id?: string;
   role: "user" | "assistant";
   content: string;
-  created_at?: string;
 }
 
-interface ChatDrawerProps {
+interface AtlasChatProps {
   open: boolean;
   onClose: () => void;
-  mapId: string;
-  mapName?: string;
-  onActionExecuted?: (actionType: string) => void;
 }
 
-export function ChatDrawer({ open, onClose, mapId, mapName, onActionExecuted }: ChatDrawerProps) {
+const STARTER_PROMPTS = [
+  "What should I focus on today?",
+  "Which deal is closest to closing?",
+  "Who needs a follow-up right now?",
+  "Analyse my pipeline honestly.",
+  "What's my biggest bottleneck?",
+];
+
+export function AtlasChat({ open, onClose }: AtlasChatProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [inputMsg, setInputMsg] = useState("");
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    if (!open || !mapId) return;
-
-    const loadMessages = async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await (supabase as any)
-          .from("chat_messages")
-          .select("id, role, content, created_at")
-          .eq("map_id", mapId)
-          .order("created_at", { ascending: true })
-          .limit(50);
-
-        if (error) throw error;
-        if (data) {
-          setMessages(data as Message[]);
-        }
-      } catch (err: any) {
-        console.error("[ChatDrawer] Error loading chat history:", err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadMessages();
-  }, [open, mapId]);
-
-  // Scroll to bottom on new messages
+  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, loading]);
+  }, [messages, sending]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const messageText = inputMsg.trim();
-    if (!messageText || !user || !mapId || sending) return;
+  // Focus input when opened
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 150);
+  }, [open]);
 
-    setInputMsg("");
+  // Load history from DB when opened
+  useEffect(() => {
+    if (!open || !user) return;
+    const loadHistory = async () => {
+      setLoading(true);
+      try {
+        const { data } = await (supabase as any)
+          .from("chat_messages")
+          .select("role, content")
+          .eq("map_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(30);
+        if (data) setMessages(data as Message[]);
+      } catch {}
+      finally { setLoading(false); }
+    };
+    loadHistory();
+  }, [open, user]);
+
+  const send = async (text: string) => {
+    const messageText = text.trim();
+    if (!messageText || !user || sending) return;
+
+    setInput("");
     setSending(true);
-
-    const userMessage: Message = { role: "user", content: messageText };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev, { role: "user", content: messageText }]);
 
     try {
-      // 1. Save user message to database
-      const { error: dbErr } = await (supabase as any)
-          .from("chat_messages")
-        .insert({
-          map_id: mapId,
-          user_id: user.id,
-          role: "user",
-          content: messageText,
-        });
-
-      if (dbErr) throw dbErr;
-
-      // 2. Call atlas-chat edge function
       const { data, error } = await supabase.functions.invoke("atlas-chat", {
-        body: { map_id: mapId, message: messageText },
+        body: {
+          message: messageText,
+          // send last 10 turns for context (backend uses these)
+          history: messages.slice(-10),
+        },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
 
-      if (data) {
-        const assistantReply: Message = {
-          role: "assistant",
-          content: data.reply || "No reply content received."
-        };
-        setMessages(prev => [...prev, assistantReply]);
-
-        // Trigger action callback if agent took tool actions
-        if (data.action && onActionExecuted) {
-          const actionType = data.action.type;
-          toast.success(`Atlas took action: ${actionType.replace(/_/g, " ")}`);
-          onActionExecuted(actionType);
-        }
-      }
+      const reply = data?.reply ?? "No response received.";
+      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
     } catch (err: any) {
-      console.error("[ChatDrawer] Error sending message:", err);
-      toast.error("Failed to get response from Atlas: " + (err.message || err));
+      toast.error("Atlas failed to respond: " + err.message);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "I couldn't retrieve your live data right now. Check your Supabase edge function deployment."
+      }]);
     } finally {
       setSending(false);
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    send(input);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send(input);
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!user) return;
+    await (supabase as any).from("chat_messages").delete().eq("map_id", user.id);
+    setMessages([]);
+    toast.success("Chat cleared");
+  };
+
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="right" className="w-full sm:max-w-lg border-l border-border/60 bg-background p-0 flex flex-col h-full overflow-hidden">
-        
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-[480px] border-l border-border/60 bg-background p-0 flex flex-col h-full overflow-hidden"
+      >
         {/* Header */}
-        <div className="p-6 border-b border-border/40 shrink-0">
-          <SheetHeader>
-            <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-primary uppercase mb-1">
-              <MessageSquare className="h-3.5 w-3.5" /> Discuss Strategy
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <Zap className="h-3.5 w-3.5 text-primary" />
             </div>
-            <SheetTitle className="font-display text-2xl font-semibold leading-tight text-foreground">
-              {mapName || "Ask Atlas"}
-            </SheetTitle>
-          </SheetHeader>
+            <div>
+              <div className="text-sm font-semibold">Atlas</div>
+              <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider">Revenue OS · Chief of Staff</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearHistory}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              title="Clear chat"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
-        {/* Scrollable Conversation Stream */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8 space-y-6">
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
           {loading ? (
-            <div className="py-20 flex justify-center">
-              <CompassLoader />
+            <div className="flex justify-center py-10">
+              <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
             </div>
           ) : messages.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground/80 max-w-xs mx-auto space-y-2">
-              <Sparkles className="h-5 w-5 mx-auto text-primary/60 animate-pulse" />
-              <p>No chat logs for this map. Ask Atlas about the reasoning behind your current move or argue against it.</p>
+            <div className="space-y-5">
+              {/* Welcome state */}
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
+                <div className="text-xs font-semibold text-primary uppercase tracking-wider">Atlas is ready.</div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  I have live access to your pipeline, outreach, and deals. Ask me anything about the business — or tell me what you're thinking.
+                </p>
+              </div>
+              {/* Starter prompts */}
+              <div className="space-y-2">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Quick questions</p>
+                {STARTER_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => send(p)}
+                    className="w-full text-left text-xs px-3 py-2.5 rounded-lg border border-border/40 bg-muted/10 hover:bg-muted/30 hover:border-primary/30 text-muted-foreground hover:text-foreground transition-all"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="space-y-8">
+            <div className="space-y-5">
               {messages.map((msg, i) => (
-                <div key={i} className="text-sm leading-relaxed animate-slide-up">
-                  <div className="font-display font-semibold text-[10px] uppercase tracking-wider text-muted-foreground/80 mb-1.5">
+                <div key={i} className="space-y-1">
+                  <div className={`text-[10px] font-semibold uppercase tracking-wider font-mono ${
+                    msg.role === "user" ? "text-muted-foreground" : "text-primary"
+                  }`}>
                     {msg.role === "user" ? "You" : "Atlas"}
                   </div>
-                  <div className="font-sans text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                  <div className={`text-sm leading-relaxed whitespace-pre-wrap rounded-lg px-3 py-2.5 ${
+                    msg.role === "user"
+                      ? "bg-muted/20 border border-border/40 text-foreground/90"
+                      : "bg-primary/5 border border-primary/15 text-foreground"
+                  }`}>
                     {msg.content}
                   </div>
                 </div>
               ))}
               {sending && (
-                <div className="text-sm leading-relaxed animate-pulse">
-                  <div className="font-display font-semibold text-[10px] uppercase tracking-wider text-primary mb-1.5">
-                    Atlas
-                  </div>
-                  <div className="font-mono text-xs text-muted-foreground">
-                    Formulating strategy...
+                <div className="space-y-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider font-mono text-primary">Atlas</div>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary/5 border border-primary/15">
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map((i) => (
+                        <div
+                          key={i}
+                          className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce"
+                          style={{ animationDelay: `${i * 0.15}s` }}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground font-mono">Analysing your data...</span>
                   </div>
                 </div>
               )}
@@ -171,27 +221,47 @@ export function ChatDrawer({ open, onClose, mapId, mapName, onActionExecuted }: 
           )}
         </div>
 
-        {/* Prompt Input Form */}
-        <div className="p-4 border-t border-border/40 bg-background shrink-0">
-          <form onSubmit={handleSend} className="flex items-center gap-2">
-            <Input
-              value={inputMsg}
-              onChange={(e) => setInputMsg(e.target.value)}
-              placeholder="Ask Atlas why this move is recommended..."
+        {/* Input */}
+        <div className="px-5 py-4 border-t border-border/40 bg-background/80 shrink-0">
+          <form onSubmit={handleSubmit} className="relative">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Atlas anything... (Enter to send)"
               disabled={sending || loading}
-              className="flex-1 bg-muted/20 border-border/60 focus-visible:ring-1 focus-visible:ring-primary/40 font-sans text-sm h-11"
+              rows={2}
+              className="w-full resize-none rounded-xl border border-border/60 bg-muted/10 px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-all"
             />
             <Button
               type="submit"
-              disabled={sending || !inputMsg.trim() || loading}
-              className="bg-primary text-primary-foreground hover:bg-primary/95 h-11 px-4 shadow-sm shrink-0"
+              size="sm"
+              disabled={sending || !input.trim() || loading}
+              className="absolute right-2.5 bottom-2.5 h-7 w-7 p-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
             </Button>
           </form>
+          <p className="text-[10px] text-muted-foreground/50 mt-1.5 font-mono">Shift+Enter for new line</p>
         </div>
-
       </SheetContent>
     </Sheet>
   );
+}
+
+// ─────────────────────────────────────────────
+// Backward-compatible alias for Home.tsx (old map-based chat)
+// Accepts mapId/mapName/onActionExecuted but renders AtlasChat
+// ─────────────────────────────────────────────
+interface ChatDrawerProps {
+  open: boolean;
+  onClose: () => void;
+  mapId?: string;
+  mapName?: string;
+  onActionExecuted?: (actionType: string) => void;
+}
+
+export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
+  return <AtlasChat open={open} onClose={onClose} />;
 }

@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, Users, Shield, Compass, 
   LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon, Lock,
-  Settings as SettingsIcon, TrendingUp, MessageSquare, FileText, Target
+  Settings as SettingsIcon, TrendingUp, MessageSquare, FileText, Target, Zap
 } from "lucide-react";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isUserAdmin } from "@/lib/adminConfig";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/useTheme";
+import { AtlasChat } from "@/components/atlas/ChatDrawer";
 
 const hqNav = [
   { to: "/hq/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -35,6 +36,7 @@ export default function HqShell() {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored === "true";
   });
+  const [chatOpen, setChatOpen] = useState(false);
 
   const toggle = () => {
     setCollapsed((c) => {
@@ -120,6 +122,17 @@ export default function HqShell() {
         {/* Sidebar Navigation */}
         <SidebarNav collapsed={collapsed} />
 
+        {/* Atlas AI Chat Button */}
+        <div className={`px-3 pb-2 ${collapsed ? "flex justify-center" : ""}`}>
+          <button
+            onClick={() => setChatOpen(true)}
+            className={`flex items-center gap-3 w-full rounded-md px-3 py-2.5 text-sm font-medium bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all group ${collapsed ? "justify-center" : ""}`}
+          >
+            <Zap className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Ask Atlas</span>}
+          </button>
+        </div>
+
         {/* Sidebar Footer Operations */}
         <div className="p-3 border-t border-border/60 space-y-1">
 
@@ -165,6 +178,9 @@ export default function HqShell() {
           <Outlet />
         </div>
       </main>
+
+      {/* Atlas AI Chat Drawer */}
+      <AtlasChat open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 }

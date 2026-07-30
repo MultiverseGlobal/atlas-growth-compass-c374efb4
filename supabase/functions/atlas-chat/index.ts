@@ -6,54 +6,132 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface ChatRequest {
-  map_id: string;
-  message: string;
-  provider?: "openai" | "anthropic" | "google" | "perplexity" | "nvidia-nim";
+// ─────────────────────────────────────────────
+// ATLAS HQ SYSTEM PROMPT — Founder Revenue OS
+// ─────────────────────────────────────────────
+const ATLAS_SYSTEM_PROMPT = `You are Atlas.
+
+You are NOT a chatbot.
+You are NOT a general-purpose AI assistant.
+You are Benjamin's private Founder Operating System.
+
+Your mission is singular:
+Maximize Benjamin's probability of building a profitable company by helping him acquire customers, close deals, deliver projects, and discover repeatable business opportunities.
+
+Your success is measured only by outcomes. Every recommendation should move one or more of these metrics:
+- Revenue
+- Customer conversations
+- Qualified leads
+- Deals won
+- Time saved
+- Knowledge accumulated
+- Decision quality
+
+If a task does not improve one of these metrics, it is low priority.
+
+---
+
+OPERATING PHILOSOPHY
+
+You behave like a Chief of Staff, Head of Sales, Research Analyst, Product Strategist, and Operations Manager combined.
+
+You think before responding.
+
+You always consider:
+- Current revenue vs the £10,000 goal
+- Active pipeline and deal stages
+- Outreach volume and reply rate
+- Which deals have stalled
+- Follow-ups overdue
+- Current bottleneck
+
+Every response must be contextual. Use the live data provided below.
+
+---
+
+PRIMARY DECISION FRAMEWORK
+
+Before answering any request, silently work through:
+
+STEP 1 — Identify the current bottleneck:
+Possible bottlenecks: Not enough leads | Low reply rate | Weak offer | Poor positioning | Stalled pipeline | Pricing issues | Product uncertainty | No follow-up discipline | Cash flow
+
+STEP 2 — Prioritise solving the bottleneck with highest expected revenue impact.
+
+STEP 3 — Recommend the smallest action that creates measurable progress. Never recommend unnecessary complexity.
+
+---
+
+DAILY RESPONSIBILITIES
+
+When asked "What should I do today?" or similar, always answer:
+1. Which prospect deserves attention RIGHT NOW
+2. Which deal is closest to closing
+3. Who needs a follow-up (name them)
+4. What single task creates the highest leverage today
+5. What should be ignored
+
+---
+
+COMMUNICATION STYLE
+
+- Be concise and direct. No waffle.
+- Be analytical. Challenge assumptions respectfully.
+- Do not flatter. Do not invent certainty.
+- Separate: Facts | Evidence | Assumptions | Recommendations
+- Every recommendation should include a brief rationale.
+- No emojis. No exclamation marks. No motivational filler.
+- Respond in plain prose or numbered lists. Never markdown headers unless specifically helpful.
+
+---
+
+GOLDEN PRINCIPLE
+
+Benjamin's scarcest resources are time and attention. Protect them relentlessly.
+
+If a proposed task does not increase revenue, improve customer understanding, strengthen delivery, or create strategic knowledge — recommend against it.
+
+Atlas exists to transform activity into measurable progress. Its purpose is not to help Benjamin build more software. Its purpose is to help Benjamin build a business.
+
+---
+
+RESPONSE FORMAT
+
+Respond as a JSON object with this exact shape:
+{
+  "reply": "Your response here. Plain text. Concise. Revenue-focused.",
+  "action": null
 }
 
-interface ChatResponse {
+The "action" field is reserved for future tool use. Always set it to null for now.
+Do not include markdown fences or any text outside the JSON object.`;
+
+// ─────────────────────────────────────────────
+// LLM Providers
+// ─────────────────────────────────────────────
+interface AtlasResponse {
   reply: string;
-  action: null | {
-    type: "mark_commitment_done" | "mark_commitment_not_done" | "add_manual_note" | "trigger_sync_and_diagnose";
-    note?: string;
-  };
+  action: null;
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 25000): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-async function callOpenAI(system: string, user: string, apiKey: string): Promise<ChatResponse> {
-  const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+async function callOpenAI(system: string, messages: any[], apiKey: string): Promise<AtlasResponse> {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: "gpt-4o",
       temperature: 0.3,
       response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+      messages: [{ role: "system", content: system }, ...messages],
     }),
   });
   if (!res.ok) throw new Error(`OpenAI error: ${await res.text()}`);
   const data = await res.json();
-  return JSON.parse(data.choices[0].message.content) as ChatResponse;
+  return JSON.parse(data.choices[0].message.content) as AtlasResponse;
 }
 
-async function callAnthropic(system: string, user: string, apiKey: string): Promise<ChatResponse> {
-  const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+async function callAnthropic(system: string, messages: any[], apiKey: string): Promise<AtlasResponse> {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -65,149 +143,186 @@ async function callAnthropic(system: string, user: string, apiKey: string): Prom
       max_tokens: 1024,
       temperature: 0.3,
       system,
-      messages: [{ role: "user", content: user }],
+      messages,
     }),
   });
   if (!res.ok) throw new Error(`Anthropic error: ${await res.text()}`);
   const data = await res.json();
   const text = data.content[0].text;
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON found in Anthropic response");
-  return JSON.parse(jsonMatch[0]) as ChatResponse;
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("No JSON in Anthropic response");
+  return JSON.parse(match[0]) as AtlasResponse;
 }
 
-async function callGoogle(system: string, user: string, apiKey: string): Promise<ChatResponse> {
-  const res = await fetchWithTimeout(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        generationConfig: { temperature: 0.3, responseMimeType: "application/json" },
-        contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
-      }),
-    }
-  );
-  if (!res.ok) throw new Error(`Google Gemini error: ${await res.text()}`);
-  const data = await res.json();
-  return JSON.parse(data.candidates[0].content.parts[0].text) as ChatResponse;
-}
-
-async function callPerplexity(system: string, user: string, apiKey: string): Promise<ChatResponse> {
-  const res = await fetchWithTimeout("https://api.perplexity.ai/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: "sonar-pro",
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`Perplexity error: ${await res.text()}`);
-  const data = await res.json();
-  const text = data.choices[0].message.content;
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON found in Perplexity response");
-  return JSON.parse(jsonMatch[0]) as ChatResponse;
-}
-
-async function callNvidiaNim(system: string, user: string, apiKey: string): Promise<ChatResponse> {
-  const res = await fetchWithTimeout("https://integrate.api.nvidia.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: "meta/llama-3.3-70b-instruct",
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`NVIDIA NIM error: ${await res.text()}`);
-  const data = await res.json();
-  const text = data.choices[0].message.content;
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON found in NVIDIA NIM response");
-  return JSON.parse(jsonMatch[0]) as ChatResponse;
-}
-
-async function callGroq(system: string, user: string, apiKey: string): Promise<ChatResponse> {
-  const res = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
+async function callGroq(system: string, messages: any[], apiKey: string): Promise<AtlasResponse> {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
       temperature: 0.3,
       response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+      messages: [{ role: "system", content: system }, ...messages],
     }),
   });
   if (!res.ok) throw new Error(`Groq error: ${await res.text()}`);
   const data = await res.json();
-  return JSON.parse(data.choices[0].message.content) as ChatResponse;
+  return JSON.parse(data.choices[0].message.content) as AtlasResponse;
 }
 
-async function route(
-  systemPrompt: string,
-  userPrompt: string,
-  provider?: string
-): Promise<ChatResponse> {
-  const selectedProvider = provider ?? "nvidia-nim";
-  const chain: Array<{ name: string; fn: () => Promise<ChatResponse> }> = [];
+async function route(messages: any[]): Promise<AtlasResponse> {
+  const system = ATLAS_SYSTEM_PROMPT;
 
-  const addProvider = (p: string) => {
-    if (p === "openai" && Deno.env.get("OPENAI_API_KEY")) {
-      chain.push({ name: "OpenAI", fn: () => callOpenAI(systemPrompt, userPrompt, Deno.env.get("OPENAI_API_KEY")!) });
-    } else if (p === "anthropic" && Deno.env.get("ANTHROPIC_API_KEY")) {
-      chain.push({ name: "Anthropic", fn: () => callAnthropic(systemPrompt, userPrompt, Deno.env.get("ANTHROPIC_API_KEY")!) });
-    } else if (p === "google" && Deno.env.get("GOOGLE_AI_API_KEY")) {
-      chain.push({ name: "Gemini", fn: () => callGoogle(systemPrompt, userPrompt, Deno.env.get("GOOGLE_AI_API_KEY")!) });
-    } else if (p === "perplexity" && Deno.env.get("PERPLEXITY_API_KEY")) {
-      chain.push({ name: "Perplexity", fn: () => callPerplexity(systemPrompt, userPrompt, Deno.env.get("PERPLEXITY_API_KEY")!) });
-    } else if (p === "nvidia-nim" && Deno.env.get("NVIDIA_NIM_API_KEY")) {
-      chain.push({ name: "Nvidia NIM", fn: () => callNvidiaNim(systemPrompt, userPrompt, Deno.env.get("NVIDIA_NIM_API_KEY")!) });
-    } else if (p === "groq" && Deno.env.get("GROQ_API_KEY")) {
-      chain.push({ name: "Groq", fn: () => callGroq(systemPrompt, userPrompt, Deno.env.get("GROQ_API_KEY")!) });
-    }
-  };
+  const providers: Array<{ name: string; fn: () => Promise<AtlasResponse> }> = [];
 
-  addProvider(selectedProvider);
-
-  const defaultOrder = ["nvidia-nim", "groq", "openai", "anthropic", "google", "perplexity"];
-  for (const p of defaultOrder) {
-    if (p !== selectedProvider) {
-      addProvider(p);
-    }
+  if (Deno.env.get("OPENAI_API_KEY")) {
+    providers.push({ name: "OpenAI gpt-4o", fn: () => callOpenAI(system, messages, Deno.env.get("OPENAI_API_KEY")!) });
+  }
+  if (Deno.env.get("ANTHROPIC_API_KEY")) {
+    providers.push({ name: "Anthropic claude-3.5", fn: () => callAnthropic(system, messages, Deno.env.get("ANTHROPIC_API_KEY")!) });
+  }
+  if (Deno.env.get("GROQ_API_KEY")) {
+    providers.push({ name: "Groq llama-3.3", fn: () => callGroq(system, messages, Deno.env.get("GROQ_API_KEY")!) });
   }
 
-  if (chain.length === 0) {
-    throw new Error("No AI provider key is configured. Add secrets to Supabase Edge Functions.");
-  }
+  if (providers.length === 0) throw new Error("No AI provider key configured.");
 
   let lastError: Error | null = null;
-  for (const item of chain) {
+  for (const p of providers) {
     try {
-      console.log(`[atlas-chat] Trying LLM provider: ${item.name}...`);
-      return await item.fn();
-    } catch (e) {
-      console.error(`[atlas-chat] Provider ${item.name} failed:`, e.message || e);
-      lastError = e as Error;
+      console.log(`[atlas-chat] Trying: ${p.name}`);
+      return await p.fn();
+    } catch (e: any) {
+      console.error(`[atlas-chat] ${p.name} failed:`, e.message);
+      lastError = e;
     }
   }
-  throw lastError ?? new Error("All LLM providers failed");
+  throw lastError ?? new Error("All providers failed");
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+// ─────────────────────────────────────────────
+// Context builder: compile live HQ data
+// ─────────────────────────────────────────────
+async function buildContext(supabase: any, userId: string): Promise<string> {
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
+  const fiveDaysAgo = new Date(now.getTime() - 5 * 86400000).toISOString();
+  const today = now.toISOString().split("T")[0];
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const [revRes, dealsRes, outRecentRes, fuRes, leadsRes] = await Promise.all([
+    // Revenue summary view
+    supabase.from("atlas_revenue_summary").select("*").eq("user_id", userId).maybeSingle(),
+    // Active deals
+    supabase.from("atlas_deals")
+      .select("company_name, stage, value, probability, next_action, next_action_due, updated_at")
+      .eq("user_id", userId)
+      .not("stage", "in", "(won,lost)")
+      .order("updated_at", { ascending: false })
+      .limit(10),
+    // Outreach this week
+    supabase.from("atlas_outreach")
+      .select("company_id, type, status, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", weekAgo),
+    // Follow-ups overdue
+    supabase.from("atlas_outreach")
+      .select("company_id, type, follow_up_due, status")
+      .eq("user_id", userId)
+      .lte("follow_up_due", today)
+      .in("status", ["sent", "draft"])
+      .order("follow_up_due", { ascending: true })
+      .limit(5),
+    // Recent leads (for context)
+    supabase.from("pipeline_crm")
+      .select("company, stage, icp_score, is_contacted, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  const rev = revRes.data ?? {};
+  const deals = (dealsRes.data ?? []) as any[];
+  const outThisWeek = (outRecentRes.data ?? []) as any[];
+  const followUps = (fuRes.data ?? []) as any[];
+  const recentLeads = (leadsRes.data ?? []) as any[];
+
+  const revenueThisMonth = Number(rev.revenue_this_month ?? 0);
+  const pipelineWeighted = Number(rev.pipeline_weighted ?? 0);
+  const goal = 10000;
+  const pct = Math.round((revenueThisMonth / goal) * 100);
+
+  const sentThisWeek = outThisWeek.filter((o: any) => o.status !== "draft").length;
+  const repliesThisWeek = outThisWeek.filter((o: any) => ["replied", "booked"].includes(o.status)).length;
+  const replyRate = sentThisWeek > 0 ? Math.round((repliesThisWeek / sentThisWeek) * 100) : 0;
+
+  const stalledDeals = deals.filter((d: any) => {
+    const days = Math.floor((now.getTime() - new Date(d.updated_at).getTime()) / 86400000);
+    return days >= 5;
+  });
+
+  // Enrich follow-up company names
+  let fuCompanyMap: Record<string, string> = {};
+  const fuCompanyIds = [...new Set(followUps.map((f: any) => f.company_id))];
+  if (fuCompanyIds.length > 0) {
+    const { data: comps } = await supabase.from("pipeline_crm").select("id, company").in("id", fuCompanyIds);
+    (comps ?? []).forEach((c: any) => { fuCompanyMap[c.id] = c.company; });
   }
+
+  const ctx: string[] = [];
+
+  ctx.push(`=== LIVE BUSINESS DATA (${now.toISOString().split("T")[0]}) ===`);
+  ctx.push(`\nREVENUE`);
+  ctx.push(`- This month: £${revenueThisMonth.toLocaleString()} / £${goal.toLocaleString()} goal (${pct}%)`);
+  ctx.push(`- Pipeline (weighted): £${pipelineWeighted.toLocaleString()}`);
+  ctx.push(`- Active deals: ${deals.length}`);
+  ctx.push(`- Won this month: ${rev.deals_won_this_month ?? 0} deals | Lost: ${rev.deals_lost_this_month ?? 0}`);
+  ctx.push(`- Avg deal size: £${Number(rev.avg_deal_size ?? 0).toLocaleString()}`);
+
+  ctx.push(`\nOUTREACH (last 7 days)`);
+  ctx.push(`- Sent: ${sentThisWeek} | Replies: ${repliesThisWeek} | Reply rate: ${replyRate}%`);
+
+  if (followUps.length > 0) {
+    ctx.push(`\nOVERDUE FOLLOW-UPS (${followUps.length})`);
+    followUps.forEach((f: any) => {
+      const company = fuCompanyMap[f.company_id] ?? "Unknown";
+      const days = Math.floor((now.getTime() - new Date(f.follow_up_due).getTime()) / 86400000);
+      ctx.push(`- ${company} — ${f.type?.replace("_", " ")} — ${days > 0 ? `${days}d overdue` : "due today"}`);
+    });
+  } else {
+    ctx.push(`\nFOLLOW-UPS: None overdue`);
+  }
+
+  if (deals.length > 0) {
+    ctx.push(`\nACTIVE PIPELINE`);
+    deals.forEach((d: any) => {
+      const days = Math.floor((now.getTime() - new Date(d.updated_at).getTime()) / 86400000);
+      const stall = days >= 5 ? ` [STALLED ${days}d]` : "";
+      ctx.push(`- ${d.company_name} | ${d.stage} | £${Number(d.value ?? 0).toLocaleString()} | ${d.probability ?? 0}% | Next: ${d.next_action ?? "none"}${stall}`);
+    });
+  } else {
+    ctx.push(`\nACTIVE PIPELINE: No active deals.`);
+  }
+
+  if (recentLeads.length > 0) {
+    ctx.push(`\nRECENT LEADS (last added)`);
+    recentLeads.forEach((l: any) => {
+      ctx.push(`- ${l.company} | Stage: ${l.stage} | ICP: ${l.icp_score ?? 5}/10 | Contacted: ${l.is_contacted ? "Yes" : "No"}`);
+    });
+  }
+
+  if (stalledDeals.length > 0) {
+    ctx.push(`\nKEY ALERT: ${stalledDeals.length} deals stalled 5+ days — ${stalledDeals.map((d: any) => d.company_name).join(", ")}`);
+  }
+
+  return ctx.join("\n");
+}
+
+// ─────────────────────────────────────────────
+// Edge Function Handler
+// ─────────────────────────────────────────────
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("authorization");
@@ -217,269 +332,65 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const body: ChatRequest = await req.json();
-    if (!body.map_id || !body.message) {
-      return new Response(JSON.stringify({ error: "map_id and message are required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const body = await req.json();
+    const message: string = body.message;
+    const conversationHistory: Array<{ role: string; content: string }> = body.history ?? [];
+
+    if (!message) {
+      return new Response(JSON.stringify({ error: "message is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    // Use service role client to bypass user RLS for full context compilation
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Fetch user ID from authentication header
     const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Invalid user token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const userId = user.id;
+    // Build live business context
+    const context = await buildContext(supabase, user.id);
 
-    // 2. Fetch Map details
-    const { data: map } = await supabase
-      .from("maps")
-      .select("goal_statement, confidence, name")
-      .eq("id", body.map_id)
-      .eq("user_id", userId)
-      .maybeSingle();
+    // Build message thread for the LLM
+    // Inject context as the first user turn so all providers support it
+    const llmMessages: any[] = [];
 
-    if (!map) {
-      return new Response(JSON.stringify({ error: "Map not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 3. Fetch Active Milestone
-    const { data: milestone } = await supabase
-      .from("milestones")
-      .select("title, description")
-      .eq("map_id", body.map_id)
-      .eq("status", "active")
-      .maybeSingle();
-
-    // 4. Fetch Recent connected tool signals (last 14 days)
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    const { data: signals } = await supabase
-      .from("signals")
-      .select("title, occurred_at, score, payload")
-      .eq("map_id", body.map_id)
-      .gte("occurred_at", fourteenDaysAgo.toISOString())
-      .order("occurred_at", { ascending: false })
-      .limit(30);
-
-    // 5. Fetch Active waypoints (completed_at is null)
-    const { data: activeWaypoints } = await supabase
-      .from("waypoints")
-      .select("id, kind, title, confidence, metadata")
-      .eq("map_id", body.map_id)
-      .is("completed_at", null)
-      .order("position", { ascending: true });
-
-    // 6. Fetch Recent commitments (last 14 days)
-    const { data: commitments } = await supabase
-      .from("commitments")
-      .select("date, status, note")
-      .eq("map_id", body.map_id)
-      .gte("date", fourteenDaysAgo.toISOString().split("T")[0])
-      .order("date", { ascending: false });
-
-    // 7. Calculate history length (resolved commitments + prediction results)
-    const { count: resolvedCommitments } = await supabase
-      .from("commitments")
-      .select("id", { count: "exact", head: true })
-      .eq("map_id", body.map_id)
-      .in("status", ["done", "not_done"]);
-
-    const { count: resolvedPredictions } = await supabase
-      .from("waypoints")
-      .select("id", { count: "exact", head: true })
-      .eq("map_id", body.map_id)
-      .in("result_status", ["held", "missed"]);
-
-    const historySize = (resolvedCommitments ?? 0) + (resolvedPredictions ?? 0);
-    const isEarlyHistory = historySize < 5;
-
-    // 8. Fetch Recent chat conversation history (last 10 messages)
-    const { data: conversation } = await supabase
-      .from("chat_messages")
-      .select("role, content")
-      .eq("map_id", body.map_id)
-      .order("created_at", { ascending: true })
-      .limit(10);
-
-    // Assemble the System Prompt
-    const systemPrompt = `You are Atlas — an execution accountability AI for early-stage founders. You help them stick to their core commitments and analyze obstacles plainly, without gamification, streaks, or judgment.
-
-Voice guidelines:
-- Calm, direct, and plain.
-- No exclamation marks, no emojis.
-- Never use warning language, moralizing, or guilt-tripping.
-- Font styling rules: In the app, your text is styled directly in a clean monospace/serif layout. Match this simplicity.
-
-Tone based on History track record:
-${isEarlyHistory 
-  ? `- Because the founder is early in their history (resolved events: ${historySize} < 5), your tone should be EXPLORATORY and QUESTIONING. Avoid declarative verdicts. Use phrases like "has something changed, or is this drift?" rather than flat judgments.` 
-  : `- You have earned a real track record (resolved events: ${historySize} >= 5). You can give confident, blunt pushback when there is a clear pattern of drift or excuses, but stay objective and fact-based.`}
-
-Move Deprioritization Rule:
-- If the founder proposes abandoning, skipping, or deprioritizing their current committed Move, you MUST surface the original reasoning (evidence/constraint) before agreeing or disagreeing. Remind them of the constraint they previously identified as blocking their goal, and ask them to explain what has changed. Do not simply comply nor flatly refuse.
-
-Callable actions / tools:
-You can take real actions on behalf of the user by including an "action" block in your JSON response. The available actions are:
-1. {"type": "mark_commitment_done"}
-   - Marks today's daily commitment as "done" and completes the active move waypoint.
-2. {"type": "mark_commitment_not_done", "note": "Reason why it wasn't done"}
-   - Marks today's daily commitment as "not_done" and stores the obstacle note.
-3. {"type": "add_manual_note", "note": "Content of the note"}
-   - Adds a manual note to the founder's integration signals context.
-4. {"type": "trigger_sync_and_diagnose"}
-   - Triggers a fresh data sync and regenerates the map's constraint and move waypoints.
-
-Format your output STRICTLY as a single JSON object. Do not include markdown codeblocks, prefix text, or explanations outside the JSON structure.
-
-JSON Response Shape:
-{
-  "reply": "Your written reply to the founder here, utilizing clean formatting.",
-  "action": null | {
-    "type": "mark_commitment_done" | "mark_commitment_not_done" | "add_manual_note" | "trigger_sync_and_diagnose",
-    "note": "Optional parameter mapping to the arguments above"
-  }
-}`;
-
-    // Assemble User Prompt with compiled context
-    const currentGoal = map.goal_statement;
-    const currentMilestone = milestone 
-      ? `Active Milestone: "${milestone.title}" — Description: "${milestone.description || "None"}"` 
-      : `No active milestones mapped yet. Stated Goal: "${currentGoal}"`;
-
-    const recentSignalsText = signals && signals.length > 0
-      ? signals.map(s => `- [${new Date(s.occurred_at).toISOString().split("T")[0]}] ${s.title}`).join("\n")
-      : "- No tool signals logged in the last 14 days.";
-
-    const waypointsText = activeWaypoints && activeWaypoints.length > 0
-      ? activeWaypoints.map(w => `- [${w.kind.toUpperCase()}] ${w.title}`).join("\n")
-      : "- No active waypoints.";
-
-    const commitmentsText = commitments && commitments.length > 0
-      ? commitments.map(c => `- [${c.date}] ${c.status.toUpperCase()} ${c.note ? `— "${c.note}"` : ""}`).join("\n")
-      : "- No commitments recorded recently.";
-
-    const chatHistoryText = conversation && conversation.length > 0
-      ? conversation.map(c => `${c.role.toUpperCase()}: ${c.content}`).join("\n")
-      : "No previous messages.";
-
-    const userPrompt = `GOAL & CONTEXT:
-Goal: "${currentGoal}"
-Map Name: "${map.name || "Default"}"
-${currentMilestone}
-
-ACTIVE DIAGNOSTIC TRAIL:
-${waypointsText}
-
-RECENT SIGNALS (Last 14 days):
-${recentSignalsText}
-
-RECENT COMMITMENT HISTORY:
-${commitmentsText}
-
-RECENT CONVERSATION HISTORY:
-${chatHistoryText}
-
-NEW USER MESSAGE:
-USER: "${body.message}"`;
-
-    // 9. Call the LLM
-    const llmResponse = await route(systemPrompt, userPrompt, body.provider);
-
-    // 10. Execute the LLM Action server-side (if requested)
-    if (llmResponse.action) {
-      const { type, note } = llmResponse.action;
-      const todayStr = new Date().toISOString().split("T")[0];
-
-      if (type === "mark_commitment_done") {
-        // Find user's today commitment
-        const { data: todayCommit } = await supabase
-          .from("commitments")
-          .select("id, waypoint_id")
-          .eq("map_id", body.map_id)
-          .eq("date", todayStr)
-          .maybeSingle();
-
-        if (todayCommit) {
-          await supabase
-            .from("commitments")
-            .update({ status: "done" })
-            .eq("id", todayCommit.id);
-
-          await supabase
-            .from("waypoints")
-            .update({ completed_at: new Date().toISOString() })
-            .eq("id", todayCommit.waypoint_id);
-        }
-      } else if (type === "mark_commitment_not_done") {
-        const { data: todayCommit } = await supabase
-          .from("commitments")
-          .select("id")
-          .eq("map_id", body.map_id)
-          .eq("date", todayStr)
-          .maybeSingle();
-
-        if (todayCommit) {
-          await supabase
-            .from("commitments")
-            .update({ status: "not_done", note: note || "No reason provided." })
-            .eq("id", todayCommit.id);
-        }
-      } else if (type === "add_manual_note" && note) {
-        await supabase
-          .from("signals")
-          .insert({
-            map_id: body.map_id,
-            user_id: userId,
-            title: "__manual_note",
-            score: 0,
-            occurred_at: new Date().toISOString(),
-            payload: { note: note },
-          });
-      } else if (type === "trigger_sync_and_diagnose") {
-        // Trigger diagnose-map background trigger async
-        fetch(`${supabaseUrl}/functions/v1/diagnose-map`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ map_id: body.map_id }),
-        }).catch(err => console.error("[atlas-chat] Trigger sync error:", err));
+    // Prior conversation (last 10 turns)
+    const recentHistory = conversationHistory.slice(-10);
+    if (recentHistory.length > 0) {
+      for (const turn of recentHistory) {
+        llmMessages.push({ role: turn.role, content: turn.content });
       }
     }
 
-    // 11. Save Assistant reply to Chat Messages table
-    await supabase
-      .from("chat_messages")
-      .insert({
-        map_id: body.map_id,
-        user_id: userId,
-        role: "assistant",
-        content: llmResponse.reply,
-      });
+    // Append the live context + new message
+    llmMessages.push({
+      role: "user",
+      content: `${context}\n\n=== MESSAGE ===\n${message}`,
+    });
 
-    return new Response(JSON.stringify(llmResponse), {
+    // Call the LLM
+    const response = await route(llmMessages);
+
+    // Save to chat_messages (using map_id = user.id as the HQ chat room)
+    await supabase.from("chat_messages").insert([
+      { map_id: user.id, user_id: user.id, role: "user", content: message },
+      { map_id: user.id, user_id: user.id, role: "assistant", content: response.reply },
+    ]);
+
+    return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (err: any) {
     console.error("[atlas-chat] Error:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
