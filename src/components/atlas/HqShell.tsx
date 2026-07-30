@@ -15,6 +15,7 @@ import { AtlasChat } from "@/components/atlas/ChatDrawer";
 
 const hqNav = [
   { to: "/hq/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/hq/discover",  icon: Compass,         label: "Discover" },
   { to: "/hq/leads",     icon: Target,          label: "Leads" },
   { to: "/hq/pipeline",  icon: TrendingUp,       label: "Pipeline" },
   { to: "/hq/outreach",  icon: MessageSquare,    label: "Outreach" },

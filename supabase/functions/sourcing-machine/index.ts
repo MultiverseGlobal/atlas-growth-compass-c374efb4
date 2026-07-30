@@ -2183,6 +2183,180 @@ Respond with ONLY this JSON (no markdown):
       });
     }
 
+    // ─────────────────────────────────────────────
+    // ACTION: generate-proposal
+    // ─────────────────────────────────────────────
+    if (body.action === "generate-proposal") {
+      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+      if (!openaiKey) throw new Error("OPENAI_API_KEY not configured");
+
+      const { lead, research, form } = body as any;
+
+      const researchContext = research
+        ? `RESEARCH ON ${lead.company}:\n${typeof research === "string" ? research : JSON.stringify(research, null, 2)}`
+        : `Company: ${lead.company}\nWebsite: ${lead.website ?? "unknown"}\nNotes: ${lead.notes ?? "none"}`;
+
+      const prompt = `You are an expert freelance consultant writing a winning project proposal.
+
+${researchContext}
+
+PROJECT DETAILS:
+What they need: ${form.what_they_need}
+Budget range: ${form.budget_range}
+Timeline: ${form.timeline}
+Approach/Tech: ${form.your_approach || "best fit for the project"}
+
+Write a concise, professional proposal. Be specific. Use the research to make it feel personalised.
+Focus on their business outcomes, not technical features.
+
+Respond ONLY with a JSON object using this exact shape:
+{
+  "executive_summary": "2-3 sentences. What you'll do and the business outcome they'll get.",
+  "problem_statement": "1-2 sentences. Describe their current pain precisely, using any details from the research.",
+  "proposed_solution": "2-3 sentences. Your specific solution and why this approach fits their situation.",
+  "scope": ["Line item 1", "Line item 2", "Line item 3", "Line item 4", "Line item 5"],
+  "deliverables": ["Deliverable 1", "Deliverable 2", "Deliverable 3", "Deliverable 4"],
+  "timeline": "Specific timeline with key phases e.g. Week 1: Discovery & setup. Week 2-3: Build. Week 4: Testing & launch.",
+  "investment": "Clear pricing statement e.g. Fixed price: ${form.budget_range}. 50% upfront, 50% on delivery.",
+  "why_us": "2 sentences. Why you specifically are the right person for this project.",
+  "next_steps": "One clear call to action e.g. Reply to confirm and I'll send a contract within 24 hours."
+}`;
+
+      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.4,
+          response_format: { type: "json_object" },
+          max_tokens: 1200,
+        }),
+      });
+
+      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
+      const aiData = await aiRes.json();
+      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
+      let parsed: Record<string, any>;
+      try { parsed = JSON.parse(raw); } catch { parsed = { proposed_solution: raw }; }
+
+      return new Response(JSON.stringify(parsed), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // ACTION: discover-leads
+    // ─────────────────────────────────────────────
+    if (body.action === "discover-leads") {
+      const { source, industry, keyword, custom_url } = body as any;
+      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+
+      let rawContent = "";
+      let sourceLabel = source;
+
+      if (source === "hn_jobs") {
+        // Scrape HN Who's Hiring latest thread
+        try {
+          const hnRes = await fetch("https://hacker-news.firebaseio.com/v0/user/whoishiring.json");
+          const hnUser = await hnRes.json();
+          const submittedRes = await fetch(`https://hacker-news.firebaseio.com/v0/user/whoishiring.json`);
+          // Fallback to a known recent thread approach
+          const threadRes = await fetch("https://hn.algolia.com/api/v1/search?query=Ask+HN%3A+Who+is+hiring&tags=story,author_whoishiring&hitsPerPage=1");
+          const threadData = await threadRes.json();
+          const threadId = threadData.hits?.[0]?.objectID;
+          if (threadId) {
+            const commentsRes = await fetch(`https://hn.algolia.com/api/v1/search?tags=comment,story_${threadId}&hitsPerPage=40`);
+            const commentsData = await commentsRes.json();
+            rawContent = (commentsData.hits ?? []).slice(0, 20).map((h: any) => h.comment_text ?? "").join("\n\n---\n\n");
+          }
+        } catch {}
+        sourceLabel = "Hacker News Who's Hiring";
+
+      } else if (source === "yc_companies") {
+        // Fetch YC open-source company list
+        try {
+          const ycRes = await fetch("https://raw.githubusercontent.com/yc-oss/oss/main/companies.json");
+          const ycData = await ycRes.json();
+          const companies = (Array.isArray(ycData) ? ycData : []).slice(0, 80);
+          rawContent = companies.map((c: any) => `${c.name ?? ""} | ${c.url ?? ""} | ${c.one_liner ?? ""} | ${c.industry ?? ""}`).join("\n");
+        } catch {}
+        sourceLabel = "YC Companies";
+
+      } else if (source === "starter_story") {
+        // Scrape Starter Story frontpage
+        try {
+          const ssRes = await fetch("https://www.starterstory.com/ideas", {
+            headers: { "User-Agent": "Mozilla/5.0" },
+          });
+          const html = await ssRes.text();
+          rawContent = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 8000);
+        } catch {}
+        sourceLabel = "Starter Story";
+
+      } else if (source === "custom_url" && custom_url) {
+        try {
+          const scraped = await scrapeUrl(custom_url);
+          rawContent = `${scraped.title}\n\n${scraped.content}`.slice(0, 8000);
+        } catch {}
+        sourceLabel = custom_url;
+      }
+
+      if (!openaiKey) {
+        return new Response(JSON.stringify([]), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const filters = [
+        industry && industry !== "Any" ? `Industry filter: ${industry}` : null,
+        keyword ? `Keyword filter: only companies related to "${keyword}"` : null,
+      ].filter(Boolean).join(". ");
+
+      const prompt = `You are a lead research assistant. Extract company leads from the following content scraped from: ${sourceLabel}
+
+${filters || "No specific filters — return the most interesting companies."}
+
+CONTENT:
+${rawContent.slice(0, 6000)}
+
+Extract up to 12 distinct companies. For each return:
+- company: company name
+- website: URL if found, else ""
+- description: 1-2 sentences about what they do and why they might need software/automation help
+- industry: one word industry label
+- team_size: estimated size if mentioned, else ""
+- location: city/country if mentioned, else ""
+- source: "${sourceLabel}"
+
+Respond ONLY with a JSON array. If no relevant companies found, return [].`;
+
+      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+          max_tokens: 1500,
+        }),
+      });
+
+      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
+      const aiData = await aiRes.json();
+      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
+      let leads: any[] = [];
+      try {
+        const parsed = JSON.parse(raw);
+        leads = Array.isArray(parsed) ? parsed : (parsed.leads ?? parsed.companies ?? []);
+      } catch {}
+
+      return new Response(JSON.stringify(leads), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

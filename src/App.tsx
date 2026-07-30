@@ -22,11 +22,13 @@ import Notifications from "./pages/app/Notifications";
 import Sourcing from "./pages/app/Sourcing";
 import HqShell from "./components/atlas/HqShell";
 import HqDashboard from "./pages/hq/HqDashboard";
+import HqDiscover from "./pages/hq/HqDiscover";
 import HqLeads from "./pages/hq/HqLeads";
 import HqLeadDetail from "./pages/hq/HqLeadDetail";
 import HqPipeline from "./pages/hq/HqPipeline";
 import HqOutreach from "./pages/hq/HqOutreach";
 import HqReport from "./pages/hq/HqReport";
+import HqProposal from "./pages/hq/HqProposal";
 import HqSettings from "./pages/hq/HqSettings";
 import HqTeam from "./pages/hq/HqTeam";
 import PublicProfile from "./pages/PublicProfile";
@@ -65,8 +67,11 @@ const App = () => (
             <Route path="/hq" element={<HqShell />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<HqDashboard />} />
+              <Route path="discover" element={<HqDiscover />} />
               <Route path="leads" element={<HqLeads />} />
               <Route path="leads/:id" element={<HqLeadDetail />} />
+              <Route path="leads/:id/proposal" element={<HqProposal />} />
+              <Route path="proposal" element={<HqProposal />} />
               <Route path="pipeline" element={<HqPipeline />} />
               <Route path="outreach" element={<HqOutreach />} />
               <Route path="report" element={<HqReport />} />
