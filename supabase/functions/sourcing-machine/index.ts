@@ -38,46 +38,28 @@ interface SourcingRequest {
   field_mappings?: Record<string, string>;
 }
 
-// Scrape helper
+// Scrape helper using Jina AI to bypass Cloudflare
 async function scrapeUrl(url: string): Promise<{ title: string; description: string; content: string }> {
   try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(6000),
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const res = await fetch(jinaUrl, {
+      signal: AbortSignal.timeout(15000),
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept": "text/plain",
       }
     });
     
     if (!res.ok) {
-      throw new Error(`Failed to fetch URL: ${res.status} ${res.statusText}`);
+      throw new Error(`Jina failed: ${res.status} ${res.statusText}`);
     }
     
-    const html = await res.text();
+    const markdown = await res.text();
     
-    // Parse title
-    const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : "";
+    // Extract title if present in Jina's output
+    const titleMatch = markdown.match(/^Title:\s*(.+)$/m);
+    const title = titleMatch ? titleMatch[1].trim() : url;
     
-    // Parse meta description
-    const descMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i) ||
-                      html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']*)["']/i);
-    const description = descMatch ? descMatch[1].trim() : "";
-    
-    // Strip body content
-    const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-    const rawContent = bodyMatch ? bodyMatch[1] : html;
-    
-    const content = rawContent
-      .replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, "")
-      .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, "")
-      .replace(/<!--[\s\S]*?-->/g, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 8000);
-    
-    return { title, description, content };
+    return { title, description: "", content: markdown.slice(0, 15000) };
   } catch (err: any) {
     console.error("Scraping error:", err.message);
     return { title: "", description: "", content: `Error loading content from URL: ${err.message}` };
