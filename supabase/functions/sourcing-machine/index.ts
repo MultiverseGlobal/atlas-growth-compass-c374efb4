@@ -2342,6 +2342,11 @@ Prism Outreach & PR | https://prismoutreach.com | Digital PR, link building, med
         });
       }
 
+      const { exclude_companies } = body as any;
+      const excludeFilter = Array.isArray(exclude_companies) && exclude_companies.length > 0
+        ? `\nCRITICAL: DO NOT return any of the following companies because they are ALREADY saved in the CRM: ${exclude_companies.slice(0, 50).join(", ")}.`
+        : "";
+
       const filters = [
         industry && industry !== "Any" ? `Industry filter: ${industry}` : null,
         keyword ? `Keyword filter: only companies related to "${keyword}"` : null,
@@ -2353,7 +2358,7 @@ Prism Outreach & PR | https://prismoutreach.com | Digital PR, link building, med
 - Industry: Marketing / Digital / Design / Performance Agencies
 - Team size: 5 to 30 employees
 - Location: English-speaking (US, UK, Canada, Australia)
-- ${filters || "Prioritize marketing and digital agencies with 5-30 employees."}
+- ${filters || "Prioritize marketing and digital agencies with 5-30 employees."}${excludeFilter}
 
 CONTENT:
 ${rawContent.slice(0, 6000)}

@@ -53,6 +53,18 @@ export default function HqDiscover() {
     setLoading(true);
     setResults([]);
     try {
+      // Fetch existing saved companies to tell the backend AI to skip them
+      let existingNames: string[] = [];
+      if (user) {
+        const { data: existing } = await supabase
+          .from("pipeline_crm")
+          .select("company")
+          .eq("user_id", user.id);
+        if (existing) {
+          existingNames = existing.map((e) => e.company).filter(Boolean);
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("sourcing-machine", {
         body: {
           action: "discover-leads",
@@ -60,6 +72,7 @@ export default function HqDiscover() {
           industry: industry !== "Any" ? industry : undefined,
           keyword: keyword.trim() || undefined,
           custom_url: source === "custom_url" ? customUrl.trim() : undefined,
+          exclude_companies: existingNames,
         },
       });
 
