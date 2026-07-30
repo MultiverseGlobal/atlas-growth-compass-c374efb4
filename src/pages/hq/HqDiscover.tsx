@@ -95,10 +95,12 @@ export default function HqDiscover() {
 
       const { data: inserted, error } = await supabase.from("pipeline_crm").insert({
         user_id: user.id,
+        prospect: lead.company,
         company: lead.company,
-        website: lead.website,
-        notes: lead.description,
-        source: lead.source,
+        website: lead.website || null,
+        founder_thesis: "Dream 100 ICP #1 Marketing Agency",
+        notes: lead.description || null,
+        source: lead.source || "clutch",
         stage: "new",
         icp_score: 5,
         is_contacted: false,

@@ -134,8 +134,10 @@ export default function HqLeads() {
     try {
       const { data, error } = await supabase.from("pipeline_crm").insert({
         user_id: user.id,
+        prospect: newName.trim(),
         company: newName.trim(),
         website: newWebsite.trim() || null,
+        founder_thesis: "Dream 100 ICP #1 Marketing Agency",
         stage: "new",
         icp_score: 5,
         is_contacted: false,
