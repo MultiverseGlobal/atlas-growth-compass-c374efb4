@@ -22,18 +22,21 @@ interface DiscoveredLead {
 }
 
 const SOURCES = [
+  { id: "clutch", label: "Clutch.co", description: "Top verified digital & marketing agencies", icon: "⭐" },
+  { id: "designrush", label: "DesignRush", description: "B2B agency directory & network", icon: "⚡" },
+  { id: "upcity", label: "UpCity", description: "Specialized B2B agency marketplace", icon: "🏙️" },
   { id: "hn_jobs", label: "HN Who's Hiring", description: "Y Combinator Hacker News job posts", icon: "🔶" },
   { id: "yc_companies", label: "YC Directory", description: "Y Combinator funded companies", icon: "🚀" },
   { id: "starter_story", label: "Starter Story", description: "Indie founders with revenue", icon: "📖" },
   { id: "custom_url", label: "Custom URL", description: "Analyse any website or directory", icon: "🌐" },
 ];
 
-const INDUSTRIES = ["Any", "Agency", "SaaS", "E-commerce", "Fintech", "Healthtech", "Marketing", "Real Estate", "Consulting"];
+const INDUSTRIES = ["Agency", "Marketing", "SaaS", "E-commerce", "Fintech", "Healthtech", "Real Estate", "Consulting", "Any"];
 
 export default function HqDiscover() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [source, setSource] = useState("hn_jobs");
+  const [source, setSource] = useState("clutch");
   const [industry, setIndustry] = useState("Any");
   const [customUrl, setCustomUrl] = useState("");
   const [keyword, setKeyword] = useState("");

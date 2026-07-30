@@ -2255,13 +2255,30 @@ Respond ONLY with a JSON object using this exact shape:
       let rawContent = "";
       let sourceLabel = source;
 
-      if (source === "hn_jobs") {
+      if (source === "clutch") {
+        try {
+          const scraped = await scrapeUrl("https://clutch.co/agencies/digital-marketing");
+          rawContent = `${scraped.title}\n\n${scraped.content}`.slice(0, 8000);
+        } catch {}
+        sourceLabel = "Clutch.co (Digital Marketing Agencies)";
+
+      } else if (source === "designrush") {
+        try {
+          const scraped = await scrapeUrl("https://www.designrush.com/agency/digital-marketing");
+          rawContent = `${scraped.title}\n\n${scraped.content}`.slice(0, 8000);
+        } catch {}
+        sourceLabel = "DesignRush (Marketing Agencies)";
+
+      } else if (source === "upcity") {
+        try {
+          const scraped = await scrapeUrl("https://upcity.com/digital-marketing");
+          rawContent = `${scraped.title}\n\n${scraped.content}`.slice(0, 8000);
+        } catch {}
+        sourceLabel = "UpCity (Digital Marketing)";
+
+      } else if (source === "hn_jobs") {
         // Scrape HN Who's Hiring latest thread
         try {
-          const hnRes = await fetch("https://hacker-news.firebaseio.com/v0/user/whoishiring.json");
-          const hnUser = await hnRes.json();
-          const submittedRes = await fetch(`https://hacker-news.firebaseio.com/v0/user/whoishiring.json`);
-          // Fallback to a known recent thread approach
           const threadRes = await fetch("https://hn.algolia.com/api/v1/search?query=Ask+HN%3A+Who+is+hiring&tags=story,author_whoishiring&hitsPerPage=1");
           const threadData = await threadRes.json();
           const threadId = threadData.hits?.[0]?.objectID;
@@ -2313,19 +2330,23 @@ Respond ONLY with a JSON object using this exact shape:
         keyword ? `Keyword filter: only companies related to "${keyword}"` : null,
       ].filter(Boolean).join(". ");
 
-      const prompt = `You are a lead research assistant. Extract company leads from the following content scraped from: ${sourceLabel}
+      const prompt = `You are a lead research assistant for a B2B Founder OS. Extract target company leads from the content scraped from: ${sourceLabel}
 
-${filters || "No specific filters — return the most interesting companies."}
+TARGET ICP CRITERIA:
+- Industry: Marketing / Digital / Design / Performance Agencies
+- Team size: 5 to 30 employees
+- Location: English-speaking (US, UK, Canada, Australia)
+- ${filters || "Prioritize marketing and digital agencies with 5-30 employees."}
 
 CONTENT:
 ${rawContent.slice(0, 6000)}
 
-Extract up to 12 distinct companies. For each return:
+Extract up to 12 distinct companies matching this ICP profile. For each return:
 - company: company name
 - website: URL if found, else ""
-- description: 1-2 sentences about what they do and why they might need software/automation help
-- industry: one word industry label
-- team_size: estimated size if mentioned, else ""
+- description: 1-2 sentences about their core services and likely operational bottlenecks (e.g. client reporting, onboarding)
+- industry: "Marketing Agency" or "Digital Agency"
+- team_size: estimated size (e.g. "10-25 employees")
 - location: city/country if mentioned, else ""
 - source: "${sourceLabel}"
 
