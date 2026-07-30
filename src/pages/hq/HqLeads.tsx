@@ -142,13 +142,20 @@ export default function HqLeads() {
         source: "manual",
       }).select().single();
       if (error) throw error;
-      toast.success(`${newName} added`);
+      toast.success(`${newName} added — Lead Intelligence Engine running...`);
       setNewName("");
       setNewWebsite("");
       setShowAdd(false);
       setSearchParams({});
       await loadLeads();
-      if (data?.id) navigate(`/hq/leads/${data.id}`);
+
+      // Fire auto-enrich in background
+      if (data?.id) {
+        supabase.functions.invoke("sourcing-machine", {
+          body: { action: "auto-enrich", lead_id: data.id, company: data.company, website: data.website },
+        }).catch((e) => console.warn("Auto-enrich error:", e));
+        navigate(`/hq/leads/${data.id}`);
+      }
     } catch (err: any) {
       toast.error("Failed to add lead: " + err.message);
     } finally {

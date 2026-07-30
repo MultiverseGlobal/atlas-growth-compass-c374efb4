@@ -90,7 +90,7 @@ export default function HqDiscover() {
         return;
       }
 
-      const { error } = await supabase.from("pipeline_crm").insert({
+      const { data: inserted, error } = await supabase.from("pipeline_crm").insert({
         user_id: user.id,
         company: lead.company,
         website: lead.website,
@@ -99,11 +99,18 @@ export default function HqDiscover() {
         stage: "new",
         icp_score: 5,
         is_contacted: false,
-      });
+      }).select("id").single();
 
       if (error) throw error;
       setSaved((s) => new Set([...s, key]));
-      toast.success(`${lead.company} added to leads`);
+      toast.success(`${lead.company} added — Lead Intelligence Engine running in background...`);
+
+      // Fire auto-enrich pipeline asynchronously
+      if (inserted?.id) {
+        supabase.functions.invoke("sourcing-machine", {
+          body: { action: "auto-enrich", lead_id: inserted.id, company: lead.company, website: lead.website },
+        }).catch((e) => console.warn("Auto-enrich error:", e));
+      }
     } catch (err: any) {
       toast.error("Failed to save: " + err.message);
     } finally {

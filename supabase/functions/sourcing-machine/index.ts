@@ -2481,6 +2481,180 @@ Respond ONLY as a JSON object:
       });
     }
 
+    // ─────────────────────────────────────────────
+    // ACTION: auto-enrich (Lead Intelligence Engine)
+    // ─────────────────────────────────────────────
+    if (body.action === "auto-enrich") {
+      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+      if (!openaiKey) throw new Error("OPENAI_API_KEY not configured");
+      const { lead_id, company: companyParam, website: websiteParam } = body as any;
+
+      let company = companyParam;
+      let website = websiteParam;
+      let userId: string | null = null;
+
+      // Initialize Supabase admin client if available
+      const supabaseAdmin = (supabaseUrl && supabaseServiceKey) 
+        ? createClient(supabaseUrl, supabaseServiceKey) 
+        : null;
+
+      if (lead_id && supabaseAdmin) {
+        const { data: dbLead } = await supabaseAdmin
+          .from("pipeline_crm")
+          .select("id, company, website, user_id, notes")
+          .eq("id", lead_id)
+          .single();
+        if (dbLead) {
+          company = dbLead.company;
+          website = dbLead.website;
+          userId = dbLead.user_id;
+        }
+      }
+
+      // Step 1: Scrape website content if website exists
+      let scrapedContent = "";
+      if (website) {
+        try {
+          const scraped = await scrapeUrl(website);
+          scrapedContent = `${scraped.title}\n\n${scraped.description}\n\n${scraped.content}`;
+        } catch (e) {
+          console.warn("Website scrape error:", e);
+        }
+      }
+
+      // Step 2: Run Full Intelligence Extraction (Research + Pain + Offer + ICP + Priority + Outreach)
+      const prompt = `You are the Atlas Founder Operating System Lead Intelligence Engine.
+
+Analyze this company to empower a founder to close a deal quickly.
+
+COMPANY NAME: ${company}
+WEBSITE: ${website ?? "unknown"}
+WEBSITE CONTENT / CONTEXT:
+${scrapedContent.slice(0, 5000)}
+
+Perform a complete, structured analysis and return JSON with these exact keys:
+
+{
+  "research": {
+    "summary": "2-3 sentences about what they do and who they serve",
+    "what_they_sell": "Core services/products",
+    "customer_type": "Primary customer base",
+    "team_size": "Estimated team size (e.g. 10-25 employees)",
+    "tech_stack": ["Tool 1", "Tool 2", "Tool 3"],
+    "recent_signals": ["Signal 1", "Signal 2"],
+    "decision_makers": ["Likely Role 1", "Likely Role 2"],
+    "suggested_offer": "One sentence offer concept"
+  },
+  "pains": [
+    {
+      "problem": "Specific operational pain statement",
+      "confidence": 85,
+      "reasoning": "Evidence from research",
+      "opportunity": "Automated solution concept",
+      "estimated_value": "£2,500–£5,000",
+      "urgency": "high"
+    }
+  ],
+  "offer": {
+    "one_liner": "Headline outcome phrase",
+    "problem": "Pain restatement",
+    "outcome": "Measurable business result",
+    "solution": "What is built",
+    "timeline": "2-4 weeks",
+    "price": "£3,500 fixed fee",
+    "roi": "Pays back in 2 months"
+  },
+  "icp_score": 8,
+  "priority": "high",
+  "outreach": {
+    "cold_email_subject": "Quick question regarding client onboarding",
+    "cold_email_body": "Cold email copy tailored specifically to their pain...",
+    "linkedin_dm": "Short 2-sentence LinkedIn message...",
+    "followup_1": "Follow up message copy..."
+  }
+}`;
+
+      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+          max_tokens: 2000,
+        }),
+      });
+
+      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
+      const aiData = await aiRes.json();
+      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
+      let enriched: any = {};
+      try { enriched = JSON.parse(raw); } catch {}
+
+      // Step 3: Persist to Supabase if lead_id and admin client are available
+      if (lead_id && supabaseAdmin && userId) {
+        const researchData = enriched.research ?? {};
+        researchData.pain_hypotheses = (enriched.pains ?? []).map((p: any) => p.problem);
+        researchData.suggested_offer = enriched.offer?.one_liner ?? researchData.suggested_offer;
+
+        // Update pipeline_crm
+        await supabaseAdmin.from("pipeline_crm").update({
+          research_data: researchData,
+          icp_score: enriched.icp_score ?? 7,
+          priority: enriched.priority ?? "medium",
+          stage: "researched",
+        }).eq("id", lead_id);
+
+        // Save outreach drafts into atlas_outreach
+        if (enriched.outreach?.cold_email_body) {
+          const followUpDate = new Date();
+          followUpDate.setDate(followUpDate.getDate() + 3);
+          await supabaseAdmin.from("atlas_outreach").insert({
+            user_id: userId,
+            company_id: lead_id,
+            type: "cold_email",
+            subject: enriched.outreach.cold_email_subject ?? `Collaboration with ${company}`,
+            body: enriched.outreach.cold_email_body,
+            status: "draft",
+            follow_up_due: followUpDate.toISOString().split("T")[0],
+          });
+        }
+
+        // Log events into atlas_events
+        await supabaseAdmin.from("atlas_events").insert([
+          {
+            user_id: userId,
+            company_id: lead_id,
+            event_type: "lead_researched",
+            source: "ai",
+            metadata: { company, website },
+          },
+          ...(enriched.pains ?? []).map((p: any) => ({
+            user_id: userId,
+            company_id: lead_id,
+            event_type: "pain_analyzed",
+            source: "ai",
+            metadata: p,
+          })),
+          {
+            user_id: userId,
+            company_id: lead_id,
+            event_type: "offer_generated",
+            source: "ai",
+            metadata: enriched.offer ?? {},
+          }
+        ]);
+      }
+
+      return new Response(JSON.stringify(enriched), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -2492,3 +2666,4 @@ Respond ONLY as a JSON object:
     });
   }
 });
+
