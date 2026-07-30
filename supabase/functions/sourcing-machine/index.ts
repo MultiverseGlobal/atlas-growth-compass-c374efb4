@@ -2439,13 +2439,19 @@ Respond ONLY as a JSON object with a single key "leads":
             if (foundArray) leads = foundArray as any[];
             else leads = []; // Successfully parsed but no array found, so empty
           }
+        } else {
+          const errText = await aiRes.text();
+          return new Response(JSON.stringify({ error: `OpenAI API returned ${aiRes.status}: ${errText}` }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
         }
-      } catch (e) {
-        console.warn("Error calling OpenAI in discover-leads:", e);
+      } catch (e: any) {
+        return new Response(JSON.stringify({ error: `OpenAI API request failed: ${e.message}` }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
       }
 
-      // ONLY use fallback if leads is literally null (meaning API failed or threw error)
-      // If leads is [], that means AI worked but found 0 matches in the text.
+      // ONLY use fallback if leads is literally null (which shouldn't happen now since we return on error)
       if (!leads) {
         leads = DEFAULT_FALLBACK_AGENCIES;
       }
