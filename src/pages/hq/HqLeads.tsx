@@ -111,6 +111,12 @@ export default function HqLeads() {
 
   useEffect(() => { loadLeads(); }, [loadLeads]);
 
+  useEffect(() => {
+    if (showAdd) {
+      setTimeout(() => nameInputRef.current?.focus(), 50);
+    }
+  }, [showAdd]);
+
   // Filter on query or stage change
   useEffect(() => {
     let result = leads;
@@ -315,12 +321,18 @@ export default function HqLeads() {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">
-            <Building2 className="h-12 w-12 mx-auto mb-3 opacity-20" />
+          <div className="text-center py-20 text-muted-foreground flex flex-col items-center">
+            <Building2 className="h-12 w-12 mb-3 opacity-20" />
             <p className="text-sm font-medium">{query || stageFilter !== "all" ? "No leads match your filter" : "No leads yet"}</p>
-            <p className="text-xs mt-1 opacity-70">
+            <p className="text-xs mt-1 opacity-70 mb-4">
               {leads.length === 0 ? "Add your first company to get started" : "Try adjusting your search or filter"}
             </p>
+            {leads.length === 0 && (
+              <Button size="sm" onClick={() => navigate('/hq/discover')} className="h-8 gap-2">
+                <Search className="h-3.5 w-3.5" />
+                Discover Leads
+              </Button>
+            )}
           </div>
         ) : (
           <div className="rounded-xl border border-border/60 overflow-hidden">

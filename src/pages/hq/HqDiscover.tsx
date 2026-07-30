@@ -206,6 +206,7 @@ export default function HqDiscover() {
                 <Input
                   value={customUrl}
                   onChange={(e) => setCustomUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleDiscover(); }}
                   placeholder="https://clutch.co/agencies/digital or any directory..."
                   className="h-9 text-sm border-border/60"
                 />
@@ -227,6 +228,7 @@ export default function HqDiscover() {
               <Input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleDiscover(); }}
                 placeholder="e.g. spreadsheets, onboarding, CRM..."
                 className="h-9 text-sm border-border/60"
               />
