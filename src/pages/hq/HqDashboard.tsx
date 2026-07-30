@@ -242,7 +242,7 @@ export default function HqDashboard() {
   };
 
   const revenuePercent = revenue ? Math.min(100, Math.round((revenue.revenue_this_month / GOAL) * 100)) : 0;
-  const todayStrDisplay = format(new Date(), "EEEE, d MMMM yyyy");
+  const today = format(new Date(), "EEEE, d MMMM yyyy");
 
   if (authLoading || loading) {
     return (
@@ -326,7 +326,7 @@ export default function HqDashboard() {
         </div>
 
         {/* ⚡ Next Best Action */}
-        {nba && (
+        {nba ? (
           <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-5 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -356,15 +356,12 @@ export default function HqDashboard() {
               </Button>
             </div>
           </div>
-        )}
-
-        {/* Legacy insight for when no NBA is available */}
-        {!nba && (
+        ) : (
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
             <Zap className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <div>
-              <div className="text-xs font-semibold text-primary mb-0.5 uppercase tracking-wider">Atlas</div>
-              <p className="text-sm text-foreground">{aiInsight}</p>
+              <div className="text-xs font-semibold text-primary mb-0.5 uppercase tracking-wider">Atlas Chief of Staff</div>
+              <p className="text-sm text-foreground">Add leads and deals to activate your Next Best Action engine.</p>
             </div>
           </div>
         )}
