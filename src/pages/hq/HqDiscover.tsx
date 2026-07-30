@@ -66,6 +66,34 @@ export default function HqDiscover() {
       if (error) throw new Error(error.message);
       const leads: DiscoveredLead[] = Array.isArray(data) ? data : (data?.leads ?? []);
       setResults(leads);
+
+      // Check existing leads to auto-flag duplicates
+      if (user && leads.length > 0) {
+        const { data: existing } = await supabase
+          .from("pipeline_crm")
+          .select("company, website")
+          .eq("user_id", user.id);
+
+        if (existing && existing.length > 0) {
+          const existingSet = new Set(
+            existing.flatMap((e: any) => [
+              (e.company ?? "").toLowerCase().trim(),
+              (e.website ?? "").toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "").trim(),
+            ]).filter(Boolean)
+          );
+
+          const alreadySavedKeys = new Set<string>();
+          leads.forEach((l) => {
+            const compNorm = (l.company ?? "").toLowerCase().trim();
+            const webNorm = (l.website ?? "").toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "").trim();
+            if (existingSet.has(compNorm) || (webNorm && existingSet.has(webNorm))) {
+              alreadySavedKeys.add(l.company + l.website);
+            }
+          });
+          setSaved((prev) => new Set([...prev, ...alreadySavedKeys]));
+        }
+      }
+
       if (leads.length === 0) toast.info("No matches found — try different filters");
     } catch (err: any) {
       toast.error("Discovery failed: " + err.message);
