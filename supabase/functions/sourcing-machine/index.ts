@@ -2535,26 +2535,21 @@ Respond ONLY as a JSON array:
   }
 ]`;
 
-      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-          max_tokens: 1200,
-        }),
-      });
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      if (!groqApiKey) throw new Error("GROQ_API_KEY not configured");
 
-      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
-      const aiData = await aiRes.json();
-      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
       let pains: any[] = [];
       try {
-        const parsed = JSON.parse(raw);
-        pains = Array.isArray(parsed) ? parsed : (parsed.pains ?? parsed.pain_points ?? Object.values(parsed)[0] ?? []);
-      } catch {}
+        const res = await callGroq(
+          "You are a business analyst identifying operational pain points for a B2B software consultant. Respond ONLY with valid JSON.", 
+          prompt, 
+          groqApiKey, 
+          false
+        );
+        pains = Array.isArray(res) ? res : (res.pains ?? res.pain_points ?? Object.values(res)[0] ?? []);
+      } catch (err: any) {
+        throw new Error(`Groq error: ${err.message}`);
+      }
 
       return new Response(JSON.stringify(pains), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -2596,23 +2591,21 @@ Respond ONLY as a JSON object:
   "roi": "When does this pay for itself? Name the calculation."
 }`;
 
-      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.4,
-          response_format: { type: "json_object" },
-          max_tokens: 800,
-        }),
-      });
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      if (!groqApiKey) throw new Error("GROQ_API_KEY not configured");
 
-      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
-      const aiData = await aiRes.json();
-      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
       let offer: Record<string, any> = {};
-      try { offer = JSON.parse(raw); } catch {}
+      try {
+        const res = await callGroq(
+          "You are a B2B sales positioning expert. Create a compelling offer for a software consultant. Respond ONLY with valid JSON.", 
+          prompt, 
+          groqApiKey, 
+          false
+        );
+        offer = res;
+      } catch (err: any) {
+        throw new Error(`Groq error: ${err.message}`);
+      }
 
       return new Response(JSON.stringify(offer), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -2715,23 +2708,21 @@ Perform a complete, structured analysis and return JSON with these exact keys:
   }
 }`;
 
-      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-          max_tokens: 2000,
-        }),
-      });
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      if (!groqApiKey) throw new Error("GROQ_API_KEY not configured");
 
-      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
-      const aiData = await aiRes.json();
-      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
       let enriched: any = {};
-      try { enriched = JSON.parse(raw); } catch {}
+      try {
+        const res = await callGroq(
+          "You are the Atlas Founder Operating System Lead Intelligence Engine. Respond ONLY with valid JSON.", 
+          prompt, 
+          groqApiKey, 
+          false
+        );
+        enriched = res;
+      } catch (err: any) {
+        throw new Error(`Groq error: ${err.message}`);
+      }
 
       // Step 3: Persist to Supabase if lead_id and admin client are available
       if (lead_id && supabaseAdmin && userId) {
