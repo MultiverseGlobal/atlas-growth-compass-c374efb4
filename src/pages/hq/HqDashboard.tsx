@@ -84,9 +84,9 @@ export default function HqDashboard() {
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [stalled, setStalled] = useState<StalledDeal[]>([]);
   const [outreachStats, setOutreachStats] = useState<OutreachStats>({ sentThisWeek: 0, repliesThisWeek: 0 });
-  const [aiInsight, setAiInsight] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [nba, setNba] = useState<{ company: string; companyId: string; action: string; reason: string; value: string; confidence: number } | null>(null);
 
   const loadDashboard = useCallback(async () => {
     if (!user) return;
@@ -165,9 +165,39 @@ export default function HqDashboard() {
       const repliesThisWeek = (outData ?? []).filter((o: any) => ["replied", "booked"].includes(o.status)).length;
       setOutreachStats({ sentThisWeek, repliesThisWeek });
 
-      // Simple AI insight based on data
-      const insight = generateInsight(rev, followUps.length, sentThisWeek, repliesThisWeek, stalled.length);
-      setAiInsight(insight);
+      // Next Best Action — computed from real data, not AI prose
+      // Priority: overdue follow-up on highest value deal > stalled deal > no outreach sent
+      const { data: topDeal } = await supabase
+        .from("atlas_deals")
+        .select("id, company_name, company_id, stage, value, next_action, next_action_due, updated_at")
+        .eq("user_id", user.id)
+        .not("stage", "in", "(won,lost)")
+        .order("value", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (topDeal) {
+        const daysSince = Math.floor((Date.now() - new Date(topDeal.updated_at).getTime()) / 86400000);
+        const isOverdue = topDeal.next_action_due && isPast(new Date(topDeal.next_action_due));
+        const action = isOverdue
+          ? `Follow up on ${topDeal.company_name}`
+          : topDeal.stage === "proposal_sent"
+          ? `Chase proposal with ${topDeal.company_name}`
+          : `Move ${topDeal.company_name} forward`;
+        const reason = isOverdue
+          ? `Follow-up was due ${formatDistanceToNow(new Date(topDeal.next_action_due!))} ago — deals go cold fast.`
+          : daysSince >= 5
+          ? `No contact for ${daysSince} days. Deals stall, not fail — one message changes this.`
+          : `Highest value active deal at £${topDeal.value?.toLocaleString()}. Keep the momentum.`;
+        setNba({
+          company: topDeal.company_name,
+          companyId: topDeal.company_id ?? topDeal.id,
+          action,
+          reason,
+          value: `£${topDeal.value?.toLocaleString() ?? "—"}`,
+          confidence: isOverdue ? 95 : daysSince >= 5 ? 87 : 78,
+        });
+      }
 
     } catch (err: any) {
       console.error(err);
@@ -178,18 +208,7 @@ export default function HqDashboard() {
     }
   }, [user]);
 
-  function generateInsight(rev: RevenueData, fuCount: number, sent: number, replies: number, stalledCount: number): string {
-    const replyRate = sent > 0 ? Math.round((replies / sent) * 100) : 0;
-    const pct = Math.round((rev.revenue_this_month / GOAL) * 100);
 
-    if (sent === 0) return "You haven't sent any outreach yet this week. That's the only variable you fully control. Start there.";
-    if (fuCount > 3) return `${fuCount} follow-ups are overdue. Deals don't close themselves — a follow-up is often all it takes.`;
-    if (stalledCount > 2) return `${stalledCount} deals have stalled for 5+ days. Move them or close them — stale pipeline is false hope.`;
-    if (replyRate > 20) return `${replyRate}% reply rate this week — that's strong. Double what's working and send more.`;
-    if (replyRate > 0 && replyRate < 10) return `${replyRate}% reply rate. Sharpen the angle or the target list — not both at once.`;
-    if (pct >= 80) return `You're at ${pct}% of your £10,000 goal. One more deal closes it.`;
-    return `Pipeline: ${formatMoney(rev.pipeline_weighted)} weighted. Focus on the deals most likely to close this week.`;
-  }
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
@@ -282,12 +301,45 @@ export default function HqDashboard() {
           </div>
         </div>
 
-        {/* AI Insight */}
-        {aiInsight && (
+        {/* ⚡ Next Best Action */}
+        {nba && (
+          <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                <span className="text-xs font-bold text-primary uppercase tracking-wider">Next Best Action</span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] font-mono text-primary/70">
+                <span>{nba.confidence}% confidence</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-base font-bold tracking-tight">{nba.action}</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{nba.reason}</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-mono text-emerald-400 border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 rounded">Deal value: {nba.value}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={() => navigate(`/hq/leads/${nba.companyId}?tab=outreach`)} className="h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5" /> Log Interaction
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate(`/hq/leads/${nba.companyId}`)} className="h-8 text-xs border-border/60 gap-1.5">
+                <ArrowRight className="h-3.5 w-3.5" /> View Company
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate(`/hq/leads/${nba.companyId}/proposal`)} className="h-8 text-xs border-border/60 gap-1.5">
+                <Target className="h-3.5 w-3.5" /> Proposal
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Legacy insight for when no NBA is available */}
+        {!nba && (
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
             <Zap className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <div>
-              <div className="text-xs font-semibold text-primary mb-0.5 uppercase tracking-wider">Atlas Insight</div>
+              <div className="text-xs font-semibold text-primary mb-0.5 uppercase tracking-wider">Atlas</div>
               <p className="text-sm text-foreground">{aiInsight}</p>
             </div>
           </div>

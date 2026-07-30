@@ -221,6 +221,20 @@ export default function HqOutreach() {
           .eq("stage", "new");
       }
 
+      // Log event to atlas_events
+      await (supabase as any).from("atlas_events").insert({
+        user_id: user.id,
+        company_id: selectedCompanyId,
+        event_type: "outreach_sent",
+        source: "user",
+        metadata: {
+          type: selectedType,
+          subject: generated.subject ?? null,
+          body_preview: generated.body.slice(0, 200),
+          follow_up_due: followUpDate.toISOString().split("T")[0],
+        },
+      });
+
       toast.success(`Marked as sent · Follow-up due in ${FOLLOW_UP_DAYS[selectedType]} days`);
       setGenerated(null);
       setContext("");

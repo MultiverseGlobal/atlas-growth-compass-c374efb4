@@ -101,6 +101,23 @@ export default function HqPipeline() {
       // If moved to won, set won_at; if lost, set lost_at
       if (stage === "won") await supabase.from("atlas_deals").update({ won_at: new Date().toISOString() }).eq("id", dragging);
       if (stage === "lost") await supabase.from("atlas_deals").update({ lost_at: new Date().toISOString() }).eq("id", dragging);
+
+      // Log event to atlas_events
+      const eventType = stage === "won" ? "deal_won" : stage === "lost" ? "deal_lost" : "deal_stage_changed";
+      await (supabase as any).from("atlas_events").insert({
+        user_id: user.id,
+        company_id: deal.company_id,
+        deal_id: deal.id,
+        event_type: eventType,
+        source: "user",
+        metadata: {
+          from_stage: deal.stage,
+          to_stage: stage,
+          deal_value: deal.value,
+          company_name: deal.company_name,
+        },
+      });
+
       toast.success(`${deal.company_name} → ${STAGES.find((s) => s.key === stage)?.label}`);
       await loadDeals();
     } catch (err: any) {

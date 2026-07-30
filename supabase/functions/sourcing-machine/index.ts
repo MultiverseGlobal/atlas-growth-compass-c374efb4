@@ -2357,6 +2357,130 @@ Respond ONLY with a JSON array. If no relevant companies found, return [].`;
       });
     }
 
+    // ─────────────────────────────────────────────
+    // ACTION: analyze-pain
+    // ─────────────────────────────────────────────
+    if (body.action === "analyze-pain") {
+      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+      if (!openaiKey) throw new Error("OPENAI_API_KEY not configured");
+
+      const { company, website, research } = body as any;
+      const researchContext = research
+        ? (typeof research === "string" ? research : JSON.stringify(research, null, 2))
+        : `Company: ${company}\nWebsite: ${website ?? "unknown"}`;
+
+      const prompt = `You are a business analyst identifying operational pain points for a B2B software consultant.
+
+COMPANY: ${company}
+WEBSITE: ${website ?? "unknown"}
+
+RESEARCH DATA:
+${researchContext.slice(0, 5000)}
+
+Identify the 3-5 most likely, expensive operational pain points this company has.
+Be specific. Use evidence from the research. Do not be generic.
+
+For each pain, assign:
+- urgency: "high" if it directly costs money/time daily, "medium" if weekly, "low" if occasional
+- confidence: 0-100 based on how much evidence supports this hypothesis
+- estimated_value: the likely contract value if you solved this problem (e.g. "£2,000–£5,000")
+
+Respond ONLY as a JSON array:
+[
+  {
+    "problem": "Specific problem statement using their context",
+    "confidence": 87,
+    "reasoning": "1-2 sentences citing specific evidence from the research",
+    "opportunity": "What you could build to solve this",
+    "estimated_value": "£2,000–£5,000",
+    "urgency": "high"
+  }
+]`;
+
+      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+          max_tokens: 1200,
+        }),
+      });
+
+      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
+      const aiData = await aiRes.json();
+      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
+      let pains: any[] = [];
+      try {
+        const parsed = JSON.parse(raw);
+        pains = Array.isArray(parsed) ? parsed : (parsed.pains ?? parsed.pain_points ?? Object.values(parsed)[0] ?? []);
+      } catch {}
+
+      return new Response(JSON.stringify(pains), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // ACTION: generate-offer
+    // ─────────────────────────────────────────────
+    if (body.action === "generate-offer") {
+      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+      if (!openaiKey) throw new Error("OPENAI_API_KEY not configured");
+
+      const { company, website, research, pain, price_range } = body as any;
+
+      const prompt = `You are a B2B sales positioning expert. Create a compelling offer for a software consultant.
+
+COMPANY: ${company}
+WEBSITE: ${website ?? "unknown"}
+PRICE RANGE: ${price_range ?? "£2,500–£5,000"}
+
+IDENTIFIED PAIN:
+Problem: ${pain?.problem ?? "unknown"}
+Opportunity: ${pain?.opportunity ?? "unknown"}
+Estimated value: ${pain?.estimated_value ?? "unknown"}
+Reasoning: ${pain?.reasoning ?? ""}
+
+Write a positioned offer that connects their specific pain to a concrete business outcome.
+Be specific. Use numbers where possible. Make the ROI obvious.
+
+Respond ONLY as a JSON object:
+{
+  "one_liner": "One sentence that names the outcome you deliver, not the service. e.g. 'Get 6 hours back every Friday by eliminating manual client reporting.'",
+  "problem": "Their specific pain restated in their language — name the cost in time or money",
+  "outcome": "The measurable business outcome they get — be specific",
+  "solution": "What you build — 2 sentences, outcome-focused not technical",
+  "timeline": "Realistic delivery timeline with 2-3 phases",
+  "price": "Clear pricing from the range: ${price_range ?? "£2,500–£5,000"}. State payment structure.",
+  "roi": "When does this pay for itself? Name the calculation."
+}`;
+
+      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.4,
+          response_format: { type: "json_object" },
+          max_tokens: 800,
+        }),
+      });
+
+      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
+      const aiData = await aiRes.json();
+      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
+      let offer: Record<string, any> = {};
+      try { offer = JSON.parse(raw); } catch {}
+
+      return new Response(JSON.stringify(offer), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
