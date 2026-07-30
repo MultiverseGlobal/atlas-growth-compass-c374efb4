@@ -156,6 +156,30 @@ export default function HqDiscover() {
         supabase.functions.invoke("sourcing-machine", {
           body: { action: "auto-enrich", lead_id: inserted.id, company: lead.company, website: lead.website },
         }).catch((e) => console.warn("Auto-enrich error:", e));
+
+        // Auto-push to Notion if configured
+        const autoNotion = localStorage.getItem("atlas.sourcing.auto_notion") === "true";
+        const defaultDbId = localStorage.getItem("atlas.sourcing.default_notion_db");
+        if (autoNotion && defaultDbId) {
+          supabase.functions.invoke("sourcing-machine", {
+            body: {
+              action: "export-notion",
+              database_id: defaultDbId,
+              lead: {
+                id: inserted.id,
+                prospect: lead.company,
+                company: lead.company,
+                website: lead.website || "https://unknown.com",
+                source: lead.source || "clutch",
+                stage: "new",
+                icp_score: 5,
+                notes: lead.description || "",
+                founder_thesis: "Dream 100 ICP #1 Marketing Agency",
+              }
+            }
+          }).then(() => toast.success(`Pushed ${lead.company} to Notion!`))
+            .catch((e) => console.warn("Notion auto-export error:", e));
+        }
       }
     } catch (err: any) {
       toast.error("Failed to save: " + err.message);

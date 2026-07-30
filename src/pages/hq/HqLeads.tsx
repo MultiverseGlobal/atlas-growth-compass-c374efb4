@@ -162,6 +162,30 @@ export default function HqLeads() {
         supabase.functions.invoke("sourcing-machine", {
           body: { action: "auto-enrich", lead_id: data.id, company: data.company, website: data.website },
         }).catch((e) => console.warn("Auto-enrich error:", e));
+
+        // Auto-push to Notion if configured
+        const autoNotion = localStorage.getItem("atlas.sourcing.auto_notion") === "true";
+        const defaultDbId = localStorage.getItem("atlas.sourcing.default_notion_db");
+        if (autoNotion && defaultDbId) {
+          supabase.functions.invoke("sourcing-machine", {
+            body: {
+              action: "export-notion",
+              database_id: defaultDbId,
+              lead: {
+                id: data.id,
+                prospect: data.company,
+                company: data.company,
+                website: data.website || "https://unknown.com",
+                source: "manual",
+                stage: "new",
+                icp_score: 5,
+                founder_thesis: "Dream 100 ICP #1 Marketing Agency",
+              }
+            }
+          }).then(() => toast.success(`Pushed ${data.company} to Notion!`))
+            .catch((e) => console.warn("Notion auto-export error:", e));
+        }
+
         navigate(`/hq/leads/${data.id}`);
       }
     } catch (err: any) {
