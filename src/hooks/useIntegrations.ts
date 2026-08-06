@@ -158,10 +158,15 @@ export function useIntegrations() {
   // ── Metaphor OS OAuth ─────────────────────────────────────────────────────
   const connectMetaphor = () => {
     const clientId = "atlas";
-    // Fix 4: Hardcode redirect_uri — do NOT use window.location.origin.
-    // This must match exactly what is whitelisted in Metaphor's backend.
-    const redirectUri = "http://localhost:5173/auth/metaphor/callback";
-    const metaphorAuthUrl = `http://localhost:8000/api/v1/mcp/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+    // Uses localhost or vercel URL dynamically
+    const redirectUri = `${window.location.origin}/auth/metaphor/callback`;
+    
+    const isProd = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+    const metaphorBase = isProd 
+      ? "https://metaphor-backend.onrender.com/api/v1/mcp"
+      : "http://localhost:8000/api/v1/mcp";
+      
+    const metaphorAuthUrl = `${metaphorBase}/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
     window.location.href = metaphorAuthUrl;
   };
 
