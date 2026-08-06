@@ -8,7 +8,7 @@ import { friendlyError } from "@/lib/errors";
 
 export type IntegrationRow = {
   id: string;
-  provider: "github" | "stripe" | "notion" | "slack" | "google";
+  provider: "github" | "stripe" | "notion" | "slack" | "google" | "metaphor";
   status: "active" | "error" | "disconnected" | "syncing";
   external_account_label: string | null;
   last_sync_at: string | null;
@@ -155,6 +155,16 @@ export function useIntegrations() {
     }
   };
 
+  // ── Metaphor OS OAuth ─────────────────────────────────────────────────────
+  const connectMetaphor = () => {
+    const clientId = "atlas";
+    // Fix 4: Hardcode redirect_uri — do NOT use window.location.origin.
+    // This must match exactly what is whitelisted in Metaphor's backend.
+    const redirectUri = "http://localhost:5173/auth/metaphor/callback";
+    const metaphorAuthUrl = `http://localhost:8000/api/v1/mcp/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+    window.location.href = metaphorAuthUrl;
+  };
+
   const connectNotion = () => connectViaEdgeFunction("notion");
   const connectSlack = () => connectViaEdgeFunction("slack");
   const connectGoogle = () => connectViaEdgeFunction("google");
@@ -205,5 +215,5 @@ export function useIntegrations() {
     onError: (err: Error) => toast.error(friendlyError(err)),
   });
 
-  return { ...query, connectGitHub, connectNotion, connectSlack, connectGoogle, disconnect, updateSettings };
+  return { ...query, connectGitHub, connectNotion, connectSlack, connectGoogle, connectMetaphor, disconnect, updateSettings };
 }

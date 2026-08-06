@@ -24,16 +24,18 @@ CREATE TABLE IF NOT EXISTS public.atlas_deals (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_atlas_deals_user    ON public.atlas_deals(user_id, updated_at DESC);
-CREATE INDEX idx_atlas_deals_stage   ON public.atlas_deals(user_id, stage);
-CREATE INDEX idx_atlas_deals_company ON public.atlas_deals(company_id);
+CREATE INDEX IF NOT EXISTS idx_atlas_deals_user    ON public.atlas_deals(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_atlas_deals_stage   ON public.atlas_deals(user_id, stage);
+CREATE INDEX IF NOT EXISTS idx_atlas_deals_company ON public.atlas_deals(company_id);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.atlas_deals TO authenticated;
 GRANT ALL ON public.atlas_deals TO service_role;
 ALTER TABLE public.atlas_deals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "users manage own deals" ON public.atlas_deals;
 CREATE POLICY "users manage own deals" ON public.atlas_deals
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+DROP TRIGGER IF EXISTS trg_atlas_deals_updated ON public.atlas_deals;
 CREATE TRIGGER trg_atlas_deals_updated BEFORE UPDATE ON public.atlas_deals
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
@@ -54,12 +56,13 @@ CREATE TABLE IF NOT EXISTS public.atlas_interactions (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_atlas_interactions_user    ON public.atlas_interactions(user_id, occurred_at DESC);
-CREATE INDEX idx_atlas_interactions_company ON public.atlas_interactions(company_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_atlas_interactions_user    ON public.atlas_interactions(user_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_atlas_interactions_company ON public.atlas_interactions(company_id, occurred_at DESC);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.atlas_interactions TO authenticated;
 GRANT ALL ON public.atlas_interactions TO service_role;
 ALTER TABLE public.atlas_interactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "users manage own interactions" ON public.atlas_interactions;
 CREATE POLICY "users manage own interactions" ON public.atlas_interactions
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -82,16 +85,18 @@ CREATE TABLE IF NOT EXISTS public.atlas_outreach (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_atlas_outreach_user      ON public.atlas_outreach(user_id, created_at DESC);
-CREATE INDEX idx_atlas_outreach_company   ON public.atlas_outreach(company_id);
-CREATE INDEX idx_atlas_outreach_followup  ON public.atlas_outreach(user_id, follow_up_due) WHERE follow_up_due IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_atlas_outreach_user      ON public.atlas_outreach(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_atlas_outreach_company   ON public.atlas_outreach(company_id);
+CREATE INDEX IF NOT EXISTS idx_atlas_outreach_followup  ON public.atlas_outreach(user_id, follow_up_due) WHERE follow_up_due IS NOT NULL;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.atlas_outreach TO authenticated;
 GRANT ALL ON public.atlas_outreach TO service_role;
 ALTER TABLE public.atlas_outreach ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "users manage own outreach" ON public.atlas_outreach;
 CREATE POLICY "users manage own outreach" ON public.atlas_outreach
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+DROP TRIGGER IF EXISTS trg_atlas_outreach_updated ON public.atlas_outreach;
 CREATE TRIGGER trg_atlas_outreach_updated BEFORE UPDATE ON public.atlas_outreach
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
@@ -110,12 +115,13 @@ CREATE TABLE IF NOT EXISTS public.atlas_contacts (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_atlas_contacts_user    ON public.atlas_contacts(user_id);
-CREATE INDEX idx_atlas_contacts_company ON public.atlas_contacts(company_id);
+CREATE INDEX IF NOT EXISTS idx_atlas_contacts_user    ON public.atlas_contacts(user_id);
+CREATE INDEX IF NOT EXISTS idx_atlas_contacts_company ON public.atlas_contacts(company_id);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.atlas_contacts TO authenticated;
 GRANT ALL ON public.atlas_contacts TO service_role;
 ALTER TABLE public.atlas_contacts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "users manage own contacts" ON public.atlas_contacts;
 CREATE POLICY "users manage own contacts" ON public.atlas_contacts
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 

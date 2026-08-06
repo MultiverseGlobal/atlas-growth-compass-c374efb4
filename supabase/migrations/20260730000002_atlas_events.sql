@@ -29,9 +29,11 @@ ALTER TABLE public.atlas_events ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON public.atlas_events TO authenticated;
 GRANT ALL ON public.atlas_events TO service_role;
 
+DROP POLICY IF EXISTS "users see own events" ON public.atlas_events;
 CREATE POLICY "users see own events" ON public.atlas_events
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "users insert own events" ON public.atlas_events;
 CREATE POLICY "users insert own events" ON public.atlas_events
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 

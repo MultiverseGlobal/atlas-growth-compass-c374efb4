@@ -66,6 +66,18 @@ const connectors: Connector[] = [
     ),
   },
   {
+    id: "metaphor",
+    name: "Metaphor OS",
+    tagline: "The Core Context Keeper.",
+    authMethod: "oauth",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-7 w-7 fill-none stroke-current" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8Z"/>
+        <path d="M12 6v6l4 2"/>
+      </svg>
+    ),
+  },
+  {
     id: "slack",
     name: "Slack",
     tagline: "Team activity volume and conversation signals.",
@@ -104,7 +116,7 @@ const connectors: Connector[] = [
 ];
 
 export default function Integrations() {
-  const { data: integrations = [], isLoading, connectGitHub, connectNotion, connectSlack, connectGoogle, disconnect } = useIntegrations();
+  const { data: integrations = [], isLoading, connectGitHub, connectNotion, connectSlack, connectGoogle, connectMetaphor, disconnect } = useIntegrations();
   const { data: maps = [] } = useMaps();
 
   const primaryGoal = maps[0]?.goal_statement ?? "";
@@ -118,6 +130,7 @@ export default function Integrations() {
     notion: connectNotion,
     slack: connectSlack,
     google: connectGoogle,
+    metaphor: connectMetaphor,
   };
 
   return (

@@ -9,6 +9,7 @@ import Landing from "./pages/Landing";
 import StartMap from "./pages/StartMap";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import MetaphorAuthCallback from "./pages/MetaphorAuthCallback";
 import Onboarding from "./pages/Onboarding";
 import AppShell from "./components/atlas/AppShell";
 import Home from "./pages/app/Home";
@@ -51,6 +52,7 @@ const App = () => (
             <Route path="/map/starter" element={<Navigate to="/start" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/metaphor/callback" element={<MetaphorAuthCallback />} />
             <Route path="/onboarding" element={<Onboarding />} />
 
             <Route path="/app" element={<AppShell />}>
