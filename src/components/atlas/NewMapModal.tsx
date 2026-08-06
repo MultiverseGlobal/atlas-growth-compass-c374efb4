@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useMetaphorPipeline } from "@/hooks/useMetaphorPipeline";
 
 interface NewMapModalProps {
   open: boolean;
@@ -73,6 +74,7 @@ function generateStarterWaypoints(
 export function NewMapModal({ open, onClose }: NewMapModalProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { pushStrategy } = useMetaphorPipeline();
   const [step, setStep] = useState(1);
   const [goal, setGoal] = useState("");
   const [mapName, setMapName] = useState("");
@@ -122,6 +124,14 @@ export function NewMapModal({ open, onClose }: NewMapModalProps) {
           .insert(starterWaypoints);
         
         if (wpError) throw wpError;
+
+        // 3. Optional: Push strategy to Metaphor OS Pipeline
+        await pushStrategy({
+          title: mapData.name || goal.trim().slice(0, 60),
+          summary: `Strategy constraint: ${primaryConstraint}`,
+          content: goal.trim(),
+          target_id: mapData.id
+        });
 
         toast.success("Map created successfully!");
         onClose();

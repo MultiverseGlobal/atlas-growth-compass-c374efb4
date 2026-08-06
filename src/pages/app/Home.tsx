@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MapEvidenceDrawer } from "@/components/atlas/MapEvidenceDrawer";
 import { ChatDrawer } from "@/components/atlas/ChatDrawer";
+import { MetaphorBriefCard } from "@/components/MetaphorBriefCard";
 import {
   Select,
   SelectContent,
@@ -337,6 +338,7 @@ export default function Home() {
         <EmptyState onNew={handleNewMap} />
       ) : (
         <div className="space-y-10">
+          <MetaphorBriefCard />
           {/* Main Execution Surfaces */}
           
           {/* Unclaimed starter map block */}
