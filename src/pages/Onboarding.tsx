@@ -27,6 +27,7 @@ import {
   Sparkles,
   MapPin,
   ArrowUpRight,
+  Plug
 } from "lucide-react";
 import { loadStarterMap } from "@/lib/starterMap";
 import { useIntegrations } from "@/hooks/useIntegrations";
@@ -233,6 +234,9 @@ export default function Onboarding() {
   const [wizardSetup] = useState<AtlasSetup | null>(() => readAtlasSetup());
   const [autoCompleting, setAutoCompleting] = useState(false);
   const [autoCompleteMapId, setAutoCompleteMapId] = useState<string | null>(null);
+  const [showConnect, setShowConnect] = useState(false);
+
+  const { data: integrations = [], connectGitHub, connectMetaphor } = useIntegrations();
 
   const getInitialStep = () => {
     const urlStep = searchParams.get("step");
@@ -276,7 +280,6 @@ export default function Onboarding() {
   );
   const [desiredOutcome, setDesiredOutcome] = useState("weekly");
 
-  const { data: integrations = [], connectGitHub } = useIntegrations();
   const isGitHubConnected = integrations.some(i => i.provider === "github" && i.status === "active");
 
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
@@ -536,10 +539,18 @@ export default function Onboarding() {
       const mapId = await finishCore(finalGoal, cleanH, dispName, "");
       if (mapId) {
         setAutoCompleteMapId(mapId);
-        // Brief pause to let the "Building" screen render, then go to the map with tour
-        setTimeout(() => {
-          nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
-        }, 2800);
+        
+        // If they chose to connect metaphor, pause the flow to let them connect
+        if (setup.integrationIntents?.includes('metaphor')) {
+          setTimeout(() => {
+            setShowConnect(true);
+          }, 2800);
+        } else {
+          // Brief pause to let the "Building" screen render, then go to the map with tour
+          setTimeout(() => {
+            nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
+          }, 2800);
+        }
       } else {
         // Fallback: if something went wrong, stop auto-completing and let user complete onboarding manually
         setAutoCompleting(false);
@@ -619,6 +630,29 @@ export default function Onboarding() {
               </div>
             ))}
           </div>
+
+          {showConnect && autoCompleteMapId && (
+            <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex flex-col items-center">
+              <p className="text-sm text-foreground/80 mb-4">
+                You selected <strong>Metaphor OS</strong> during setup. Connect it now to synchronize your cognitive context.
+              </p>
+              <div className="flex flex-col gap-3 w-full max-w-[240px]">
+                <Button 
+                  onClick={() => connectMetaphor(`/app/map/${autoCompleteMapId}?tour=1&focus=1`)}
+                  className="w-full gap-2"
+                >
+                  <Plug className="h-4 w-4" /> Connect Metaphor OS
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => nav(`/app/map/${autoCompleteMapId}?tour=1&focus=1`, { replace: true })}
+                  className="w-full text-muted-foreground hover:text-foreground"
+                >
+                  Skip for now
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
