@@ -91,7 +91,7 @@ export default function HqLeads() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .select("id, company, website, stage, icp_score, is_contacted, source, notes, created_at, research_data")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -138,7 +138,7 @@ export default function HqLeads() {
     if (!newName.trim() || !user) return;
     setAddingLead(true);
     try {
-      const { data, error } = await supabase.from("pipeline_crm").insert({
+      const { data, error } = await supabase.from("kuro_pipeline_view").insert({
         user_id: user.id,
         prospect: newName.trim(),
         company: newName.trim(),
@@ -210,7 +210,7 @@ export default function HqLeads() {
       if (!data) throw new Error("No data returned");
 
       // Save research data back
-      await supabase.from("pipeline_crm").update({
+      await supabase.from("kuro_pipeline_view").update({
         research_data: data,
         stage: lead.stage === "new" ? "researched" : lead.stage,
       }).eq("id", lead.id);

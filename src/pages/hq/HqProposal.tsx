@@ -80,7 +80,7 @@ export default function HqProposal() {
   // Load leads
   useEffect(() => {
     if (!user) return;
-    supabase.from("pipeline_crm")
+    supabase.from("kuro_pipeline_view")
       .select("id, company, website, research_data, notes")
       .eq("user_id", user.id)
       .order("company")
@@ -191,7 +191,7 @@ export default function HqProposal() {
         .eq("user_id", user.id)
         .not("stage", "in", "(won,lost)");
       // Update lead stage
-      await supabase.from("pipeline_crm")
+      await supabase.from("kuro_pipeline_view")
         .update({ stage: "proposal_sent" })
         .eq("id", selectedLeadId);
       toast.success("Proposal saved — deal stage → Proposal Sent");

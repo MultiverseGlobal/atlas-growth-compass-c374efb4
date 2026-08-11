@@ -225,7 +225,7 @@ export default function Sourcing() {
     setLoadingLeads(true);
     try {
       const { data, error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -608,7 +608,7 @@ export default function Sourcing() {
           is_hq_dump: true 
         } : l));
         await supabase
-          .from("pipeline_crm")
+          .from("kuro_pipeline_view")
           .update({ 
             exported_to_notion: true, 
             notion_page_id: body.page_id, 
@@ -813,7 +813,7 @@ export default function Sourcing() {
       const calculatedPriority = parsedIcp >= 13 ? "High" : parsedIcp >= 11 ? "Medium" : "Low";
 
       const { data, error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .insert({
           user_id: user.id,
           company: manualCompany.trim(),
@@ -905,7 +905,7 @@ export default function Sourcing() {
       let saved: any[] = [];
       if (uniqueRows.length > 0) {
         const { data, error } = await supabase
-            .from("pipeline_crm")
+            .from("kuro_pipeline_view")
             .insert(uniqueRows)
             .select();
 
@@ -963,7 +963,7 @@ export default function Sourcing() {
       if (previewLead.id) {
         // Edit mode
         const { data, error } = await supabase
-          .from("pipeline_crm")
+          .from("kuro_pipeline_view")
           .update({
             company: (previewLead.company || "Unknown").trim(),
             prospect: (previewLead.prospect || "Unknown Prospect").trim(),
@@ -1000,7 +1000,7 @@ export default function Sourcing() {
       } else {
         // Insert mode (staged preview fallback)
         const { data, error } = await supabase
-          .from("pipeline_crm")
+          .from("kuro_pipeline_view")
           .insert({
             user_id: user.id,
             company: (previewLead.company || "Unknown").trim(),
@@ -1066,7 +1066,7 @@ export default function Sourcing() {
     
     try {
       const { error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .update({ is_contacted: nextVal })
         .eq("id", leadId);
 
@@ -1084,7 +1084,7 @@ export default function Sourcing() {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, reply_status: nextStatus } : l));
     try {
       const { error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .update({ reply_status: nextStatus })
         .eq("id", leadId);
 
@@ -1101,7 +1101,7 @@ export default function Sourcing() {
     if (!activeNotesLead) return;
     try {
       const { error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .update({ notes: notesDraft.trim() || null })
         .eq("id", activeNotesLead.id);
 
@@ -1115,6 +1115,80 @@ export default function Sourcing() {
     }
   };
 
+  // ── Pipeline stage machine ────────────────────────────────────────────────
+  const PIPELINE_STAGES = [
+    "identified", "researched", "approved", "contacted", "replied",
+    "qualified", "call_booked", "call_completed", "pain_confirmed",
+    "proposal_sent", "negotiating", "won", "lost", "paid",
+    "onboarding", "delivering", "complete"
+  ] as const;
+
+  const STAGE_LABELS: Record<string, string> = {
+    identified: "Identified", researched: "Researched", approved: "Approved",
+    contacted: "Contacted", replied: "Replied", qualified: "Qualified",
+    call_booked: "Call Booked", call_completed: "Call Done",
+    pain_confirmed: "Pain Confirmed", proposal_sent: "Proposal Sent",
+    negotiating: "Negotiating", won: "Won", lost: "Lost", paid: "Paid",
+    onboarding: "Onboarding", delivering: "Delivering", complete: "Complete",
+    // legacy values
+    Sourced: "Sourced",
+  };
+
+  const STAGE_COLORS: Record<string, string> = {
+    identified: "text-muted-foreground border-border/50 bg-muted/20",
+    researched: "text-sky-500 border-sky-500/20 bg-sky-500/5",
+    approved: "text-blue-500 border-blue-500/20 bg-blue-500/5",
+    contacted: "text-amber-500 border-amber-500/20 bg-amber-500/5",
+    replied: "text-yellow-500 border-yellow-500/20 bg-yellow-500/5",
+    qualified: "text-orange-500 border-orange-500/20 bg-orange-500/5",
+    call_booked: "text-violet-500 border-violet-500/20 bg-violet-500/5",
+    call_completed: "text-purple-500 border-purple-500/20 bg-purple-500/5",
+    pain_confirmed: "text-primary border-primary/20 bg-primary/5",
+    proposal_sent: "text-emerald-400 border-emerald-400/20 bg-emerald-400/5",
+    negotiating: "text-emerald-500 border-emerald-500/20 bg-emerald-500/5",
+    won: "text-emerald-600 border-emerald-600/20 bg-emerald-600/10",
+    paid: "text-emerald-700 border-emerald-700/20 bg-emerald-700/10",
+    lost: "text-destructive border-destructive/20 bg-destructive/5",
+    onboarding: "text-teal-500 border-teal-500/20 bg-teal-500/5",
+    delivering: "text-teal-600 border-teal-600/20 bg-teal-600/5",
+    complete: "text-success border-success/20 bg-success/5",
+    Sourced: "text-muted-foreground border-border/50 bg-muted/20",
+  };
+
+  const updateStage = async (leadId: string, newStage: string) => {
+    // Optimistic update
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
+    try {
+      const { error } = await supabase
+        .from("kuro_pipeline_view")
+        .update({ stage: newStage })
+        .eq("id", leadId);
+      if (error) throw error;
+    } catch (err: any) {
+      toast.error("Stage update failed: " + err.message);
+      fetchLeads();
+    }
+  };
+
+  const StagePill = ({ lead }: { lead: Lead }) => {
+    const current = lead.stage || "identified";
+    const label = STAGE_LABELS[current] || current;
+    const colour = STAGE_COLORS[current] || STAGE_COLORS.identified;
+    return (
+      <select
+        value={current}
+        onChange={(e) => updateStage(lead.id, e.target.value)}
+        className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded border cursor-pointer appearance-none ${colour} bg-transparent`}
+        title="Update pipeline stage"
+      >
+        {PIPELINE_STAGES.map(s => (
+          <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+        ))}
+        {current === "Sourced" && <option value="Sourced">Sourced</option>}
+      </select>
+    );
+  };
+
   // Delete lead
   const handleDeleteLead = async (leadId: string, companyName: string) => {
     if (!confirm(`Are you sure you want to delete ${companyName}?`)) return;
@@ -1124,7 +1198,7 @@ export default function Sourcing() {
 
     try {
       const { error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .delete()
         .eq("id", leadId);
 
@@ -1166,7 +1240,7 @@ export default function Sourcing() {
     } catch (err: any) {
       toast.error(`Graduation failed: ${err.message}. Graduating locally in database...`, { id: toastId });
       const { error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .update({ is_hq_dump: false, stage: "Sourced" })
         .eq("id", lead.id);
       if (!error) {
@@ -1258,7 +1332,7 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
       };
 
       const { error: updateError } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .update(updates)
         .eq("id", lead.id);
 
@@ -1318,7 +1392,7 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
     toast.loading(`Deleting ${selectedCount} leads...`);
     try {
       const { error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .delete()
         .in("id", selectedLeadIds);
 
@@ -1338,7 +1412,7 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
     toast.loading("Updating status...");
     try {
       const { error } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .update({ is_contacted: contacted })
         .in("id", selectedLeadIds);
 
@@ -1460,9 +1534,12 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                     <span className="font-semibold text-sm text-foreground block truncate">{lead.company}</span>
                     <span className="text-xs text-muted-foreground block truncate">{lead.prospect || "Unknown founder"}</span>
                   </div>
-                  <Badge variant="outline" className={`font-mono text-[10px] shrink-0 font-semibold px-1.5 py-0 border ${getIcpBadgeClass(lead.icp_score)}`}>
-                    {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <StagePill lead={lead} />
+                    <Badge variant="outline" className={`font-mono text-[10px] font-semibold px-1.5 py-0 border ${getIcpBadgeClass(lead.icp_score)}`}>
+                      {lead.icp_score !== null && lead.icp_score !== undefined ? `${lead.icp_score}/15` : "TBD"}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div className="flex justify-between items-center text-[11px] text-muted-foreground border-t border-border/30 pt-2.5">
@@ -1530,16 +1607,19 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                         </span>
                       )
                     ) : (
-                      lead.notion_sync_status === "synced" ? (
-                        <span className="text-[9px] font-mono text-emerald-500 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/20">Synced</span>
-                      ) : (
-                        <button 
-                          onClick={() => syncSingleLeadWithProgress(lead)} 
-                          className="text-[9px] font-mono text-muted-foreground hover:text-primary bg-secondary/50 px-1.5 py-0.5 rounded border border-border/60 hover:bg-secondary transition-colors"
-                        >
-                          Push Notion
-                        </button>
-                      )
+                      <div className="flex items-center gap-1.5">
+                        <StagePill lead={lead} />
+                        {lead.notion_sync_status === "synced" ? (
+                          <span className="text-[9px] font-mono text-emerald-500 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/20">Synced</span>
+                        ) : (
+                          <button 
+                            onClick={() => syncSingleLeadWithProgress(lead)} 
+                            className="text-[9px] font-mono text-muted-foreground hover:text-primary bg-secondary/50 px-1.5 py-0.5 rounded border border-border/60 hover:bg-secondary transition-colors"
+                          >
+                            Push Notion
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
 

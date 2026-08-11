@@ -57,7 +57,7 @@ export default function HqDiscover() {
       let existingNames: string[] = [];
       if (user) {
         const { data: existing } = await supabase
-          .from("pipeline_crm")
+          .from("kuro_pipeline_view")
           .select("company")
           .eq("user_id", user.id);
         if (existing) {
@@ -83,7 +83,7 @@ export default function HqDiscover() {
       // Check existing leads to auto-flag duplicates
       if (user && leads.length > 0) {
         const { data: existing } = await supabase
-          .from("pipeline_crm")
+          .from("kuro_pipeline_view")
           .select("company, website")
           .eq("user_id", user.id);
 
@@ -122,7 +122,7 @@ export default function HqDiscover() {
     try {
       // Check if already exists
       const { data: existing } = await supabase
-        .from("pipeline_crm")
+        .from("kuro_pipeline_view")
         .select("id")
         .eq("user_id", user.id)
         .ilike("company", lead.company)
@@ -134,7 +134,7 @@ export default function HqDiscover() {
         return;
       }
 
-      const { data: inserted, error } = await supabase.from("pipeline_crm").insert({
+      const { data: inserted, error } = await supabase.from("kuro_pipeline_view").insert({
         user_id: user.id,
         prospect: lead.company,
         company: lead.company,

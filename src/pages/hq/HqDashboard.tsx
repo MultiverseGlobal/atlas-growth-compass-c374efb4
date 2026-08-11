@@ -135,7 +135,7 @@ export default function HqDashboard() {
         let fuCompanyMap: Record<string, string> = {};
         if (fuCompanyIds.length > 0) {
           const { data: comps } = await supabase
-            .from("pipeline_crm")
+            .from("kuro_pipeline_view")
             .select("id, company")
             .in("id", fuCompanyIds);
           (comps ?? []).forEach((c: any) => { fuCompanyMap[c.id] = c.company; });

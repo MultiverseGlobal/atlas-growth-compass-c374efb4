@@ -134,7 +134,7 @@ export default function HqLeadDetail() {
     setLoading(true);
     try {
       const [leadRes, interactionsRes, contactsRes, dealRes, eventsRes] = await Promise.all([
-        supabase.from("pipeline_crm").select("*").eq("id", id).eq("user_id", user.id).single(),
+        supabase.from("kuro_pipeline_view").select("*").eq("id", id).eq("user_id", user.id).single(),
         supabase.from("atlas_interactions").select("*").eq("company_id", id).eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(50),
         supabase.from("atlas_contacts").select("*").eq("company_id", id).eq("user_id", user.id),
         supabase.from("atlas_deals").select("*").eq("company_id", id).eq("user_id", user.id).not("stage", "in", "(won,lost)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -165,7 +165,7 @@ export default function HqLeadDetail() {
       if (error) throw new Error(error.message);
       if (!data) throw new Error("No data returned");
 
-      await supabase.from("pipeline_crm").update({
+      await supabase.from("kuro_pipeline_view").update({
         research_data: data,
         stage: lead.stage === "new" ? "researched" : lead.stage,
       }).eq("id", id);
@@ -224,7 +224,7 @@ export default function HqLeadDetail() {
     if (!noteText.trim() || !user || !id) return;
     setSavingNote(true);
     try {
-      await supabase.from("pipeline_crm").update({ notes: noteText }).eq("id", id);
+      await supabase.from("kuro_pipeline_view").update({ notes: noteText }).eq("id", id);
       await (supabase as any).from("atlas_events").insert({
         user_id: user.id,
         company_id: id,

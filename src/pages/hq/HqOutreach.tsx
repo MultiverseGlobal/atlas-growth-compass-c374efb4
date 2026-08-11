@@ -91,7 +91,7 @@ export default function HqOutreach() {
     setLoading(true);
     try {
       const [leadsRes, outRes] = await Promise.all([
-        supabase.from("pipeline_crm").select("id, company, website, research_data").eq("user_id", user.id).order("company"),
+        supabase.from("kuro_pipeline_view").select("id, company, website, research_data").eq("user_id", user.id).order("company"),
         supabase.from("atlas_outreach").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       ]);
       if (leadsRes.error) throw leadsRes.error;
@@ -212,10 +212,10 @@ export default function HqOutreach() {
         follow_up_due: followUpDate.toISOString().split("T")[0],
       });
 
-      // Update pipeline_crm stage to contacted if still "new"
+      // Update kuro_pipeline_view stage to contacted if still "new"
       const lead = leads.find((l) => l.id === selectedCompanyId);
       if (lead) {
-        await supabase.from("pipeline_crm")
+        await supabase.from("kuro_pipeline_view")
           .update({ is_contacted: true, stage: "contacted" })
           .eq("id", selectedCompanyId)
           .eq("stage", "new");
