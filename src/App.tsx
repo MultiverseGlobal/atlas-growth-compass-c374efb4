@@ -48,9 +48,9 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Navigate to="/hq/dashboard" replace />} />
-            <Route path="/landing" element={<Landing />} />
-            <Route path="/start" element={<StartMap />} />
-            <Route path="/map/starter" element={<Navigate to="/start" replace />} />
+            <Route path="/landing" element={<Navigate to="/hq/dashboard" replace />} />
+            <Route path="/start" element={<Navigate to="/hq/dashboard" replace />} />
+            <Route path="/map/starter" element={<Navigate to="/hq/dashboard" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/metaphor/callback" element={<MetaphorAuthCallback />} />
