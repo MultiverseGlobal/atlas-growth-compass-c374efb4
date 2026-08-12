@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
+import { useSovereignSync } from "@/hooks/useSovereignSync";
 
 import Landing from "./pages/Landing";
 import StartMap from "./pages/StartMap";
@@ -36,6 +37,10 @@ import PublicProfile from "./pages/PublicProfile";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 
+const SovereignSyncWrapper = ({ children }: { children: React.ReactNode }) => {
+  useSovereignSync();
+  return <>{children}</>;
+};
 
 const queryClient = new QueryClient();
 
@@ -45,7 +50,8 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
+        <SovereignSyncWrapper>
+          <AuthProvider>
           <Routes>
             <Route path="/" element={<Navigate to="/hq/dashboard" replace />} />
             <Route path="/landing" element={<Navigate to="/hq/dashboard" replace />} />
