@@ -180,30 +180,43 @@ export default function Home() {
     if (!user) return;
     setLoading(true);
     try {
-      const { data: leads, error } = await supabase
-        .from("leads")
-        .select("stage, is_contacted, reply_status")
+      let leadsData: any[] = [];
+      const { data: kuroLeads, error: kuroErr } = await supabase
+        .from("kuro_pipeline_view" as any)
+        .select("stage, is_contacted, reply_status, deal_value, icp_score")
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (!kuroErr && kuroLeads) {
+        leadsData = kuroLeads;
+      } else {
+        const { data: fallbackLeads } = await supabase
+          .from("leads")
+          .select("stage, is_contacted, reply_status, deal_value")
+          .eq("user_id", user.id);
+        leadsData = fallbackLeads ?? [];
+      }
+
+      const wonRevenue = leadsData
+        .filter((l) => ["won", "paid"].includes(l.stage))
+        .reduce((sum, l) => sum + (Number(l.deal_value) || 500), 0);
 
       const m: PipelineMetrics = {
-        prospects: leads?.length ?? 0,
-        responses: leads?.filter((l) =>
+        prospects: leadsData.length,
+        responses: leadsData.filter((l) =>
           l.reply_status && !["none", "no_reply"].includes(l.reply_status)
-        ).length ?? 0,
-        calls: leads?.filter((l) =>
+        ).length,
+        calls: leadsData.filter((l) =>
           ["call_booked", "call_completed", "pain_confirmed", "proposal_sent",
            "negotiating", "won", "paid", "onboarding", "delivering", "complete"].includes(l.stage)
-        ).length ?? 0,
-        painConfirmed: leads?.filter((l) =>
+        ).length,
+        painConfirmed: leadsData.filter((l) =>
           ["pain_confirmed", "proposal_sent", "negotiating", "won", "paid",
            "onboarding", "delivering", "complete"].includes(l.stage)
-        ).length ?? 0,
-        proposals: leads?.filter((l) =>
+        ).length,
+        proposals: leadsData.filter((l) =>
           ["proposal_sent", "negotiating", "won", "paid", "onboarding", "delivering", "complete"].includes(l.stage)
-        ).length ?? 0,
-        revenue: 0, // will be updated when payment tracking is added
+        ).length,
+        revenue: wonRevenue,
       };
 
       setMetrics(m);

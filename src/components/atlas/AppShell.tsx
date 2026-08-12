@@ -9,12 +9,12 @@ import { CompassLoader } from "@/pages/app/Home";
 import { useTheme } from "@/hooks/useTheme";
 
 const nav = [
-  { to: "/app", end: true, icon: Compass, label: "Today" },
-  { to: "/app/timeline", icon: Activity, label: "Timeline" },
-  { to: "/app/notifications", icon: Bell, label: "Notifications" },
-  { to: "/app/reports", icon: FileText, label: "Reports" },
-  { to: "/app/integrations", icon: Plug, label: "Data sources" },
-  { to: "/app/page", icon: Globe, label: "Public page" },
+  { to: "/app", end: true, icon: Compass, label: "Mission Control" },
+  { to: "/hq/discover", icon: Target, label: "Sourcing Radar" },
+  { to: "/hq/leads", icon: Activity, label: "Pipeline" },
+  { to: "/hq/outreach", icon: FileText, label: "Outreach" },
+  { to: "/app/timeline", icon: Bell, label: "Timeline" },
+  { to: "/app/integrations", icon: Plug, label: "Integrations" },
   { to: "/app/settings", icon: Settings, label: "Settings" },
 ];
 

@@ -1,26 +1,25 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
-  LayoutDashboard, Users, Shield, Compass, 
-  LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon, Lock,
-  Settings as SettingsIcon, TrendingUp, MessageSquare, FileText, Target, Zap
+  LayoutDashboard, Compass, Users2,
+  LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon,
+  Settings as SettingsIcon, TrendingUp, MessageSquare, FileText, Crosshair, Zap
 } from "lucide-react";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { isUserAdmin } from "@/lib/adminConfig";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
 
 const hqNav = [
-  { to: "/hq/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/hq/discover",  icon: Compass,         label: "Discover" },
-  { to: "/hq/leads",     icon: Target,          label: "Leads" },
-  { to: "/hq/pipeline",  icon: TrendingUp,       label: "Pipeline" },
-  { to: "/hq/outreach",  icon: MessageSquare,    label: "Outreach" },
-  { to: "/hq/report",    icon: FileText,         label: "Report" },
-  { to: "/hq/settings",  icon: SettingsIcon,     label: "Settings" },
+  { to: "/hq/dashboard", icon: Compass,         label: "Mission Control" },
+  { to: "/hq/discover",  icon: Crosshair,       label: "Radar / Discover" },
+  { to: "/hq/leads",     icon: Users2,          label: "Leads" },
+  { to: "/hq/pipeline",  icon: TrendingUp,      label: "Pipeline" },
+  { to: "/hq/outreach",  icon: MessageSquare,   label: "Outreach" },
+  { to: "/hq/report",    icon: FileText,        label: "Report" },
+  { to: "/hq/settings",  icon: SettingsIcon,    label: "Settings" },
 ];
 
 const STORAGE_KEY = "atlas.hq.sidebar.collapsed";
@@ -75,30 +74,7 @@ export default function HqShell() {
 
   if (!user) return null;
 
-  // Authorization Check
-  if (!isUserAdmin(user.email)) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4 grain">
-        <div className="max-w-md w-full rounded-2xl border border-border/60 bg-card p-8 text-center shadow-2xl relative overflow-hidden">
-          <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-6 border border-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.1)]">
-            <Lock className="h-6 w-6 text-primary" />
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground font-display">Restricted Administration</h2>
-          <p className="mt-3 text-[13px] text-muted-foreground leading-relaxed">
-            Atlas HQ is an internal administration portal. The email address <strong className="text-foreground">{user.email}</strong> is not authorized to access this environment.
-          </p>
-          <div className="mt-8 flex flex-col gap-3">
-            <Button onClick={() => navigate("/app")} className="w-full h-10 gap-1.5 font-medium bg-primary text-primary-foreground hover:opacity-90">
-              <Compass className="h-4 w-4" /> Return to Workspace
-            </Button>
-            <Button variant="outline" onClick={() => signOut().then(() => navigate("/auth"))} className="w-full h-10 gap-1.5 font-medium border-border/80 hover:bg-muted">
-              <LogOut className="h-4 w-4" /> Sign Out
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-screen bg-background text-foreground grain md:flex">
@@ -158,7 +134,7 @@ export default function HqShell() {
               <>
                 <div className="flex-1 min-w-0">
                   <div className="text-[12px] font-medium truncate text-foreground">{profile?.display_name ?? user.email}</div>
-                  <div className="text-[10px] text-muted-foreground truncate font-mono">Admin Session</div>
+                  <div className="text-[10px] text-muted-foreground truncate font-mono">Personal Workspace</div>
                 </div>
                 <button
                   onClick={() => signOut().then(() => navigate("/"))}

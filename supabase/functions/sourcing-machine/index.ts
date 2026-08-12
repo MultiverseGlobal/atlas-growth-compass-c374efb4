@@ -1743,7 +1743,7 @@ Return ONLY a valid JSON array:
       
       if (body.lead.id) {
         await dbClient
-          .from("pipeline_crm")
+          .from("kuro_pipeline_view")
           .update({
             notion_sync_status: "syncing",
             notion_sync_error: null
@@ -1917,7 +1917,7 @@ Return ONLY a valid JSON array:
           if (!body.duplicate_behavior) {
             if (lead.id) {
               await dbClient
-                .from("pipeline_crm")
+                .from("kuro_pipeline_view")
                 .update({ notion_sync_status: "not_synced" })
                 .eq("id", lead.id);
             }
@@ -1933,7 +1933,7 @@ Return ONLY a valid JSON array:
           if (body.duplicate_behavior === "skip") {
             if (lead.id) {
               await dbClient
-                .from("pipeline_crm")
+                .from("kuro_pipeline_view")
                 .update({
                   notion_sync_status: "synced",
                   notion_page_id: existingPageId,
@@ -1967,7 +1967,7 @@ Return ONLY a valid JSON array:
 
             if (lead.id) {
               await dbClient
-                .from("pipeline_crm")
+                .from("kuro_pipeline_view")
                 .update({
                   notion_sync_status: "synced",
                   notion_page_id: existingPageId,
@@ -2011,7 +2011,7 @@ Return ONLY a valid JSON array:
 
         if (lead.id) {
           await dbClient
-            .from("pipeline_crm")
+            .from("kuro_pipeline_view")
             .update({
               notion_sync_status: "synced",
               notion_page_id: newPageId,
@@ -2028,7 +2028,7 @@ Return ONLY a valid JSON array:
         if (body.lead && body.lead.id) {
           try {
             await dbClient
-              .from("pipeline_crm")
+              .from("kuro_pipeline_view")
               .update({
                 notion_sync_status: "failed",
                 notion_sync_error: err.message
@@ -2661,7 +2661,7 @@ Respond ONLY as a JSON object:
 
       if (lead_id && supabaseAdmin) {
         const { data: dbLead } = await supabaseAdmin
-          .from("pipeline_crm")
+          .from("kuro_pipeline_view")
           .select("id, company, website, user_id, notes")
           .eq("id", lead_id)
           .single();
@@ -2757,8 +2757,8 @@ Perform a complete, structured analysis and return JSON with these exact keys:
         researchData.pain_hypotheses = (enriched.pains ?? []).map((p: any) => p.problem);
         researchData.suggested_offer = enriched.offer?.one_liner ?? researchData.suggested_offer;
 
-        // Update pipeline_crm
-        await supabaseAdmin.from("pipeline_crm").update({
+        // Update Kuro OS pipeline
+        await supabaseAdmin.from("kuro_pipeline_view").update({
           research_data: researchData,
           icp_score: enriched.icp_score ?? 7,
           priority: enriched.priority ?? "medium",

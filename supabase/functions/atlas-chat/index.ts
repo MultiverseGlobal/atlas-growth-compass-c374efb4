@@ -234,7 +234,7 @@ async function buildContext(supabase: any, userId: string): Promise<string> {
       .order("follow_up_due", { ascending: true })
       .limit(5),
     // Recent leads (for context)
-    supabase.from("pipeline_crm")
+    supabase.from("kuro_pipeline_view")
       .select("company, stage, icp_score, is_contacted, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
@@ -265,7 +265,7 @@ async function buildContext(supabase: any, userId: string): Promise<string> {
   let fuCompanyMap: Record<string, string> = {};
   const fuCompanyIds = [...new Set(followUps.map((f: any) => f.company_id))];
   if (fuCompanyIds.length > 0) {
-    const { data: comps } = await supabase.from("pipeline_crm").select("id, company").in("id", fuCompanyIds);
+    const { data: comps } = await supabase.from("kuro_pipeline_view").select("id, company").in("id", fuCompanyIds);
     (comps ?? []).forEach((c: any) => { fuCompanyMap[c.id] = c.company; });
   }
 

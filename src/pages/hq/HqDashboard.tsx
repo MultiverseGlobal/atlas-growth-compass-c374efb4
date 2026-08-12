@@ -45,7 +45,7 @@ interface OutreachStats {
   repliesThisWeek: number;
 }
 
-const GOAL = 10000;
+const GOAL = 500;
 const CURRENCY = "£";
 
 function formatMoney(n: number) {
@@ -260,7 +260,7 @@ export default function HqDashboard() {
       {/* Top bar */}
       <div className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between">
         <div>
-          <h1 className="text-sm font-semibold text-foreground">Morning Brief</h1>
+          <h1 className="text-sm font-semibold text-foreground">14-Day Sprint · Mission Control</h1>
           <p className="text-xs text-muted-foreground font-mono">{today}</p>
         </div>
         <div className="flex items-center gap-4">
