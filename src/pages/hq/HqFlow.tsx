@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Zap, Search, ArrowRight, ArrowLeft, CheckCircle2,
-  Copy, Send, MessageSquare, AlertTriangle, Sparkles,
-  Building2, User, Globe, ExternalLink, RefreshCw,
-  Plus, Check, HelpCircle, FileText, ChevronRight
+  Copy, Send, AlertTriangle, Sparkles, Building2,
+  User, ExternalLink, RefreshCw, Plus, Check,
+  FolderArchive, X, ChevronRight, MessageSquare, TrendingUp
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,13 +14,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
-interface FlowTarget {
+type FlowPhase = "source" | "recon" | "outreach" | "close";
+
+interface Target {
   id: string;
   company: string;
   website: string;
   industry: string;
   location: string;
   team_size: string;
+  selected: boolean;
   founder: {
     name: string;
     role: string;
@@ -40,7 +43,7 @@ interface FlowTarget {
   offer: string;
 }
 
-const DEFAULT_QUEUE: FlowTarget[] = [
+const DEFAULT_TARGETS: Target[] = [
   {
     id: "1",
     company: "Perceptric",
@@ -48,6 +51,7 @@ const DEFAULT_QUEUE: FlowTarget[] = [
     industry: "B2B Technical SEO & GEO",
     location: "Singapore (Remote)",
     team_size: "~8 people",
+    selected: true,
     founder: {
       name: "Vincent Nguyen",
       role: "Founder & CEO",
@@ -73,6 +77,7 @@ const DEFAULT_QUEUE: FlowTarget[] = [
     industry: "B2B SaaS Content & Demand Gen",
     location: "United Kingdom",
     team_size: "~15 people",
+    selected: true,
     founder: {
       name: "Tom Whatley",
       role: "Founder & CEO",
@@ -98,6 +103,7 @@ const DEFAULT_QUEUE: FlowTarget[] = [
     industry: "DTC Paid Media & Creative",
     location: "United States",
     team_size: "~18 people",
+    selected: true,
     founder: {
       name: "Colby Flood",
       role: "Founder & CEO",
@@ -123,6 +129,7 @@ const DEFAULT_QUEUE: FlowTarget[] = [
     industry: "B2B Marketing Automation & Inbound",
     location: "United Kingdom",
     team_size: "~12 people",
+    selected: true,
     founder: {
       name: "Rupert Morris",
       role: "Managing Director",
@@ -148,6 +155,7 @@ const DEFAULT_QUEUE: FlowTarget[] = [
     industry: "Web Accessibility & Compliance",
     location: "United States",
     team_size: "~10 people",
+    selected: true,
     founder: {
       name: "Amber Hinds",
       role: "CEO",
@@ -168,46 +176,48 @@ const DEFAULT_QUEUE: FlowTarget[] = [
   },
 ];
 
-type Step = "target" | "diagnose" | "pitch" | "reply";
+const PHASES: FlowPhase[] = ["source", "recon", "outreach", "close"];
 
 export default function HqFlow() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState<Step>("target");
-  const [queueIndex, setQueueIndex] = useState(0);
+  const [phase, setPhase] = useState<FlowPhase>("source");
+  const [targets, setTargets] = useState<Target[]>(DEFAULT_TARGETS);
+  const [activeTargetIdx, setActiveTargetIdx] = useState(0);
   const [customInput, setCustomInput] = useState("");
-  const [currentTarget, setCurrentTarget] = useState<FlowTarget>(DEFAULT_QUEUE[0]);
   const [pitchChannel, setPitchChannel] = useState<"linkedin" | "email">("linkedin");
   const [copied, setCopied] = useState(false);
-  const [sentStatus, setSentStatus] = useState<Record<string, boolean>>({});
-  
+  const [sentRecords, setSentRecords] = useState<Record<string, boolean>>({});
+
+  const [vaultOpen, setVaultOpen] = useState(false);
+
   const [replyText, setReplyText] = useState("");
   const [replyAnalysis, setReplyAnalysis] = useState<{ sentiment: string; recommendation: string; draft: string } | null>(null);
   const [analyzingReply, setAnalyzingReply] = useState(false);
 
-  const activeTarget = currentTarget;
+  const selectedTargets = targets.filter(t => t.selected);
+  const currentTarget = selectedTargets[activeTargetIdx] || selectedTargets[0] || targets[0];
 
-  const handleSelectQueueItem = (idx: number) => {
-    setQueueIndex(idx);
-    setCurrentTarget(DEFAULT_QUEUE[idx]);
-    setStep("diagnose");
+  const toggleTarget = (id: string) => {
+    setTargets(prev => prev.map(t => t.id === id ? { ...t, selected: !t.selected } : t));
   };
 
-  const handleCustomTargetSubmit = (e: React.FormEvent) => {
+  const addCustomTarget = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customInput.trim()) return;
 
     const clean = customInput.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].split(".")[0];
     const cap = clean.charAt(0).toUpperCase() + clean.slice(1);
 
-    const customTarget: FlowTarget = {
+    const newTarget: Target = {
       id: crypto.randomUUID(),
       company: cap,
       website: customInput.startsWith("http") ? customInput : `https://${customInput}`,
       industry: "Digital Agency / B2B Services",
       location: "Remote / Global",
       team_size: "5–25 people",
+      selected: true,
       founder: {
         name: `${cap} Founder`,
         role: "Founder & CEO",
@@ -215,7 +225,7 @@ export default function HqFlow() {
       },
       summary: `${cap} provides specialized client services with active delivery workflows.`,
       bottleneck: {
-        area: "Client Delivery & Content Production Operations",
+        area: "Client Delivery & Content Operations",
         observation: "High-touch service delivery requiring manual handoffs across strategy and production.",
         hypothesis: `Managing client handoffs and custom asset production likely represents the primary operational bottleneck for ${cap}'s leadership.`,
       },
@@ -227,72 +237,65 @@ export default function HqFlow() {
       offer: "Automated Asset Studio & Operational Delivery Engine.",
     };
 
-    setCurrentTarget(customTarget);
-    setStep("diagnose");
+    setTargets(prev => [newTarget, ...prev]);
+    setCustomInput("");
+    toast.success(`Added ${newTarget.company} to today's queue!`);
   };
 
-  const handleCopyPitch = () => {
-    const text = pitchChannel === "linkedin" 
-      ? activeTarget.pitch.linkedin_dm 
-      : `Subject: ${activeTarget.pitch.email_subject}\n\n${activeTarget.pitch.email_body}`;
+  const copyPitch = () => {
+    const text = pitchChannel === "linkedin"
+      ? currentTarget.pitch.linkedin_dm
+      : `Subject: ${currentTarget.pitch.email_subject}\n\n${currentTarget.pitch.email_body}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     toast.success("Message copied to clipboard!");
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleMarkSent = async () => {
-    setSentStatus(prev => ({ ...prev, [activeTarget.id]: true }));
-    toast.success(`Marked as sent to ${activeTarget.founder.name}! Follow-up queued for 3 days.`);
-    
+  const markSent = async () => {
+    setSentRecords(prev => ({ ...prev, [currentTarget.id]: true }));
+    toast.success(`Logged touchpoint to ${currentTarget.founder.name}!`);
+
     if (user) {
       try {
         await supabase.from("kuro_pipeline_view").insert({
           user_id: user.id,
-          company: activeTarget.company,
-          prospect: activeTarget.founder.name,
-          website: activeTarget.website,
-          linkedin_url: activeTarget.founder.linkedin_url,
-          founder_thesis: activeTarget.bottleneck.hypothesis,
-          source: "daily_flow",
+          company: currentTarget.company,
+          prospect: currentTarget.founder.name,
+          website: currentTarget.website,
+          linkedin_url: currentTarget.founder.linkedin_url,
+          founder_thesis: currentTarget.bottleneck.hypothesis,
+          source: "acquisition_flow",
           priority: "high",
           icp_score: 9,
           stage: "contacted",
           is_contacted: true,
-          notes: `Sent via ${pitchChannel.toUpperCase()}:\n${pitchChannel === "linkedin" ? activeTarget.pitch.linkedin_dm : activeTarget.pitch.email_body}`,
+          notes: `Sent via ${pitchChannel.toUpperCase()}:\n${pitchChannel === "linkedin" ? currentTarget.pitch.linkedin_dm : currentTarget.pitch.email_body}`,
         });
       } catch (e) {
-        console.warn("Background log skip:", e);
+        console.warn("Background log error:", e);
       }
     }
   };
 
-  const handleNextTarget = () => {
-    const nextIdx = (queueIndex + 1) % DEFAULT_QUEUE.length;
-    setQueueIndex(nextIdx);
-    setCurrentTarget(DEFAULT_QUEUE[nextIdx]);
-    setStep("diagnose");
-    setCopied(false);
-  };
-
-  const handleAnalyzeReply = () => {
+  const analyzeReply = () => {
     if (!replyText.trim()) return;
     setAnalyzingReply(true);
 
     setTimeout(() => {
       const lower = replyText.toLowerCase();
       let sentiment = "Curious / Interested";
-      let recommendation = "Send short 2-minute Loom breakdown or offer a 15-min discovery call.";
-      let draft = `Hey ${activeTarget.founder.name.split(" ")[0]} — totally understand. We built a lightweight automation that handles the handoff in 3 clicks. Would it be helpful if I sent a 2-minute video walkthrough showing how it works?`;
+      let recommendation = "Send a short 2-minute video walkthrough showing how the automation works.";
+      let draft = `Hey ${currentTarget.founder.name.split(" ")[0]} — totally understand. We built a lightweight automation that handles the handoff in 3 clicks. Would it be helpful if I sent a 2-minute video walkthrough showing how it works?`;
 
       if (lower.includes("price") || lower.includes("cost") || lower.includes("how much")) {
         sentiment = "High Intent (Pricing Inquiry)";
         recommendation = "Frame around fixed project scope with rapid payback ROI.";
-        draft = `Hey ${activeTarget.founder.name.split(" ")[0]} — we typically do a fixed £3,500 implementation that pays for itself in under 6 weeks of saved designer/editor hours. Happy to share a quick 1-pager scope if relevant.`;
+        draft = `Hey ${currentTarget.founder.name.split(" ")[0]} — we typically do a fixed £3,500 implementation that pays for itself in under 6 weeks of saved designer/editor hours. Happy to share a quick 1-pager scope if relevant.`;
       } else if (lower.includes("busy") || lower.includes("not now") || lower.includes("later")) {
         sentiment = "Timing Objection";
         recommendation = "Acknowledge bandwidth and offer zero-friction async overview.";
-        draft = `No worries at all ${activeTarget.founder.name.split(" ")[0]} — know you're slammed. I'll shoot over a 90-second Loom so you can check it out whenever you get 2 minutes.`;
+        draft = `No worries at all ${currentTarget.founder.name.split(" ")[0]} — know you're slammed. I'll shoot over a 90-second Loom so you can check it out whenever you get 2 minutes.`;
       }
 
       setReplyAnalysis({ sentiment, recommendation, draft });
@@ -300,370 +303,473 @@ export default function HqFlow() {
     }, 700);
   };
 
+  const phaseIndex = PHASES.indexOf(phase);
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* Top Flow Header Bar */}
-      <div className="h-16 border-b border-border/60 bg-card/60 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
+    <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex flex-col relative font-sans">
+      
+      {/* ── TOP STUDIO BREADCRUMB & HEADER (CLARIO STYLE) ──────────────────── */}
+      <header className="h-14 border-b border-border/60 bg-card/60 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-30">
+        
+        {/* Left: Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
-            <Zap className="w-4 h-4" />
+          <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-primary font-bold text-xs font-mono">
+            ◈
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-foreground font-display">Daily Deal Flow</span>
-              <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary py-0">
-                Solo Operator Mode
-              </Badge>
-            </div>
-            <p className="text-[11px] text-muted-foreground font-mono">
-              Target {queueIndex + 1} of {DEFAULT_QUEUE.length} · Zero distraction pipeline
-            </p>
-          </div>
+          <span className="font-bold text-sm font-display tracking-tight text-foreground">Atlas Studio</span>
+          <div className="w-px h-4 bg-border/60" />
+          <span className="text-xs text-muted-foreground font-mono">
+            {phase === "source" && "1. Target Queue"}
+            {phase === "recon" && `2. Recon · ${currentTarget.company}`}
+            {phase === "outreach" && `3. Dispatch · ${currentTarget.founder.name}`}
+            {phase === "close" && "4. Deal Closer & Copilot"}
+          </span>
         </div>
 
-        {/* Stepper Indicator */}
-        <div className="hidden md:flex items-center gap-1 bg-secondary/80 border border-border p-1 rounded-lg">
-          {[
-            { key: "target", label: "1. Target" },
-            { key: "diagnose", label: "2. Diagnose" },
-            { key: "pitch", label: "3. Pitch" },
-            { key: "reply", label: "4. Reply Copilot" },
-          ].map((s) => (
-            <button
-              key={s.key}
-              onClick={() => setStep(s.key as Step)}
-              className={`px-3 py-1 rounded-md text-xs font-semibold font-mono transition-all ${
-                step === s.key
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {s.label}
-            </button>
+        {/* Center: Phase Dots Indicator */}
+        <div className="flex items-center gap-2 bg-secondary/80 border border-border/80 px-3 py-1.5 rounded-full shadow-inner">
+          {PHASES.map((p, idx) => (
+            <div key={p} className="flex items-center gap-2">
+              {idx > 0 && <div className={`w-6 h-0.5 ${idx <= phaseIndex ? "bg-primary" : "bg-border"}`} />}
+              <button
+                onClick={() => setPhase(p)}
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono font-bold transition-all ${
+                  phase === p
+                    ? "bg-primary text-primary-foreground shadow-sm scale-110"
+                    : idx < phaseIndex
+                    ? "bg-primary/20 text-primary"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {idx + 1}
+              </button>
+            </div>
           ))}
         </div>
 
+        {/* Right: The Vault & History Drawer Trigger */}
         <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            onClick={() => navigate("/hq/dashboard")}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setVaultOpen(true)}
+            className="text-xs gap-2 font-mono border-border bg-card hover:border-primary/40"
           >
-            Exit to HQ ➔
+            <FolderArchive className="w-3.5 h-3.5 text-primary" />
+            The Vault
           </Button>
         </div>
-      </div>
+      </header>
 
-      {/* Main Flow Content Container */}
-      <div className="flex-1 max-w-4xl w-full mx-auto p-6 md:p-10 flex flex-col justify-center animate-in fade-in duration-200">
-        
-        {/* ── STEP 1: TARGET SELECTION ─────────────────────────────────────── */}
-        {step === "target" && (
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">Step 1</span>
-              <h2 className="text-2xl md:text-3xl font-bold font-display text-foreground">Who are we targeting today?</h2>
-              <p className="text-sm text-muted-foreground">
-                Pick from today's calibrated 5 targets or enter any company domain below.
-              </p>
-            </div>
+      {/* ── MAIN STUDIO WORKSPACE ─────────────────────────────────────────── */}
+      <main className="flex-1 overflow-y-auto flex items-center justify-center p-6 md:p-12 relative">
+        <div className="w-full max-w-4xl space-y-6 animate-in fade-in duration-200">
 
-            {/* Custom Input */}
-            <form onSubmit={handleCustomTargetSubmit} className="flex gap-2">
-              <Input
-                placeholder="Enter domain (e.g. perceptric.com or grizzly.io)..."
-                value={customInput}
-                onChange={(e) => setCustomInput(e.target.value)}
-                className="h-12 bg-card text-sm"
-              />
-              <Button type="submit" className="h-12 px-6 gap-2 font-semibold">
-                Diagnose Target <ArrowRight className="w-4 h-4" />
-              </Button>
-            </form>
-
-            {/* Today's Queue List */}
-            <div className="space-y-3 pt-4">
-              <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider font-bold">
-                Today's Curated Agency Targets ({DEFAULT_QUEUE.length})
+          {/* ── PHASE 1: TARGETING / QUEUE ─────────────────────────────────── */}
+          {phase === "source" && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">Phase 1 · Source</span>
+                <h1 className="text-3xl font-bold font-display text-foreground">Select Today's Target Queue</h1>
+                <p className="text-sm text-muted-foreground">
+                  Pick the companies you're acquiring today, or add a custom target URL.
+                </p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {DEFAULT_QUEUE.map((t, idx) => (
+
+              {/* Add target input */}
+              <form onSubmit={addCustomTarget} className="flex gap-2">
+                <Input
+                  placeholder="Paste company URL or domain (e.g. perceptric.com, grizzly.io)..."
+                  value={customInput}
+                  onChange={(e) => setCustomInput(e.target.value)}
+                  className="h-12 bg-card text-sm"
+                />
+                <Button type="submit" className="h-12 px-6 font-semibold gap-2">
+                  <Plus className="w-4 h-4" /> Add Target
+                </Button>
+              </form>
+
+              {/* Target Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {targets.map((t) => (
                   <div
                     key={t.id}
-                    onClick={() => handleSelectQueueItem(idx)}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer bg-card hover:border-primary/50 hover:shadow-md flex flex-col justify-between gap-3 ${
-                      queueIndex === idx ? "border-primary/80 ring-1 ring-primary/30" : "border-border/70"
+                    onClick={() => toggleTarget(t.id)}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer bg-card flex items-start justify-between gap-3 ${
+                      t.selected
+                        ? "border-primary/80 bg-primary/5 shadow-sm ring-1 ring-primary/30"
+                        : "border-border/60 opacity-60 hover:opacity-100"
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-base text-foreground font-display">{t.company}</span>
-                        <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground border-border">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-base font-display text-foreground">{t.company}</span>
+                        <Badge variant="outline" className="text-[10px] font-mono border-border">
                           {t.team_size}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-1">{t.industry}</p>
+                      <p className="text-xs text-muted-foreground">{t.industry}</p>
+                      <p className="text-xs text-foreground/80 font-medium pt-1">
+                        Founder: {t.founder.name} ({t.founder.role})
+                      </p>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs pt-2 border-t border-border/40">
-                      <span className="text-foreground/90 font-medium">{t.founder.name}</span>
-                      <span className="text-primary font-semibold flex items-center gap-1 font-mono text-[11px]">
-                        Start Flow ➔
-                      </span>
+                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                      t.selected ? "bg-primary border-primary text-primary-foreground" : "border-border"
+                    }`}>
+                      {t.selected && <Check className="w-3.5 h-3.5" />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom Action */}
+              <div className="flex items-center justify-between pt-4 border-t border-border/40">
+                <span className="text-xs font-mono text-muted-foreground">
+                  {selectedTargets.length} targets selected in today's sequence
+                </span>
+
+                <Button
+                  onClick={() => {
+                    setActiveTargetIdx(0);
+                    setPhase("recon");
+                  }}
+                  disabled={selectedTargets.length === 0}
+                  className="h-11 px-6 font-semibold gap-2"
+                >
+                  Proceed to Recon <ArrowRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── PHASE 2: RECON / DIAGNOSIS ─────────────────────────────────── */}
+          {phase === "recon" && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b border-border/60 pb-4">
+                <div>
+                  <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">
+                    Phase 2 · Recon ({activeTargetIdx + 1}/{selectedTargets.length})
+                  </span>
+                  <h1 className="text-3xl font-bold font-display text-foreground">{currentTarget.company}</h1>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                    <span>{currentTarget.founder.name} ({currentTarget.founder.role})</span>
+                    <span>•</span>
+                    <span>{currentTarget.team_size}</span>
+                    <span>•</span>
+                    <a href={currentTarget.website} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                      {currentTarget.website.replace(/^https?:\/\//, "")} <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+
+                {currentTarget.founder.linkedin_url && (
+                  <a
+                    href={currentTarget.founder.linkedin_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-xs font-mono text-foreground flex items-center gap-1.5"
+                  >
+                    Founder LinkedIn <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              {/* Operational Bottleneck Callout */}
+              <div className="bg-rose-500/5 border border-rose-500/25 rounded-xl p-5 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-rose-400 font-mono text-xs uppercase font-bold tracking-wider">
+                    <AlertTriangle className="w-4 h-4" />
+                    Operational Vulnerability
+                  </div>
+                  <Badge variant="outline" className="text-[10px] bg-rose-500/10 border-rose-500/30 text-rose-400">
+                    High Leverage Pain
+                  </Badge>
+                </div>
+
+                <div className="text-sm font-bold text-foreground font-display">
+                  {currentTarget.bottleneck.area}
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  <strong className="text-foreground">Observed:</strong> {currentTarget.bottleneck.observation}
+                </p>
+
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  <strong className="text-foreground">Hypothesis:</strong> {currentTarget.bottleneck.hypothesis}
+                </p>
+              </div>
+
+              {/* System Offer */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs font-mono text-primary font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Tailored Acquisition Offer
+                  </div>
+                  <div className="text-xs text-foreground font-semibold">
+                    {currentTarget.offer}
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Bar */}
+              <div className="flex items-center justify-between pt-4 border-t border-border/40">
+                <Button variant="ghost" onClick={() => setPhase("source")} className="gap-2 text-xs">
+                  <ArrowLeft className="w-4 h-4" /> Back to Queue
+                </Button>
+
+                <Button onClick={() => setPhase("outreach")} className="h-11 px-6 font-semibold gap-2">
+                  Draft Outreach <ArrowRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── PHASE 3: OUTREACH & DISPATCH ───────────────────────────────── */}
+          {phase === "outreach" && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b border-border/60 pb-4">
+                <div>
+                  <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">
+                    Phase 3 · Dispatch ({activeTargetIdx + 1}/{selectedTargets.length})
+                  </span>
+                  <h1 className="text-2xl font-bold font-display text-foreground">Message for {currentTarget.founder.name}</h1>
+                </div>
+
+                {/* Channel Switcher */}
+                <div className="flex bg-secondary p-1 rounded-lg border border-border">
+                  <button
+                    onClick={() => setPitchChannel("linkedin")}
+                    className={`px-3 py-1 rounded text-xs font-semibold font-mono transition-colors ${
+                      pitchChannel === "linkedin" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                    }`}
+                  >
+                    LinkedIn DM
+                  </button>
+                  <button
+                    onClick={() => setPitchChannel("email")}
+                    className={`px-3 py-1 rounded text-xs font-semibold font-mono transition-colors ${
+                      pitchChannel === "email" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                    }`}
+                  >
+                    Cold Email
+                  </button>
+                </div>
+              </div>
+
+              {/* Pitch Box */}
+              <div className="bg-card border border-border rounded-xl p-5 space-y-3 relative shadow-sm">
+                {pitchChannel === "email" && (
+                  <div className="text-xs font-mono border-b border-border pb-3">
+                    <span className="text-muted-foreground">Subject: </span>
+                    <span className="text-foreground font-semibold">{currentTarget.pitch.email_subject}</span>
+                  </div>
+                )}
+
+                <div className="text-xs text-foreground font-mono leading-relaxed whitespace-pre-wrap">
+                  {pitchChannel === "linkedin" ? currentTarget.pitch.linkedin_dm : currentTarget.pitch.email_body}
+                </div>
+
+                <div className="pt-3 flex items-center justify-between border-t border-border/40">
+                  <div className="text-[11px] text-muted-foreground font-mono">
+                    {pitchChannel === "linkedin" ? "No subject line needed — paste directly into connection note or DM" : "Includes zero-pitch conversational CTA"}
+                  </div>
+
+                  <Button
+                    onClick={copyPitch}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 text-xs font-semibold"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? "Copied!" : "Copy to Clipboard"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="ghost" onClick={() => setPhase("recon")} className="gap-2 text-xs">
+                  <ArrowLeft className="w-4 h-4" /> Back to Recon
+                </Button>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={markSent}
+                    variant={sentRecords[currentTarget.id] ? "outline" : "default"}
+                    className="gap-2 text-xs font-semibold h-11 px-5"
+                  >
+                    {sentRecords[currentTarget.id] ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Sent!
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" /> Mark as Sent
+                      </>
+                    )}
+                  </Button>
+
+                  {activeTargetIdx + 1 < selectedTargets.length ? (
+                    <Button
+                      onClick={() => {
+                        setActiveTargetIdx(prev => prev + 1);
+                        setPhase("recon");
+                        setCopied(false);
+                      }}
+                      variant="secondary"
+                      className="gap-2 text-xs font-semibold h-11 px-5"
+                    >
+                      Next Target ({activeTargetIdx + 2}/{selectedTargets.length}) ➔
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => setPhase("close")}
+                      className="gap-2 text-xs font-semibold h-11 px-5 bg-primary text-primary-foreground"
+                    >
+                      Finish Sourcing & Open Deals ➔
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── PHASE 4: CLOSE / DEAL COPILOT ──────────────────────────────── */}
+          {phase === "close" && (
+            <div className="space-y-6">
+              <div className="space-y-2 border-b border-border/60 pb-4">
+                <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">Phase 4 · Deal Closer</span>
+                <h1 className="text-3xl font-bold font-display text-foreground">Active Deals & Reply Copilot</h1>
+                <p className="text-sm text-muted-foreground">
+                  Paste incoming messages from prospects to diagnose intent and generate customized closing offers.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <Textarea
+                  rows={4}
+                  placeholder="Paste prospect response here (e.g. 'Hey, we actually do that in ClickUp but it's pretty messy right now, what do you charge?')..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  className="bg-card text-xs font-mono"
+                />
+
+                <Button
+                  onClick={analyzeReply}
+                  disabled={analyzingReply || !replyText.trim()}
+                  className="gap-2 text-xs font-semibold h-10 px-5"
+                >
+                  {analyzingReply ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  Generate Counter-Offer
+                </Button>
+              </div>
+
+              {replyAnalysis && (
+                <div className="bg-card border border-primary/30 rounded-xl p-5 space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-mono font-bold text-primary uppercase tracking-wider">
+                      Intent: {replyAnalysis.sentiment}
+                    </div>
+                    <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">
+                      AI Scored
+                    </Badge>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-foreground">Closing Tactic:</strong> {replyAnalysis.recommendation}
+                  </p>
+
+                  <div className="bg-background border border-border rounded-lg p-3 text-xs text-foreground font-mono leading-relaxed">
+                    {replyAnalysis.draft}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(replyAnalysis.draft);
+                        toast.success("Response copied to clipboard!");
+                      }}
+                      className="gap-2 text-xs font-semibold"
+                    >
+                      <Copy className="w-3.5 h-3.5" /> Copy Pitch
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-6 border-t border-border/40 flex justify-between">
+                <Button variant="ghost" onClick={() => setPhase("source")} className="gap-2 text-xs">
+                  <RefreshCw className="w-4 h-4" /> Start New Acquisition Sequence
+                </Button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </main>
+
+      {/* ── THE VAULT (SLIDE-OVER HISTORY DRAWER) ─────────────────────────── */}
+      {vaultOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-card border-l border-border h-full p-6 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-200">
+            
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b border-border/60 pb-4">
+                <div className="flex items-center gap-2">
+                  <FolderArchive className="w-5 h-5 text-primary" />
+                  <h2 className="font-bold text-lg font-display text-foreground">The Vault</h2>
+                </div>
+                <button
+                  onClick={() => setVaultOpen(false)}
+                  className="w-8 h-8 rounded-lg hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest">
+                  Quick Access Archives
+                </div>
+                
+                {[
+                  { label: "Leads CRM Database", path: "/hq/leads", icon: User, count: "5 Leads" },
+                  { label: "Pipeline Deal Stages", path: "/hq/pipeline", icon: TrendingUp, count: "£17.5k" },
+                  { label: "Outreach Touchpoint Logs", path: "/hq/outreach", icon: MessageSquare, count: "5 Drafts" },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    onClick={() => {
+                      setVaultOpen(false);
+                      navigate(item.path);
+                    }}
+                    className="p-3.5 rounded-xl border border-border/60 hover:border-primary/50 bg-background/50 hover:bg-background cursor-pointer flex items-center justify-between transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-semibold text-foreground">{item.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono text-muted-foreground">{item.count}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        )}
 
-        {/* ── STEP 2: DIAGNOSIS & RECON ────────────────────────────────────── */}
-        {step === "diagnose" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-border/60 pb-4">
-              <div className="space-y-1">
-                <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">Step 2 · Diagnosis</span>
-                <h2 className="text-2xl md:text-3xl font-bold font-display text-foreground">{activeTarget.company}</h2>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                  <span>{activeTarget.founder.name} ({activeTarget.founder.role})</span>
-                  <span>•</span>
-                  <span>{activeTarget.team_size}</span>
-                  <span>•</span>
-                  <a href={activeTarget.website} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                    {activeTarget.website.replace(/^https?:\/\//, "")} <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-              </div>
-
-              {activeTarget.founder.linkedin_url && (
-                <a
-                  href={activeTarget.founder.linkedin_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-xs font-mono text-foreground flex items-center gap-1.5"
-                >
-                  View LinkedIn <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-            </div>
-
-            {/* Core Operational Bottleneck Callout */}
-            <div className="bg-rose-500/5 border border-rose-500/25 rounded-xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-rose-400 font-mono text-xs uppercase font-bold tracking-wider">
-                  <AlertTriangle className="w-4 h-4" />
-                  Operational Friction Point
-                </div>
-                <Badge variant="outline" className="text-[10px] bg-rose-500/10 border-rose-500/30 text-rose-400">
-                  Critical Bottleneck
-                </Badge>
-              </div>
-
-              <div className="text-sm font-bold text-foreground font-display">
-                {activeTarget.bottleneck.area}
-              </div>
-
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                <strong className="text-foreground/90">What we observed:</strong> {activeTarget.bottleneck.observation}
-              </p>
-
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                <strong className="text-foreground/90">Hypothesis:</strong> {activeTarget.bottleneck.hypothesis}
+            <div className="pt-4 border-t border-border/40 text-center">
+              <p className="text-[11px] text-muted-foreground font-mono">
+                Atlas Operating System · Solo Acquisition Loop
               </p>
             </div>
 
-            {/* Value Proposition */}
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center justify-between gap-4">
-              <div>
-                <div className="text-xs font-mono text-primary font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> Suggested System
-                </div>
-                <div className="text-xs text-foreground font-semibold">
-                  {activeTarget.offer}
-                </div>
-              </div>
-            </div>
-
-            {/* Stepper Action Bar */}
-            <div className="flex items-center justify-between pt-4">
-              <Button variant="ghost" onClick={() => setStep("target")} className="gap-2 text-xs">
-                <ArrowLeft className="w-4 h-4" /> Back to Targets
-              </Button>
-
-              <Button onClick={() => setStep("pitch")} className="gap-2 font-semibold text-xs h-11 px-6 shadow-sm">
-                Generate Pitch Message <ArrowRight className="w-4 h-4" />
-              </Button>
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ── STEP 3: PITCH & OUTREACH ──────────────────────────────────────── */}
-        {step === "pitch" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-border/60 pb-4">
-              <div className="space-y-1">
-                <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">Step 3 · Send Message</span>
-                <h2 className="text-2xl font-bold font-display text-foreground">Message for {activeTarget.founder.name}</h2>
-                <p className="text-xs text-muted-foreground">
-                  Send via LinkedIn DM (recommended) or Cold Email.
-                </p>
-              </div>
-
-              {/* Channel Selector */}
-              <div className="flex bg-secondary p-1 rounded-lg border border-border">
-                <button
-                  onClick={() => setPitchChannel("linkedin")}
-                  className={`px-3 py-1 rounded text-xs font-semibold font-mono transition-colors ${
-                    pitchChannel === "linkedin" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-                  }`}
-                >
-                  LinkedIn DM
-                </button>
-                <button
-                  onClick={() => setPitchChannel("email")}
-                  className={`px-3 py-1 rounded text-xs font-semibold font-mono transition-colors ${
-                    pitchChannel === "email" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-                  }`}
-                >
-                  Cold Email
-                </button>
-              </div>
-            </div>
-
-            {/* Pitch Preview Box */}
-            <div className="bg-card border border-border rounded-xl p-5 space-y-3 relative shadow-sm">
-              {pitchChannel === "email" && (
-                <div className="text-xs font-mono border-b border-border pb-3">
-                  <span className="text-muted-foreground">Subject: </span>
-                  <span className="text-foreground font-semibold">{activeTarget.pitch.email_subject}</span>
-                </div>
-              )}
-
-              <div className="text-xs text-foreground font-mono leading-relaxed whitespace-pre-wrap">
-                {pitchChannel === "linkedin" ? activeTarget.pitch.linkedin_dm : activeTarget.pitch.email_body}
-              </div>
-
-              <div className="pt-3 flex items-center justify-between border-t border-border/40">
-                <div className="text-[11px] text-muted-foreground font-mono">
-                  {pitchChannel === "linkedin" ? "No subject line needed — paste directly into connection note or DM" : "Includes zero-pitch conversational CTA"}
-                </div>
-
-                <Button
-                  onClick={handleCopyPitch}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 text-xs font-semibold"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? "Copied!" : "Copy to Clipboard"}
-                </Button>
-              </div>
-            </div>
-
-            {/* Action Bar */}
-            <div className="flex items-center justify-between pt-2">
-              <Button variant="ghost" onClick={() => setStep("diagnose")} className="gap-2 text-xs">
-                <ArrowLeft className="w-4 h-4" /> Back to Diagnosis
-              </Button>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={handleMarkSent}
-                  variant={sentStatus[activeTarget.id] ? "outline" : "default"}
-                  className="gap-2 text-xs font-semibold h-11 px-5"
-                >
-                  {sentStatus[activeTarget.id] ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Sent!
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" /> Mark as Sent
-                    </>
-                  )}
-                </Button>
-
-                <Button
-                  onClick={handleNextTarget}
-                  variant="secondary"
-                  className="gap-2 text-xs font-semibold h-11 px-5"
-                >
-                  Next Target ({queueIndex + 2 <= DEFAULT_QUEUE.length ? queueIndex + 2 : 1}/{DEFAULT_QUEUE.length}) ➔
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── STEP 4: REPLY COPILOT ────────────────────────────────────────── */}
-        {step === "reply" && (
-          <div className="space-y-6">
-            <div className="space-y-1 border-b border-border/60 pb-4">
-              <span className="text-xs font-mono font-bold text-primary uppercase tracking-widest">Step 4 · Deal Copilot</span>
-              <h2 className="text-2xl font-bold font-display text-foreground">Did a prospect reply?</h2>
-              <p className="text-xs text-muted-foreground">
-                Paste their exact response below — Atlas will diagnose their intent and write your counter-response or offer.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <Textarea
-                rows={4}
-                placeholder="Paste prospect response here (e.g. 'Hey, we actually do that in ClickUp but it's pretty messy right now, what do you charge?')..."
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                className="bg-card text-xs font-mono"
-              />
-
-              <Button
-                onClick={handleAnalyzeReply}
-                disabled={analyzingReply || !replyText.trim()}
-                className="gap-2 text-xs font-semibold h-10 px-5"
-              >
-                {analyzingReply ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                Analyze Intent & Generate Follow-up
-              </Button>
-            </div>
-
-            {replyAnalysis && (
-              <div className="bg-card border border-primary/30 rounded-xl p-5 space-y-4 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-mono font-bold text-primary uppercase tracking-wider">
-                    Intent: {replyAnalysis.sentiment}
-                  </div>
-                  <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">
-                    AI Scored
-                  </Badge>
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">Tactical Next Step:</strong> {replyAnalysis.recommendation}
-                </p>
-
-                <div className="bg-background border border-border rounded-lg p-3 text-xs text-foreground font-mono leading-relaxed">
-                  {replyAnalysis.draft}
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(replyAnalysis.draft);
-                      toast.success("Follow-up response copied!");
-                    }}
-                    className="gap-2 text-xs font-semibold"
-                  >
-                    <Copy className="w-3.5 h-3.5" /> Copy Response
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-      </div>
     </div>
   );
 }

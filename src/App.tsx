@@ -55,10 +55,12 @@ const App = () => (
         <SovereignSyncWrapper>
           <AuthProvider>
           <Routes>
-            <Route path="/" element={<Navigate to="/hq/dashboard" replace />} />
-            <Route path="/landing" element={<Navigate to="/hq/dashboard" replace />} />
-            <Route path="/start" element={<Navigate to="/hq/dashboard" replace />} />
-            <Route path="/map/starter" element={<Navigate to="/hq/dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/flow" replace />} />
+            <Route path="/flow" element={<HqFlow />} />
+            <Route path="/hq/flow" element={<HqFlow />} />
+            <Route path="/landing" element={<Navigate to="/flow" replace />} />
+            <Route path="/start" element={<Navigate to="/flow" replace />} />
+            <Route path="/map/starter" element={<Navigate to="/flow" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/metaphor/callback" element={<MetaphorAuthCallback />} />
@@ -76,8 +78,7 @@ const App = () => (
               <Route path="sourcing" element={<Navigate to="/hq" replace />} />
             </Route>
             <Route path="/hq" element={<HqShell />}>
-              <Route index element={<Navigate to="flow" replace />} />
-              <Route path="flow" element={<HqFlow />} />
+              <Route index element={<Navigate to="/flow" replace />} />
               <Route path="dashboard" element={<HqDashboard />} />
               <Route path="discover" element={<HqDiscover />} />
               <Route path="recon" element={<HqRecon />} />
