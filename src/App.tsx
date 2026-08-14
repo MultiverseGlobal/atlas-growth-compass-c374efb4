@@ -96,7 +96,8 @@ const App = () => (
             <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AuthProvider>
+          </AuthProvider>
+        </SovereignSyncWrapper>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

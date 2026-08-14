@@ -158,8 +158,7 @@ export default function Auth() {
               Unlock System <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </form>
-
-
+        </div>
       </main>
 
       <footer className="container py-6 text-center text-[11px] text-muted-foreground/60 border-t border-border/40 relative z-10 bg-background/20 backdrop-blur-sm">
