@@ -23,8 +23,10 @@ import Settings from "./pages/app/Settings";
 import Notifications from "./pages/app/Notifications";
 import Sourcing from "./pages/app/Sourcing";
 import HqShell from "./components/atlas/HqShell";
+import HqFlow from "./pages/hq/HqFlow";
 import HqDashboard from "./pages/hq/HqDashboard";
 import HqDiscover from "./pages/hq/HqDiscover";
+import HqRecon from "./pages/hq/HqRecon";
 import HqLeads from "./pages/hq/HqLeads";
 import HqLeadDetail from "./pages/hq/HqLeadDetail";
 import HqPipeline from "./pages/hq/HqPipeline";
@@ -74,9 +76,11 @@ const App = () => (
               <Route path="sourcing" element={<Navigate to="/hq" replace />} />
             </Route>
             <Route path="/hq" element={<HqShell />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route index element={<Navigate to="flow" replace />} />
+              <Route path="flow" element={<HqFlow />} />
               <Route path="dashboard" element={<HqDashboard />} />
               <Route path="discover" element={<HqDiscover />} />
+              <Route path="recon" element={<HqRecon />} />
               <Route path="leads" element={<HqLeads />} />
               <Route path="leads/:id" element={<HqLeadDetail />} />
               <Route path="leads/:id/proposal" element={<HqProposal />} />

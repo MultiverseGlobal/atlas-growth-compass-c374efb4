@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, Compass, Users2,
   LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon,
-  Settings as SettingsIcon, TrendingUp, MessageSquare, FileText, Crosshair, Zap
+  Settings as SettingsIcon, TrendingUp, MessageSquare, FileText, Crosshair, Zap, Radio
 } from "lucide-react";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,8 +13,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
 
 const hqNav = [
+  { to: "/hq/flow",      icon: Zap,             label: "⚡ Daily Flow" },
   { to: "/hq/dashboard", icon: Compass,         label: "Mission Control" },
   { to: "/hq/discover",  icon: Crosshair,       label: "Radar / Discover" },
+  { to: "/hq/recon",     icon: Radio,           label: "Recon" },
   { to: "/hq/leads",     icon: Users2,          label: "Leads" },
   { to: "/hq/pipeline",  icon: TrendingUp,      label: "Pipeline" },
   { to: "/hq/outreach",  icon: MessageSquare,   label: "Outreach" },
