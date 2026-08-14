@@ -12,17 +12,22 @@ import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
 
-const hqNav = [
-  { to: "/hq/flow",      icon: Zap,             label: "⚡ Daily Flow" },
-  { to: "/hq/dashboard", icon: Compass,         label: "Mission Control" },
-  { to: "/hq/discover",  icon: Crosshair,       label: "Radar / Discover" },
-  { to: "/hq/recon",     icon: Radio,           label: "Recon" },
-  { to: "/hq/leads",     icon: Users2,          label: "Leads" },
+const flowNav = [
+  { to: "/hq/flow",      icon: Zap,             label: "⚡ Daily Flow", isFlow: true },
+];
+
+const vaultNav = [
+  { to: "/hq/leads",     icon: Users2,          label: "Leads Vault" },
   { to: "/hq/pipeline",  icon: TrendingUp,      label: "Pipeline" },
   { to: "/hq/outreach",  icon: MessageSquare,   label: "Outreach" },
-  { to: "/hq/report",    icon: FileText,        label: "Report" },
+  { to: "/hq/discover",  icon: Crosshair,       label: "Radar Sourcing" },
+  { to: "/hq/recon",     icon: Radio,           label: "Target Recon" },
+  { to: "/hq/dashboard", icon: Compass,         label: "Mission Control" },
+  { to: "/hq/report",    icon: FileText,        label: "Reports" },
   { to: "/hq/settings",  icon: SettingsIcon,    label: "Settings" },
 ];
+
+const hqNav = [...flowNav, ...vaultNav];
 
 const STORAGE_KEY = "atlas.hq.sidebar.collapsed";
 
@@ -203,24 +208,62 @@ function SidebarNav({ collapsed }: { collapsed: boolean }) {
         />
       )}
 
-      <div className="space-y-1 relative z-10">
-        {hqNav.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            data-to={n.to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150 ${
-                isActive 
-                  ? "text-primary font-medium" 
-                  : "text-sidebar-foreground hover:text-foreground"
-              } ${collapsed ? "justify-center" : ""}`
-            }
-          >
-            <n.icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span className="truncate">{n.label}</span>}
-          </NavLink>
-        ))}
+      <div className="space-y-4 relative z-10">
+        {/* Flow Engine */}
+        <div>
+          {!collapsed && (
+            <div className="text-[10px] font-mono font-bold text-primary/80 uppercase tracking-widest px-3 mb-1.5">
+              Acquisition Engine
+            </div>
+          )}
+          <div className="space-y-1">
+            {flowNav.map((n) => (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                data-to={n.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-all duration-150 ${
+                    isActive 
+                      ? "text-primary bg-primary/15 border border-primary/30 shadow-sm" 
+                      : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+                  } ${collapsed ? "justify-center" : ""}`
+                }
+              >
+                <n.icon className="h-4 w-4 shrink-0 text-primary" />
+                {!collapsed && <span className="truncate">{n.label}</span>}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+
+        {/* Vault & Archives */}
+        <div>
+          {!collapsed && (
+            <div className="text-[10px] font-mono font-semibold text-muted-foreground/60 uppercase tracking-widest px-3 mb-1.5 pt-1 border-t border-border/30">
+              The Vault
+            </div>
+          )}
+          <div className="space-y-1">
+            {vaultNav.map((n) => (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                data-to={n.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150 ${
+                    isActive 
+                      ? "text-primary font-medium" 
+                      : "text-sidebar-foreground hover:text-foreground"
+                  } ${collapsed ? "justify-center" : ""}`
+                }
+              >
+                <n.icon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="truncate">{n.label}</span>}
+              </NavLink>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
