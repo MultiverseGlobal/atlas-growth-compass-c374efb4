@@ -35,6 +35,7 @@ import HqReport from "./pages/hq/HqReport";
 import HqProposal from "./pages/hq/HqProposal";
 import HqSettings from "./pages/hq/HqSettings";
 import HqTeam from "./pages/hq/HqTeam";
+import HqICP from "./pages/hq/HqICP";
 import PublicProfile from "./pages/PublicProfile";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
@@ -55,7 +56,7 @@ const App = () => (
         <SovereignSyncWrapper>
           <AuthProvider>
           <Routes>
-            <Route path="/" element={<Navigate to="/flow" replace />} />
+            <Route path="/" element={<Navigate to="/hq/icp" replace />} />
             <Route path="/flow" element={<HqFlow />} />
             <Route path="/hq/flow" element={<HqFlow />} />
             <Route path="/landing" element={<Navigate to="/flow" replace />} />
@@ -92,6 +93,8 @@ const App = () => (
               <Route path="prospects" element={<Navigate to="/hq/leads" replace />} />
               <Route path="settings" element={<HqSettings />} />
               <Route path="team" element={<HqTeam />} />
+              <Route path="icp" element={<HqICP />} />
+              <Route index element={<Navigate to="/hq/icp" replace />} />
             </Route>
             <Route path="/:handle" element={<PublicProfile />} />
             <Route path="/privacy" element={<Privacy />} />

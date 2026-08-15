@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Activity, Compass, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun, Palette, Menu, X, Target } from "lucide-react";
+import { Activity, Crosshair, FileText, Plug, Settings, User as UserIcon, LogOut, Globe, PanelLeftClose, PanelLeftOpen, Bell, Moon, Sun, Palette, Menu, X, Target, BarChart2, Search } from "lucide-react";
 import { Logo, LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -8,12 +8,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { CompassLoader } from "@/pages/app/Home";
 import { useTheme } from "@/hooks/useTheme";
 
+// Core nav — dead pages (Timeline, HqTeam, HqDiscover, StartMap, PublicPagePreview) hidden, not deleted
 const nav = [
-  { to: "/app", end: true, icon: Compass, label: "Mission Control" },
-  { to: "/hq/discover", icon: Target, label: "Sourcing Radar" },
-  { to: "/hq/leads", icon: Activity, label: "Pipeline" },
+  { to: "/hq/icp", end: false, icon: Crosshair, label: "ICP Pipeline" },
+  { to: "/hq/leads", icon: Activity, label: "Leads" },
+  { to: "/hq/flow", icon: BarChart2, label: "Pipeline Board" },
   { to: "/hq/outreach", icon: FileText, label: "Outreach" },
-  { to: "/app/timeline", icon: Bell, label: "Timeline" },
+  { to: "/hq/recon", icon: Search, label: "Recon" },
   { to: "/app/integrations", icon: Plug, label: "Integrations" },
   { to: "/app/settings", icon: Settings, label: "Settings" },
 ];
