@@ -1,8 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ── Metaphor Cognitive OS Design System (Unified across Pseudonyms) ───────── */
+
+/* ── Cross-App Token Bridge ──────────────────────────────────────────────────
+   These raw CSS custom properties are shared with Clario and any
+   component that uses var(--base), var(--panel) etc. instead of the
+   Tailwind HSL tokens.  Light mode maps to Porcelain, dark mode
+   overrides below map to Obsidian.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --base:           #F8F7F4;
+  --panel:          #FFFFFF;
+  --surface:        #FFFFFF;
+  --surface-hover:  #F1F0EC;
+  --surface-2:      #F1F0EC;
+  --border:         #EBEAE5;
+  --border-subtle:  #EBEAE5;
+  --border-strong:  #D4D3CE;
+  --border-hover:   rgba(0, 0, 0, 0.08);
+  --text-primary:   #111318;
+  --text-secondary: #6B7280;
+  --text-muted:     #9CA3AF;
+  --accent:         #4E6CF2;
+  --accent-hover:   #3C57CD;
+  --accent-dim:     rgba(78, 108, 242, 0.1);
+  --accent-border:  rgba(78, 108, 242, 0.3);
+  --cyan:           #06B6D4;
+  --emerald:        #10B981;
+  --emerald-dim:    rgba(16, 185, 129, 0.08);
+  --amber:          #F59E0B;
+  --amber-dim:      rgba(245, 158, 11, 0.08);
+  --rose:           #EF4444;
+  --rose-dim:       rgba(239, 68, 68, 0.08);
+  --font-sans:      'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:      'JetBrains Mono', monospace;
+  --font-display:   'Space Grotesk', sans-serif;
+}
+.dark, [data-theme="dark"] {
+  --base:           #0C0D10;
+  --panel:          #13151A;
+  --surface:        #1C1F27;
+  --surface-hover:  #252931;
+  --surface-2:      #1C1F27;
+  --border:         #22262F;
+  --border-subtle:  #22262F;
+  --border-strong:  #363C4A;
+  --border-hover:   rgba(255, 255, 255, 0.12);
+  --text-primary:   #ECECF0;
+  --text-secondary: #8A8F9E;
+  --text-muted:     #5A5E6B;
+  --accent:         #4E6CF2;
+  --accent-hover:   #3C57CD;
+  --accent-dim:     rgba(78, 108, 242, 0.16);
+  --accent-border:  rgba(78, 108, 242, 0.4);
+  --cyan:           #06B6D4;
+  --emerald:        #10B981;
+  --emerald-dim:    rgba(16, 185, 129, 0.12);
+  --amber:          #F59E0B;
+  --amber-dim:      rgba(245, 158, 11, 0.12);
+  --rose:           #EF4444;
+  --rose-dim:       rgba(239, 68, 68, 0.12);
+}
+
 @layer base {
   /* ── Default: Metaphor Porcelain (Light Mode) ─────────────────────────── */
   :root {
