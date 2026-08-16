@@ -375,9 +375,90 @@ export default function HqICP() {
     }
   };
 
+  // ── First-run onboarding ──────────────────────────────────────────────────
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return !localStorage.getItem("atlas_onboarding_dismissed");
+  });
+  const dismissOnboarding = () => { setShowOnboarding(false); localStorage.setItem("atlas_onboarding_dismissed", "1"); };
+
+  // Auto-dismiss once ICP is parsed
+  useEffect(() => { if (parsed && showOnboarding) dismissOnboarding(); }, [parsed]);
+
   return (
     <div style={{ height: "100%", overflowY: "auto", background: "var(--base)", padding: "32px 40px", fontFamily: "Inter, sans-serif" }}>
       <div style={{ maxWidth: 880, margin: "0 auto" }}>
+
+        {/* ── First-Run Onboarding Guide ─────────────────────────────────────── */}
+        {showOnboarding && !parsed && (
+          <div style={{
+            background: "linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(52,211,153,0.06) 100%)",
+            border: "1px solid rgba(99,102,241,0.2)", borderRadius: 16,
+            padding: "24px 28px", marginBottom: 24, position: "relative",
+          }}>
+            <button onClick={dismissOnboarding} style={{
+              position: "absolute", top: 12, right: 12, background: "none", border: "none",
+              color: "var(--text-muted)", cursor: "pointer", fontSize: 16, padding: 4,
+            }}>✕</button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <Zap size={18} color="#818CF8" />
+              <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", fontFamily: "Space Grotesk, sans-serif" }}>
+                Welcome to Atlas — here's how to get your first leads
+              </span>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+              {/* Step 1 */}
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#818CF8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>1</div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>Describe Your Customer</span>
+                </div>
+                <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 }}>
+                  Type who you're selling <strong>to</strong> — not your pitch. Include industry, stage, geography, and pain points.
+                </p>
+                <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 8, fontSize: 10, color: "var(--text-secondary)", fontStyle: "italic", lineHeight: 1.5 }}>
+                  "Solo SaaS founders, bootstrapped, UK/US, doing manual outreach, no CRM, pre-revenue to $10k MRR"
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#34D399", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>2</div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>Parse & Save</span>
+                </div>
+                <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 }}>
+                  Click <strong>Parse & Save ICP</strong> — Atlas extracts structured parameters (industries, stages, signals) from your description.
+                </p>
+                <div style={{ marginTop: 10, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {["B2B SaaS", "Bootstrapped", "UK", "Manual outreach"].map(t => (
+                    <span key={t} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: "rgba(99,102,241,0.15)", color: "#A5B4FC", fontWeight: 600 }}>{t}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#FBBF24", color: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>3</div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>Run Full Pipeline</span>
+                </div>
+                <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 }}>
+                  Searches HN + YC for matching founders, scores them against your ICP, drafts personalised LinkedIn DMs.
+                </p>
+                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Linkedin size={12} color="#818CF8" />
+                  <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>Copy DM → send on LinkedIn</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                  <Mail size={12} color="#34D399" />
+                  <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>Or send to Outreach Studio</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Morning Alert Banner */}
         <div style={{
