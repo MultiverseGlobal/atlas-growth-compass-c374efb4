@@ -489,10 +489,27 @@ export default function HqICP() {
             </div>
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Describe your ideal customer in plain English. Atlas handles the rest.</p>
           </div>
-          <button onClick={runPipeline} disabled={running || isEmpty} style={{ display: "flex", alignItems: "center", gap: 8, background: (running || isEmpty) ? "var(--accent-dim)" : "var(--accent)", border: "none", borderRadius: 12, padding: "12px 24px", color: (running || isEmpty) ? "#818CF8" : "white", fontWeight: 700, fontSize: 14, cursor: (running || isEmpty) ? "not-allowed" : "pointer", boxShadow: (running || isEmpty) ? "none" : "0 4px 20px rgba(99,102,241,0.4)", transition: "all 0.2s" }}>
-            {running ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Play size={15} />}
-            {running ? runStatus || "Running…" : "Run Full Pipeline"}
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+            <button onClick={runPipeline} disabled={running || isEmpty} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: (running || isEmpty) ? "var(--accent-dim)" : "var(--accent)",
+              border: "none", borderRadius: 12, padding: "12px 24px",
+              color: (running || isEmpty) ? "#818CF8" : "white",
+              fontWeight: 700, fontSize: 14,
+              cursor: (running || isEmpty) ? "not-allowed" : "pointer",
+              boxShadow: (running || isEmpty) ? "none" : "0 4px 20px rgba(99,102,241,0.4)",
+              transition: "all 0.2s",
+              animation: (parsed && !running && !isEmpty && !lastRun) ? "pulse-glow 2s ease-in-out infinite" : "none",
+            }}>
+              {running ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Play size={15} />}
+              {running ? runStatus || "Running…" : "Run Full Pipeline"}
+            </button>
+            {parsed && !running && !lastRun && !isEmpty && (
+              <span style={{ fontSize: 11, color: "#818CF8", fontWeight: 600, animation: "fade-in 0.5s ease" }}>
+                ↑ ICP saved — now hit Run to source leads
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Stats */}
@@ -700,7 +717,14 @@ export default function HqICP() {
           ))}
         </div>
 
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <style>{`
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 4px 20px rgba(99,102,241,0.4); }
+            50% { box-shadow: 0 4px 32px rgba(99,102,241,0.7), 0 0 48px rgba(99,102,241,0.3); }
+          }
+          @keyframes fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+        `}</style>
       </div>
     </div>
   );
