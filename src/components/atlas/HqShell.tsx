@@ -72,15 +72,15 @@ export default function HqShell() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col grain overflow-x-hidden">
       {/* ── Top Sovereign Process Header (No Sidebar) ────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full h-16 border-b border-border/70 bg-[#08090D]/90 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 w-full h-16 border-b border-border bg-background/85 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between gap-4">
         {/* Left: Brand Identity */}
         <div className="flex items-center gap-3 shrink-0">
           <NavLink to="/hq/icp" className="flex items-center gap-2.5 group">
-            <div className="h-8 w-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
               <LogoMark size={20} className="text-primary" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-xs tracking-tight font-display text-foreground group-hover:text-primary transition-colors">
+              <span className="font-bold text-xs tracking-tight text-foreground group-hover:text-primary transition-colors">
                 ATLAS
               </span>
               <span className="text-[9px] text-muted-foreground font-mono">
@@ -91,7 +91,7 @@ export default function HqShell() {
         </div>
 
         {/* Center: The 4-Step Sequential Acquisition Stream */}
-        <nav className="hidden lg:flex items-center gap-1.5 p-1 rounded-xl bg-card/60 border border-border/60 backdrop-blur-md shadow-inner">
+        <nav className="hidden lg:flex items-center gap-1 p-1 rounded-xl bg-surface-2 border border-border backdrop-blur-md shadow-inner">
           {SEQUENTIAL_STEPS.map((s, idx) => {
             const isActive = location.pathname.startsWith(s.to);
             return (
@@ -106,7 +106,7 @@ export default function HqShell() {
                   className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                     isActive
                       ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/80"
                   }`}
                   title={s.desc}
                 >
