@@ -225,16 +225,141 @@ export default function HqICP() {
       const base = import.meta.env.VITE_SUPABASE_URL;
       const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
 
+      let edgeFunctionAvailable = true;
+
+      // ── Step 1: HN Source ────────────────────────────────────────────────────
       setRunStatus("Sourcing from Hacker News…");
-      await fetch(`${base}/functions/v1/sourcing-machine`, { method: "POST", headers, body: JSON.stringify({ action: "hn-source", query: buildQuery(icp), time_range: "week" }) });
+      try {
+        const hnRes = await fetch(`${base}/functions/v1/sourcing-machine`, {
+          method: "POST", headers,
+          body: JSON.stringify({ action: "hn-source", query: buildQuery(icp), time_range: "week" }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!hnRes.ok) throw new Error(`HN Edge Function: ${hnRes.status}`);
+        const hnData = await hnRes.json();
+        if (hnData.leads?.length) {
+          toast.success(`${hnData.leads.length} leads from HN`);
+        }
+      } catch (edgeErr: any) {
+        console.warn("Edge Function unavailable, using client-side HN fallback:", edgeErr.message);
+        edgeFunctionAvailable = false;
 
+        // ── Client-side HN Algolia fallback (no API key needed) ──────────────
+        try {
+          const query = buildQuery(icp);
+          const cutoff = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
+          const algoliaUrl = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&tags=story&numericFilters=created_at_i>=${cutoff}&hitsPerPage=15`;
+          const algoliaRes = await fetch(algoliaUrl, { signal: AbortSignal.timeout(12000) });
+          if (!algoliaRes.ok) throw new Error("Algolia failed");
+
+          const algoliaData = await algoliaRes.json();
+          const hits = algoliaData.hits || [];
+
+          // Keyword ICP scoring (no AI needed)
+          const icpKeywords = [...icp.industries, ...icp.signals, ...icp.pain_points].map(k => k.toLowerCase());
+          const clientLeads: PipelineLead[] = [];
+
+          for (const hit of hits.slice(0, 10)) {
+            const text = `${hit.title || ""} ${hit.story_text || ""} ${hit.url || ""}`.toLowerCase();
+            // Score based on keyword matches
+            let score = 3; // base: they're posting on HN (active founder)
+            for (const kw of icpKeywords) {
+              if (text.includes(kw.toLowerCase())) score += 2;
+            }
+            if (text.includes("saas") || text.includes("startup") || text.includes("mrr")) score += 2;
+            if (text.includes("show hn")) score += 1;
+            if (text.includes("bootstrap") || text.includes("solo")) score += 1;
+            score = Math.min(score, 15);
+            const icpPercent = Math.round((score / 15) * 100);
+
+            // Extract founder thesis from title
+            const thesis = hit.story_text
+              ? hit.story_text.replace(/<[^>]+>/g, " ").slice(0, 200).trim()
+              : hit.title || "";
+
+            const lead: PipelineLead = {
+              id: crypto.randomUUID(),
+              prospect: hit.author || "Unknown",
+              company: (hit.title || "").replace(/^Show HN:\s*/i, "").split(/[–—\-:]/)[0].trim() || "Unknown",
+              website: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+              icp_score: icpPercent,
+              stage: "Sourced",
+              source: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+              founder_thesis: thesis,
+              draft_message: `Hey ${hit.author || "there"}, saw your Show HN post about ${(hit.title || "your project").replace(/^Show HN:\s*/i, "")} — looks like you're tackling a real pain point. I've built something that might help with the growth side. Mind if I share a quick idea?`,
+            };
+            clientLeads.push(lead);
+          }
+
+          // Sort by ICP score descending
+          clientLeads.sort((a, b) => b.icp_score - a.icp_score);
+
+          // Try to save to Supabase
+          for (const lead of clientLeads) {
+            try {
+              await supabase.from("kuro_pipeline_view" as any).insert({
+                user_id: user!.id,
+                prospect: lead.prospect,
+                company: lead.company,
+                website: lead.website,
+                icp_score: lead.icp_score <= 15 ? lead.icp_score : Math.round(lead.icp_score / 10),
+                stage: "Sourced",
+                source: lead.source,
+                founder_thesis: lead.founder_thesis,
+                draft_message: lead.draft_message,
+                is_contacted: false,
+              });
+            } catch {
+              // Table might not exist or be a view — just use local state
+            }
+          }
+
+          // Update local queue directly
+          setQueue(prev => {
+            const existing = new Set(prev.map(l => l.company));
+            const newLeads = clientLeads.filter(l => !existing.has(l.company));
+            return [...newLeads, ...prev].slice(0, 20);
+          });
+
+          toast.success(`${clientLeads.length} leads sourced from HN (client-side)`);
+        } catch (fallbackErr: any) {
+          console.warn("Client-side HN fallback also failed:", fallbackErr.message);
+          toast.error("HN sourcing failed — check network connection");
+        }
+      }
+
+      // ── Step 2: YC Source ────────────────────────────────────────────────────
       setRunStatus("Sourcing from YC…");
-      await fetch(`${base}/functions/v1/sourcing-machine`, { method: "POST", headers, body: JSON.stringify({ action: "yc-source", filter: icp.stages.join(","), industry: icp.industries.join(",") }) });
+      try {
+        if (edgeFunctionAvailable) {
+          await fetch(`${base}/functions/v1/sourcing-machine`, {
+            method: "POST", headers,
+            body: JSON.stringify({ action: "yc-source", filter: icp.stages.join(","), industry: icp.industries.join(",") }),
+            signal: AbortSignal.timeout(20000),
+          });
+        }
+      } catch {
+        console.warn("YC source skipped — Edge Function unavailable");
+      }
 
+      // ── Step 3: Auto-enrich top leads ─────────────────────────────────────────
       setRunStatus("Auto-scoring and drafting outreach…");
-      const { data: top } = await supabase.from("kuro_pipeline_view").select("*").eq("user_id", user!.id).gte("icp_score", 7).eq("is_contacted", false).limit(10);
-      for (const lead of top ?? []) {
-        await fetch(`${base}/functions/v1/sourcing-machine`, { method: "POST", headers, body: JSON.stringify({ action: "auto-enrich", lead_id: lead.id }) });
+      try {
+        if (edgeFunctionAvailable) {
+          const { data: top } = await supabase.from("kuro_pipeline_view")
+            .select("*").eq("user_id", user!.id).gte("icp_score", 7).eq("is_contacted", false).limit(10);
+          for (const lead of top ?? []) {
+            try {
+              await fetch(`${base}/functions/v1/sourcing-machine`, {
+                method: "POST", headers,
+                body: JSON.stringify({ action: "auto-enrich", lead_id: lead.id }),
+                signal: AbortSignal.timeout(15000),
+              });
+            } catch { /* skip individual enrichment failures */ }
+          }
+        }
+      } catch {
+        console.warn("Auto-enrich skipped");
       }
 
       setRunStatus("✓ Pipeline Complete");
