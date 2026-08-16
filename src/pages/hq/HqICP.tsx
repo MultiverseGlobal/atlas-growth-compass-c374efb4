@@ -117,7 +117,14 @@ export default function HqICP() {
   const [running, setRunning] = useState(false);
   const [runStatus, setRunStatus] = useState("");
   const [stats, setStats] = useState<PipelineStats>({ sourced: 0, matched: 0, sent: 0, replied: 0 });
-  const [queue, setQueue] = useState<PipelineLead[]>([]);
+  const [queue, setQueue] = useState<PipelineLead[]>(() => {
+    try {
+      const raw = localStorage.getItem("atlas_pipeline_queue");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const [lastRun, setLastRun] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -139,7 +146,24 @@ export default function HqICP() {
         supabase.from("kuro_pipeline_view").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("is_contacted", true),
         supabase.from("kuro_pipeline_view").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("reply_status", "replied"),
       ]);
-      setStats({ sourced: a.count ?? 0, matched: b.count ?? 0, sent: c.count ?? 0, replied: d.count ?? 0 });
+      const dbSourced = a.count ?? 0;
+      if (dbSourced > 0) {
+        setStats({ sourced: dbSourced, matched: b.count ?? 0, sent: c.count ?? 0, replied: d.count ?? 0 });
+      } else {
+        // Fallback to local queue stats
+        try {
+          const raw = localStorage.getItem("atlas_pipeline_queue");
+          const localQueue: PipelineLead[] = raw ? JSON.parse(raw) : [];
+          if (localQueue.length > 0) {
+            setStats({
+              sourced: localQueue.length,
+              matched: localQueue.filter(l => (l.icp_score || 0) >= 60).length,
+              sent: 0,
+              replied: 0,
+            });
+          }
+        } catch { /* fallback */ }
+      }
     } catch { /* fallback */ }
   }, [user]);
 
@@ -151,12 +175,14 @@ export default function HqICP() {
         .eq("user_id", user.id)
         .eq("is_contacted", false)
         .order("icp_score", { ascending: false })
-        .limit(10);
-      if (data) {
-        setQueue(data.map((l: any) => ({
+        .limit(20);
+      if (data && data.length > 0) {
+        const mapped = data.map((l: any) => ({
           ...l,
           icp_score: (l.icp_score || 0) <= 10 ? (l.icp_score || 0) * 10 : l.icp_score,
-        })));
+        }));
+        setQueue(mapped);
+        localStorage.setItem("atlas_pipeline_queue", JSON.stringify(mapped));
       }
     } catch { /* fallback */ }
   }, [user]);
@@ -215,6 +241,16 @@ export default function HqICP() {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
+  const markLeadContacted = (leadId: string) => {
+    setQueue(prev => {
+      const updated = prev.filter(l => l.id !== leadId);
+      localStorage.setItem("atlas_pipeline_queue", JSON.stringify(updated));
+      return updated;
+    });
+    setStats(prev => ({ ...prev, sent: prev.sent + 1 }));
+    toast.success("Lead marked as contacted");
+  };
+
   const buildQuery = (p: IcpProfile) => [...p.industries, ...p.stages, ...p.signals].filter(Boolean).join(" ") || "B2B SaaS";
 
   const runPipeline = async () => {
@@ -226,6 +262,18 @@ export default function HqICP() {
       const base = import.meta.env.VITE_SUPABASE_URL;
       const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
 
+      let activeIcp = icp;
+
+      // ── Step 0: Auto-parse if prompt was pasted without clicking Parse ────────
+      if (prompt.trim() && (isEmpty || !parsed)) {
+        setRunStatus("Parsing your ICP description…");
+        try {
+          activeIcp = await parseIcpPrompt(prompt, user, base, token ?? "");
+          setIcp(activeIcp);
+          setParsed(true);
+        } catch { /* proceed with fallback */ }
+      }
+
       let edgeFunctionAvailable = true;
 
       // ── Step 1: HN Source ────────────────────────────────────────────────────
@@ -233,7 +281,7 @@ export default function HqICP() {
       try {
         const hnRes = await fetch(`${base}/functions/v1/sourcing-machine`, {
           method: "POST", headers,
-          body: JSON.stringify({ action: "hn-source", query: buildQuery(icp), time_range: "week" }),
+          body: JSON.stringify({ action: "hn-source", query: buildQuery(activeIcp), time_range: "week" }),
           signal: AbortSignal.timeout(20000),
         });
         if (!hnRes.ok) throw new Error(`HN Edge Function: ${hnRes.status}`);
@@ -247,47 +295,48 @@ export default function HqICP() {
 
         // ── Client-side HN Algolia fallback (no API key needed) ──────────────
         try {
-          const query = buildQuery(icp);
-          const cutoff = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
-          const algoliaUrl = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&tags=story&numericFilters=created_at_i>=${cutoff}&hitsPerPage=15`;
+          const query = buildQuery(activeIcp);
+          const cutoff = Math.floor(Date.now() / 1000) - 14 * 24 * 60 * 60; // 14 days window for abundant results
+          const algoliaUrl = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&tags=story&numericFilters=created_at_i>=${cutoff}&hitsPerPage=20`;
           const algoliaRes = await fetch(algoliaUrl, { signal: AbortSignal.timeout(12000) });
           if (!algoliaRes.ok) throw new Error("Algolia failed");
 
           const algoliaData = await algoliaRes.json();
           const hits = algoliaData.hits || [];
 
-          // Keyword ICP scoring (no AI needed)
-          const icpKeywords = [...icp.industries, ...icp.signals, ...icp.pain_points].map(k => k.toLowerCase());
+          // Keyword ICP scoring
+          const icpKeywords = [...activeIcp.industries, ...activeIcp.signals, ...activeIcp.pain_points, ...activeIcp.stages].map(k => k.toLowerCase());
           const clientLeads: PipelineLead[] = [];
 
-          for (const hit of hits.slice(0, 10)) {
+          for (const hit of hits.slice(0, 15)) {
             const text = `${hit.title || ""} ${hit.story_text || ""} ${hit.url || ""}`.toLowerCase();
-            // Score based on keyword matches
-            let score = 3; // base: they're posting on HN (active founder)
+            let score = 5; // Base: live active founder on HN
             for (const kw of icpKeywords) {
-              if (text.includes(kw.toLowerCase())) score += 2;
+              if (kw && text.includes(kw)) score += 2;
             }
-            if (text.includes("saas") || text.includes("startup") || text.includes("mrr")) score += 2;
-            if (text.includes("show hn")) score += 1;
-            if (text.includes("bootstrap") || text.includes("solo")) score += 1;
+            if (text.includes("saas") || text.includes("startup") || text.includes("mrr") || text.includes("launch")) score += 2;
+            if (text.includes("show hn")) score += 2;
+            if (text.includes("bootstrap") || text.includes("solo") || text.includes("indie")) score += 1;
             score = Math.min(score, 15);
             const icpPercent = Math.round((score / 15) * 100);
 
-            // Extract founder thesis from title
+            // Extract founder thesis from story or title
             const thesis = hit.story_text
-              ? hit.story_text.replace(/<[^>]+>/g, " ").slice(0, 200).trim()
+              ? hit.story_text.replace(/<[^>]+>/g, " ").slice(0, 180).trim()
               : hit.title || "";
+
+            const cleanCompany = (hit.title || "").replace(/^Show HN:\s*/i, "").split(/[–—\-:]/)[0].trim() || "Startup";
 
             const lead: PipelineLead = {
               id: crypto.randomUUID(),
-              prospect: hit.author || "Unknown",
-              company: (hit.title || "").replace(/^Show HN:\s*/i, "").split(/[–—\-:]/)[0].trim() || "Unknown",
+              prospect: hit.author || "Founder",
+              company: cleanCompany,
               website: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
               icp_score: icpPercent,
               stage: "Sourced",
               source: `https://news.ycombinator.com/item?id=${hit.objectID}`,
               founder_thesis: thesis,
-              draft_message: `Hey ${hit.author || "there"}, saw your Show HN post about ${(hit.title || "your project").replace(/^Show HN:\s*/i, "")} — looks like you're tackling a real pain point. I've built something that might help with the growth side. Mind if I share a quick idea?`,
+              draft_message: `Hey ${hit.author || "there"}, saw what you're building with ${cleanCompany}. Saw you're navigating growth challenges — put together a quick solution that could save you 10+ hrs/wk. Mind if I share a 2-min breakdown?`,
             };
             clientLeads.push(lead);
           }
@@ -295,34 +344,17 @@ export default function HqICP() {
           // Sort by ICP score descending
           clientLeads.sort((a, b) => b.icp_score - a.icp_score);
 
-          // Try to save to Supabase
-          for (const lead of clientLeads) {
-            try {
-              await supabase.from("kuro_pipeline_view" as any).insert({
-                user_id: user!.id,
-                prospect: lead.prospect,
-                company: lead.company,
-                website: lead.website,
-                icp_score: lead.icp_score <= 15 ? lead.icp_score : Math.round(lead.icp_score / 10),
-                stage: "Sourced",
-                source: lead.source,
-                founder_thesis: lead.founder_thesis,
-                draft_message: lead.draft_message,
-                is_contacted: false,
-              });
-            } catch {
-              // Table might not exist or be a view — just use local state
-            }
+          if (clientLeads.length > 0) {
+            setQueue(clientLeads);
+            localStorage.setItem("atlas_pipeline_queue", JSON.stringify(clientLeads));
+            setStats({
+              sourced: clientLeads.length,
+              matched: clientLeads.filter(l => l.icp_score >= 60).length,
+              sent: 0,
+              replied: 0,
+            });
+            toast.success(`${clientLeads.length} ICP leads sourced from Hacker News!`);
           }
-
-          // Update local queue directly
-          setQueue(prev => {
-            const existing = new Set(prev.map(l => l.company));
-            const newLeads = clientLeads.filter(l => !existing.has(l.company));
-            return [...newLeads, ...prev].slice(0, 20);
-          });
-
-          toast.success(`${clientLeads.length} leads sourced from HN (client-side)`);
         } catch (fallbackErr: any) {
           console.warn("Client-side HN fallback also failed:", fallbackErr.message);
           toast.error("HN sourcing failed — check network connection");
@@ -330,44 +362,22 @@ export default function HqICP() {
       }
 
       // ── Step 2: YC Source ────────────────────────────────────────────────────
-      setRunStatus("Sourcing from YC…");
-      try {
-        if (edgeFunctionAvailable) {
+      if (edgeFunctionAvailable) {
+        setRunStatus("Sourcing from YC…");
+        try {
           await fetch(`${base}/functions/v1/sourcing-machine`, {
             method: "POST", headers,
-            body: JSON.stringify({ action: "yc-source", filter: icp.stages.join(","), industry: icp.industries.join(",") }),
+            body: JSON.stringify({ action: "yc-source", filter: activeIcp.stages.join(","), industry: activeIcp.industries.join(",") }),
             signal: AbortSignal.timeout(20000),
           });
+        } catch {
+          console.warn("YC source skipped — Edge Function unavailable");
         }
-      } catch {
-        console.warn("YC source skipped — Edge Function unavailable");
-      }
-
-      // ── Step 3: Auto-enrich top leads ─────────────────────────────────────────
-      setRunStatus("Auto-scoring and drafting outreach…");
-      try {
-        if (edgeFunctionAvailable) {
-          const { data: top } = await supabase.from("kuro_pipeline_view")
-            .select("*").eq("user_id", user!.id).gte("icp_score", 7).eq("is_contacted", false).limit(10);
-          for (const lead of top ?? []) {
-            try {
-              await fetch(`${base}/functions/v1/sourcing-machine`, {
-                method: "POST", headers,
-                body: JSON.stringify({ action: "auto-enrich", lead_id: lead.id }),
-                signal: AbortSignal.timeout(15000),
-              });
-            } catch { /* skip individual enrichment failures */ }
-          }
-        }
-      } catch {
-        console.warn("Auto-enrich skipped");
       }
 
       setRunStatus("✓ Pipeline Complete");
       setLastRun(new Date().toLocaleTimeString());
-      toast.success("Pipeline run complete — new leads ready for outreach");
-      await loadStats();
-      await loadQueue();
+      toast.success("Pipeline run complete — review leads in Action Queue below");
     } catch (e: any) {
       setRunStatus(`Error: ${e.message}`);
       toast.error(e.message);
@@ -490,23 +500,27 @@ export default function HqICP() {
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Describe your ideal customer in plain English. Atlas handles the rest.</p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-            <button onClick={runPipeline} disabled={running || isEmpty} style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: (running || isEmpty) ? "var(--accent-dim)" : "var(--accent)",
-              border: "none", borderRadius: 12, padding: "12px 24px",
-              color: (running || isEmpty) ? "#818CF8" : "white",
-              fontWeight: 700, fontSize: 14,
-              cursor: (running || isEmpty) ? "not-allowed" : "pointer",
-              boxShadow: (running || isEmpty) ? "none" : "0 4px 20px rgba(99,102,241,0.4)",
-              transition: "all 0.2s",
-              animation: (parsed && !running && !isEmpty && !lastRun) ? "pulse-glow 2s ease-in-out infinite" : "none",
-            }}>
+            <button
+              onClick={runPipeline}
+              disabled={running || (isEmpty && !prompt.trim())}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: (running || (isEmpty && !prompt.trim())) ? "var(--accent-dim)" : "var(--accent)",
+                border: "none", borderRadius: 12, padding: "12px 24px",
+                color: (running || (isEmpty && !prompt.trim())) ? "#818CF8" : "white",
+                fontWeight: 700, fontSize: 14,
+                cursor: (running || (isEmpty && !prompt.trim())) ? "not-allowed" : "pointer",
+                boxShadow: (running || (isEmpty && !prompt.trim())) ? "none" : "0 4px 20px rgba(99,102,241,0.4)",
+                transition: "all 0.2s",
+                animation: (!running && (prompt.trim() || !isEmpty) && !lastRun) ? "pulse-glow 2s ease-in-out infinite" : "none",
+              }}
+            >
               {running ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Play size={15} />}
               {running ? runStatus || "Running…" : "Run Full Pipeline"}
             </button>
-            {parsed && !running && !lastRun && !isEmpty && (
+            {(prompt.trim() || !isEmpty) && !running && !lastRun && (
               <span style={{ fontSize: 11, color: "#818CF8", fontWeight: 600, animation: "fade-in 0.5s ease" }}>
-                ↑ ICP saved — now hit Run to source leads
+                ↑ Ready — click to source leads instantly
               </span>
             )}
           </div>
@@ -707,10 +721,11 @@ export default function HqICP() {
                   <Mail size={11} /> Email
                 </button>
                 <button
-                  onClick={() => supabase.from("kuro_pipeline_view").update({ stage: "archived" }).eq("id", lead.id).then(() => setQueue(p => p.filter(l => l.id !== lead.id)))}
+                  onClick={() => markLeadContacted(lead.id)}
+                  title="Mark this lead as contacted or dismissed"
                   style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "5px 8px", fontSize: 11, color: "var(--text-muted)", cursor: "pointer" }}
                 >
-                  Skip
+                  Dismiss
                 </button>
               </div>
             </div>
