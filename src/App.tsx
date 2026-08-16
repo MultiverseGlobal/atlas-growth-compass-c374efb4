@@ -6,36 +6,20 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { useSovereignSync } from "@/hooks/useSovereignSync";
 
-import Landing from "./pages/Landing";
-import StartMap from "./pages/StartMap";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import MetaphorAuthCallback from "./pages/MetaphorAuthCallback";
 import Onboarding from "./pages/Onboarding";
-import AppShell from "./components/atlas/AppShell";
-import Home from "./pages/app/Home";
-import MapDetails from "./pages/app/MapDetails";
-import Timeline from "./pages/app/Timeline";
-import Reports from "./pages/app/Reports";
-import Integrations from "./pages/app/Integrations";
-import PublicPagePreview from "./pages/app/PublicPagePreview";
-import Settings from "./pages/app/Settings";
-import Notifications from "./pages/app/Notifications";
-import Sourcing from "./pages/app/Sourcing";
 import HqShell from "./components/atlas/HqShell";
-import HqFlow from "./pages/hq/HqFlow";
-import HqDashboard from "./pages/hq/HqDashboard";
-import HqDiscover from "./pages/hq/HqDiscover";
+import HqICP from "./pages/hq/HqICP";
 import HqRecon from "./pages/hq/HqRecon";
-import HqLeads from "./pages/hq/HqLeads";
-import HqLeadDetail from "./pages/hq/HqLeadDetail";
 import HqPipeline from "./pages/hq/HqPipeline";
 import HqOutreach from "./pages/hq/HqOutreach";
-import HqReport from "./pages/hq/HqReport";
+import HqLeads from "./pages/hq/HqLeads";
+import HqLeadDetail from "./pages/hq/HqLeadDetail";
 import HqProposal from "./pages/hq/HqProposal";
+import HqReport from "./pages/hq/HqReport";
 import HqSettings from "./pages/hq/HqSettings";
-import HqTeam from "./pages/hq/HqTeam";
-import HqICP from "./pages/hq/HqICP";
 import PublicProfile from "./pages/PublicProfile";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
@@ -56,46 +40,49 @@ const App = () => (
         <SovereignSyncWrapper>
           <AuthProvider>
           <Routes>
+            {/* ── Home: straight into the flow ─────────────────────────── */}
             <Route path="/" element={<Navigate to="/hq/icp" replace />} />
-            <Route path="/flow" element={<HqFlow />} />
-            <Route path="/hq/flow" element={<HqFlow />} />
-            <Route path="/landing" element={<Navigate to="/flow" replace />} />
-            <Route path="/start" element={<Navigate to="/flow" replace />} />
-            <Route path="/map/starter" element={<Navigate to="/flow" replace />} />
+
+            {/* ── Auth ─────────────────────────────────────────────────── */}
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/metaphor/callback" element={<MetaphorAuthCallback />} />
             <Route path="/onboarding" element={<Onboarding />} />
 
-            <Route path="/app" element={<AppShell />}>
-              <Route index element={<Home />} />
-              <Route path="map/:id" element={<MapDetails />} />
-              <Route path="timeline" element={<Timeline />} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="integrations" element={<Integrations />} />
-              <Route path="page" element={<PublicPagePreview />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="notifications" element={<Notifications />} />
-              <Route path="sourcing" element={<Navigate to="/hq" replace />} />
-            </Route>
+            {/* ── Sovereign Acquisition Flow (Single Shell) ────────────── */}
             <Route path="/hq" element={<HqShell />}>
-              <Route index element={<Navigate to="/flow" replace />} />
-              <Route path="dashboard" element={<HqDashboard />} />
-              <Route path="discover" element={<HqDiscover />} />
+              <Route index element={<Navigate to="/hq/icp" replace />} />
+              {/* Step 1: ICP & Offer Definition */}
+              <Route path="icp" element={<HqICP />} />
+              {/* Step 2: Sourcing Machine */}
               <Route path="recon" element={<HqRecon />} />
+              {/* Step 3: Pipeline Flow */}
+              <Route path="pipeline" element={<HqPipeline />} />
+              {/* Step 4: Outreach Studio */}
+              <Route path="outreach" element={<HqOutreach />} />
+              {/* Vault-accessible pages */}
               <Route path="leads" element={<HqLeads />} />
               <Route path="leads/:id" element={<HqLeadDetail />} />
               <Route path="leads/:id/proposal" element={<HqProposal />} />
-              <Route path="proposal" element={<HqProposal />} />
-              <Route path="pipeline" element={<HqPipeline />} />
-              <Route path="outreach" element={<HqOutreach />} />
               <Route path="report" element={<HqReport />} />
-              <Route path="prospects" element={<Navigate to="/hq/leads" replace />} />
               <Route path="settings" element={<HqSettings />} />
-              <Route path="team" element={<HqTeam />} />
-              <Route path="icp" element={<HqICP />} />
-              <Route index element={<Navigate to="/hq/icp" replace />} />
             </Route>
+
+            {/* ── Legacy redirects (don't break bookmarks) ─────────────── */}
+            <Route path="/flow" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/hq/flow" element={<Navigate to="/hq/pipeline" replace />} />
+            <Route path="/hq/dashboard" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/hq/discover" element={<Navigate to="/hq/recon" replace />} />
+            <Route path="/hq/team" element={<Navigate to="/hq/settings" replace />} />
+            <Route path="/hq/prospects" element={<Navigate to="/hq/leads" replace />} />
+            <Route path="/hq/proposal" element={<Navigate to="/hq/leads" replace />} />
+            <Route path="/landing" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/start" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/map/starter" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/app" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/app/*" element={<Navigate to="/hq/icp" replace />} />
+
+            {/* ── Public ───────────────────────────────────────────────── */}
             <Route path="/:handle" element={<PublicProfile />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />

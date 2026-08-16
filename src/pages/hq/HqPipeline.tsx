@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Loader2, DollarSign, Clock, AlertCircle, ChevronRight,
-  TrendingUp, MoreHorizontal, Plus, Filter
+  TrendingUp, Plus, ExternalLink, CreditCard
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { formatDistanceToNow, isPast } from "date-fns";
+import { isPast } from "date-fns";
 
 interface Deal {
   id: string;
@@ -128,14 +128,66 @@ export default function HqPipeline() {
     }
   };
 
-  // Weighted pipeline value
+  // Pipeline metrics
   const pipelineValue = deals
     .filter((d) => !["won", "lost"].includes(d.stage))
     .reduce((sum, d) => sum + (d.value * d.probability) / 100, 0);
 
-  const wonThisMonth = deals
+  const wonTotal = deals
     .filter((d) => d.stage === "won")
     .reduce((sum, d) => sum + d.value, 0);
+
+  const totalPipeline = deals
+    .filter((d) => d.stage !== "lost")
+    .reduce((sum, d) => sum + d.value, 0);
+
+  // ── Stripe payment link (fallback to clipboard instructions) ──────────────
+  const [generatingLink, setGeneratingLink] = useState<string | null>(null);
+
+  const handleGeneratePaymentLink = async (deal: Deal, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setGeneratingLink(deal.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const base = import.meta.env.VITE_SUPABASE_URL;
+
+      const res = await fetch(`${base}/functions/v1/create-payment-link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          company_name: deal.company_name,
+          amount: deal.value,
+          currency: "gbp",
+          deal_id: deal.id,
+        }),
+      });
+
+      if (res.ok) {
+        const { url } = await res.json();
+        await navigator.clipboard.writeText(url);
+        toast.success(`Payment link copied! Send to ${deal.company_name}`);
+      } else {
+        // No Stripe key — give manual instructions
+        await navigator.clipboard.writeText(
+          `Payment request for ${deal.company_name}: £${formatMoney(deal.value).replace("£", "")}\n\nCreate a Stripe payment link at: https://dashboard.stripe.com/payment-links`
+        );
+        toast("💳 Add STRIPE_SECRET_KEY to Supabase Edge Functions to auto-generate links. Manual instructions copied.", {
+          duration: 7000,
+        });
+      }
+    } catch {
+      await navigator.clipboard.writeText(
+        `Payment link for ${deal.company_name}\nAmount: ${formatMoney(deal.value)}\n\nCreate at: https://dashboard.stripe.com/payment-links`
+      );
+      toast("💳 Stripe not connected yet — instructions copied to clipboard", { duration: 5000 });
+    } finally {
+      setGeneratingLink(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -153,13 +205,24 @@ export default function HqPipeline() {
           <div>
             <h1 className="text-sm font-semibold">Sales Pipeline</h1>
             <p className="text-xs text-muted-foreground font-mono">
-              {deals.filter((d) => !["won", "lost"].includes(d.stage)).length} active deals · Pipeline: {formatMoney(pipelineValue)} weighted
+              {deals.filter((d) => !["won", "lost"].includes(d.stage)).length} active deals
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-4 text-xs font-mono px-3 py-1.5 rounded-lg bg-emerald-500/8 border border-emerald-500/20">
-              <span className="text-muted-foreground">Won:</span>
-              <span className="text-emerald-400 font-semibold">{formatMoney(wonThisMonth)}</span>
+          <div className="flex items-center gap-3">
+            {/* Revenue summary pills */}
+            <div className="hidden md:flex items-center gap-2 text-xs font-mono">
+              <div className="px-2.5 py-1 rounded-lg bg-muted/30 border border-border/40">
+                <span className="text-muted-foreground">Pipeline: </span>
+                <span className="text-foreground font-semibold">{formatMoney(pipelineValue)}</span>
+              </div>
+              <div className="px-2.5 py-1 rounded-lg bg-emerald-500/8 border border-emerald-500/20">
+                <span className="text-muted-foreground">Won: </span>
+                <span className="text-emerald-400 font-semibold">{formatMoney(wonTotal)}</span>
+              </div>
+              <div className="px-2.5 py-1 rounded-lg bg-primary/8 border border-primary/20">
+                <span className="text-muted-foreground">Total: </span>
+                <span className="text-primary font-semibold">{formatMoney(totalPipeline)}</span>
+              </div>
             </div>
             <Button
               size="sm"
@@ -271,6 +334,20 @@ export default function HqPipeline() {
                             </span>
                             <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
                           </div>
+
+                          {/* Payment link — only on won deals */}
+                          {deal.stage === "won" && (
+                            <button
+                              onClick={(e) => handleGeneratePaymentLink(deal, e)}
+                              disabled={generatingLink === deal.id}
+                              className="w-full flex items-center justify-center gap-1.5 mt-1 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 text-[10px] font-semibold transition-colors"
+                            >
+                              {generatingLink === deal.id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <CreditCard className="h-3 w-3" />}
+                              {generatingLink === deal.id ? "Generating…" : "Generate Payment Link"}
+                            </button>
+                          )}
                         </div>
                       );
                     })}

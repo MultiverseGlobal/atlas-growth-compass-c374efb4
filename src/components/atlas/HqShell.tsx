@@ -15,7 +15,7 @@ import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 const SEQUENTIAL_STEPS = [
   { step: "01", to: "/hq/icp",      label: "ICP & Offer",      icon: Crosshair,     desc: "Define target thesis & pain engine" },
   { step: "02", to: "/hq/recon",    label: "Sourcing Machine", icon: Radio,         desc: "Live Jina AI & directory scraping" },
-  { step: "03", to: "/hq/flow",     label: "Pipeline Flow",    icon: BarChart2,     desc: "Stage velocity & deal Kanban" },
+  { step: "03", to: "/hq/pipeline", label: "Pipeline Flow",    icon: BarChart2,     desc: "Stage velocity & deal Kanban" },
   { step: "04", to: "/hq/outreach", label: "Outreach Studio",  icon: MessageSquare, desc: "Personalized founder copy & sync" },
 ];
 

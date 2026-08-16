@@ -248,6 +248,66 @@ export default function HqOutreach() {
     }
   };
 
+  // ── Send Email via Resend (or fallback to copy) ────────────────────────────
+  const [sending, setSending] = useState(false);
+  const handleSendEmail = async () => {
+    if (!generated || !selectedCompanyId || !user) return;
+    const lead = leads.find((l) => l.id === selectedCompanyId);
+    if (!lead) return;
+
+    setSending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const base = import.meta.env.VITE_SUPABASE_URL;
+
+      const res = await fetch(`${base}/functions/v1/send-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          to: "", // Will be populated by Edge Function from lead research_data
+          company_id: selectedCompanyId,
+          subject: generated.subject ?? `Quick idea for ${lead.company}`,
+          body: generated.body,
+          type: selectedType,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Email sent via Resend!");
+        await handleMarkSent();
+      } else {
+        const err = await res.json().catch(() => ({ error: "Unknown" }));
+        if (err?.error?.includes("RESEND_API_KEY") || res.status === 500) {
+          // No Resend key configured — fall back to copy
+          const text = generated.subject
+            ? `Subject: ${generated.subject}\n\n${generated.body}`
+            : generated.body;
+          await navigator.clipboard.writeText(text);
+          toast("📋 Copied to clipboard — Add a Resend API key to your Supabase Edge Function to enable direct sending", {
+            duration: 6000,
+          });
+        } else {
+          toast.error(`Send failed: ${err.error || err.message || "Unknown error"}`);
+        }
+      }
+    } catch {
+      // Edge Function doesn't exist yet — fall back to copy
+      const text = generated.subject
+        ? `Subject: ${generated.subject}\n\n${generated.body}`
+        : generated.body;
+      await navigator.clipboard.writeText(text);
+      toast("📋 Copied to clipboard — send-email Edge Function not deployed yet. Paste into Gmail/Outlook.", {
+        duration: 5000,
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleStatusUpdate = async (id: string, status: string) => {
     setUpdatingId(id);
     try {
@@ -381,7 +441,17 @@ export default function HqOutreach() {
                   {generated.subject && <p className="text-xs font-semibold text-muted-foreground">Body:</p>}
                   <p className="text-sm whitespace-pre-wrap font-mono text-xs leading-relaxed">{generated.body}</p>
                 </div>
-                <div className="flex gap-2 pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {/* Primary: Send Email via Resend (falls back to copy) */}
+                  <Button
+                    size="sm"
+                    onClick={handleSendEmail}
+                    disabled={sending || saving}
+                    className="h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
+                  >
+                    {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                    {sending ? "Sending…" : "Send Email"}
+                  </Button>
                   <Button size="sm" variant="outline" onClick={handleCopy} className="h-8 text-xs gap-1.5 border-border/60">
                     {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                     {copied ? "Copied!" : "Copy"}
@@ -390,13 +460,14 @@ export default function HqOutreach() {
                     size="sm"
                     onClick={handleMarkSent}
                     disabled={saving}
-                    className="h-8 text-xs bg-emerald-500 text-white hover:bg-emerald-600 gap-1.5"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
                   >
-                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                     Mark as Sent
                   </Button>
-                  <p className="text-xs text-muted-foreground self-center">
-                    (sets follow-up reminder for {FOLLOW_UP_DAYS[selectedType]} days)
+                  <p className="text-xs text-muted-foreground self-center w-full mt-0.5">
+                    Follow-up reminder set for {FOLLOW_UP_DAYS[selectedType]} days · Add Resend API key to Supabase to enable direct sending
                   </p>
                 </div>
               </div>
