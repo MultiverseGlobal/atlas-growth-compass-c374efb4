@@ -163,16 +163,17 @@ export default function HqICP() {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("icp_profiles" as any).select("*").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+    supabase.from("icp_profiles" as any).select("*").eq("user_id", user.id).maybeSingle().then(({ data }: any) => {
       if (data) {
-        setIcp(data as IcpProfile);
+        const d = data as IcpProfile;
+        setIcp(d);
         // Build a human-readable prompt from existing params
-        const parts = [];
-        if (data.industries?.length) parts.push(data.industries.join(", "));
-        if (data.stages?.length) parts.push(data.stages.join(", ") + " stage");
-        if (data.geographies?.length) parts.push("in " + data.geographies.join(", "));
-        if (data.headcount_min && data.headcount_max) parts.push(`${data.headcount_min}–${data.headcount_max} people`);
-        if (data.pain_points?.length) parts.push("pain: " + data.pain_points.join(", "));
+        const parts: string[] = [];
+        if (d.industries?.length) parts.push(d.industries.join(", "));
+        if (d.stages?.length) parts.push(d.stages.join(", ") + " stage");
+        if (d.geographies?.length) parts.push("in " + d.geographies.join(", "));
+        if (d.headcount_min && d.headcount_max) parts.push(`${d.headcount_min}–${d.headcount_max} people`);
+        if (d.pain_points?.length) parts.push("pain: " + d.pain_points.join(", "));
         setPrompt(parts.join(". "));
         setParsed(true);
       }
