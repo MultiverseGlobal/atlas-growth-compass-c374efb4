@@ -1,35 +1,23 @@
-import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
-  LayoutDashboard, Compass, Users2,
-  LogOut, PanelLeftClose, PanelLeftOpen, User as UserIcon,
-  Settings as SettingsIcon, TrendingUp, MessageSquare, FileText, Crosshair, Zap, Radio
+  Crosshair, Radio, BarChart2, MessageSquare, 
+  Database, Zap, User as UserIcon, LogOut, Moon, Sun, ChevronRight, Sparkles
 } from "lucide-react";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
+import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 
-const flowNav = [
-  { to: "/hq/flow",      icon: Zap,             label: "⚡ Daily Flow", isFlow: true },
+// ─── The 4 Sequential Sovereign Acquisition Steps ─────────────────────────────
+const SEQUENTIAL_STEPS = [
+  { step: "01", to: "/hq/icp",      label: "ICP & Offer",      icon: Crosshair,     desc: "Define target thesis & pain engine" },
+  { step: "02", to: "/hq/recon",    label: "Sourcing Machine", icon: Radio,         desc: "Live Jina AI & directory scraping" },
+  { step: "03", to: "/hq/flow",     label: "Pipeline Flow",    icon: BarChart2,     desc: "Stage velocity & deal Kanban" },
+  { step: "04", to: "/hq/outreach", label: "Outreach Studio",  icon: MessageSquare, desc: "Personalized founder copy & sync" },
 ];
-
-const vaultNav = [
-  { to: "/hq/leads",     icon: Users2,          label: "Leads Vault" },
-  { to: "/hq/pipeline",  icon: TrendingUp,      label: "Pipeline" },
-  { to: "/hq/outreach",  icon: MessageSquare,   label: "Outreach" },
-  { to: "/hq/discover",  icon: Crosshair,       label: "Radar Sourcing" },
-  { to: "/hq/recon",     icon: Radio,           label: "Target Recon" },
-  { to: "/hq/dashboard", icon: Compass,         label: "Mission Control" },
-  { to: "/hq/report",    icon: FileText,        label: "Reports" },
-  { to: "/hq/settings",  icon: SettingsIcon,    label: "Settings" },
-];
-
-const hqNav = [...flowNav, ...vaultNav];
-
-const STORAGE_KEY = "atlas.hq.sidebar.collapsed";
 
 export default function HqShell() {
   const { user, loading, signOut } = useAuth();
@@ -38,20 +26,8 @@ export default function HqShell() {
   const location = useLocation();
   const [profile, setProfile] = useState<{ display_name: string | null; handle: string | null } | null>(null);
 
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === "true";
-  });
+  const [vaultOpen, setVaultOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-
-  const toggle = () => {
-    setCollapsed((c) => {
-      const next = !c;
-      localStorage.setItem(STORAGE_KEY, String(next));
-      return next;
-    });
-  };
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth");
@@ -68,12 +44,24 @@ export default function HqShell() {
       });
   }, [user]);
 
+  // Global shortcut (Cmd+K) to toggle The Vault
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setVaultOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center grain">
         <div className="flex flex-col items-center gap-2">
           <LogoMark size={32} className="animate-pulse text-primary" />
-          <span className="text-xs text-muted-foreground font-mono mt-2 animate-pulse">Connecting to Atlas HQ...</span>
+          <span className="text-xs text-muted-foreground font-mono mt-2 animate-pulse">Initializing Atlas Sovereign Command...</span>
         </div>
       </div>
     );
@@ -81,190 +69,144 @@ export default function HqShell() {
 
   if (!user) return null;
 
-
-
   return (
-    <div className="min-h-screen bg-background text-foreground grain md:flex">
-      {/* Sidebar Panel */}
-      <aside
-        className={`shrink-0 border-r border-border/60 bg-sidebar flex flex-col transition-[width] duration-200 ease-out ${
-          collapsed ? "md:w-16" : "lg:w-56 md:w-60"
-        }`}
-      >
-        <div className={`h-16 flex items-center border-b border-border/60 ${collapsed ? "justify-center px-2" : "px-5"}`}>
-          <div className="flex items-center gap-2.5">
-            <LogoMark size={24} className="text-primary" />
-            {!collapsed && (
-              <div className="flex flex-col">
-                <span className="font-bold text-xs tracking-tight font-display">ATLAS HQ</span>
-                <span className="text-[9px] text-primary/80 font-semibold uppercase tracking-wider">Revenue OS</span>
-              </div>
-            )}
-          </div>
+    <div className="min-h-screen bg-background text-foreground flex flex-col grain overflow-x-hidden">
+      {/* ── Top Sovereign Process Header (No Sidebar) ────────────────────────── */}
+      <header className="sticky top-0 z-40 w-full h-16 border-b border-border/70 bg-[#08090D]/90 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between gap-4">
+        {/* Left: Brand Identity */}
+        <div className="flex items-center gap-3 shrink-0">
+          <NavLink to="/hq/icp" className="flex items-center gap-2.5 group">
+            <div className="h-8 w-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
+              <LogoMark size={20} className="text-primary" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-xs tracking-tight font-display text-foreground group-hover:text-primary transition-colors">
+                ATLAS
+              </span>
+              <span className="text-[9px] text-muted-foreground font-mono">
+                Sovereign Strategist
+              </span>
+            </div>
+          </NavLink>
         </div>
 
-        {/* Sidebar Navigation */}
-        <SidebarNav collapsed={collapsed} />
+        {/* Center: The 4-Step Sequential Acquisition Stream */}
+        <nav className="hidden lg:flex items-center gap-1.5 p-1 rounded-xl bg-card/60 border border-border/60 backdrop-blur-md shadow-inner">
+          {SEQUENTIAL_STEPS.map((s, idx) => {
+            const isActive = location.pathname.startsWith(s.to);
+            return (
+              <div key={s.to} className="flex items-center">
+                {idx > 0 && (
+                  <div className="mx-1 text-muted-foreground/30">
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </div>
+                )}
+                <NavLink
+                  to={s.to}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                  title={s.desc}
+                >
+                  <span className={`text-[10px] font-mono ${isActive ? "opacity-90 font-bold" : "opacity-50"}`}>
+                    {s.step}
+                  </span>
+                  <s.icon className="h-3.5 w-3.5 shrink-0" />
+                  <span>{s.label}</span>
+                </NavLink>
+              </div>
+            );
+          })}
+        </nav>
 
-        {/* Atlas AI Chat Button */}
-        <div className={`px-3 pb-2 ${collapsed ? "flex justify-center" : ""}`}>
+        {/* Right: The Vault & Tools */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* The Vault Button (Trigger) */}
+          <button
+            onClick={() => setVaultOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card/80 hover:bg-card border border-border/70 hover:border-primary/40 text-foreground text-xs font-semibold transition-all shadow-sm group"
+            title="Open strategic maps, leads archive, integrations and settings (Cmd+K)"
+          >
+            <Database className="h-3.5 w-3.5 text-primary group-hover:scale-110 transition-transform" />
+            <span className="hidden sm:inline">The Vault</span>
+            <kbd className="hidden md:inline-block text-[9px] font-mono px-1.5 py-0.2 bg-muted/60 border border-border rounded text-muted-foreground">
+              ⌘K
+            </kbd>
+          </button>
+
+          {/* Ask Atlas AI Assistant */}
           <button
             onClick={() => setChatOpen(true)}
-            className={`flex items-center gap-3 w-full rounded-md px-3 py-2.5 text-sm font-medium bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all group ${collapsed ? "justify-center" : ""}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-semibold transition-all shadow-sm"
           >
-            <Zap className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>Ask Atlas</span>}
+            <Zap className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Ask Atlas</span>
           </button>
-        </div>
 
-        {/* Sidebar Footer Operations */}
-        <div className="p-3 border-t border-border/60 space-y-1">
-
-          {/* Toggle sidebar state */}
+          {/* Theme Toggle */}
           <button
-            onClick={toggle}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors ${
-              collapsed ? "justify-center" : ""
-            }`}
+            onClick={cycleTheme}
+            className="h-8 w-8 rounded-lg bg-card/50 hover:bg-card border border-border/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Toggle theme"
           >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            {!collapsed && <span>Collapse</span>}
+            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </button>
 
-          {/* Profile box */}
-          <div className={`flex items-center gap-3 px-3 py-2 border-t border-border/40 mt-2 pt-2 ${collapsed ? "justify-center" : ""}`}>
-            <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-              <UserIcon className="h-3.5 w-3.5 text-primary" />
-            </div>
-            {!collapsed && (
-              <>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12px] font-medium truncate text-foreground">{profile?.display_name ?? user.email}</div>
-                  <div className="text-[10px] text-muted-foreground truncate font-mono">Personal Workspace</div>
-                </div>
-                <button
-                  onClick={() => signOut().then(() => navigate("/"))}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Sign out"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </>
-            )}
+          {/* User Profile */}
+          <div className="flex items-center gap-2 pl-1 border-l border-border/50">
+            <button
+              onClick={() => navigate("/hq/settings")}
+              className="h-7 w-7 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center text-primary hover:bg-primary/20 transition-all"
+              title={profile?.display_name || user.email || "Profile"}
+            >
+              <UserIcon className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => signOut().then(() => navigate("/"))}
+              className="text-muted-foreground hover:text-foreground p-1 transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Panel Content Area */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="relative z-10 w-full h-full">
-          <Outlet />
-        </div>
+      {/* Mobile Sequential Step Tracker Strip (visible only on small screens) */}
+      <div className="lg:hidden w-full overflow-x-auto border-b border-border/50 bg-[#0A0B0F] px-4 py-2 flex items-center gap-2">
+        {SEQUENTIAL_STEPS.map((s) => {
+          const isActive = location.pathname.startsWith(s.to);
+          return (
+            <NavLink
+              key={s.to}
+              to={s.to}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap ${
+                isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground bg-muted/30"
+              }`}
+            >
+              <span className="text-[9px] font-mono">{s.step}</span>
+              <span>{s.label}</span>
+            </NavLink>
+          );
+        })}
+      </div>
+
+      {/* ── Main Full-Width Process Workspace ───────────────────────────────── */}
+      <main className="flex-1 min-w-0 w-full">
+        <Outlet />
       </main>
 
-      {/* Atlas AI Chat Drawer */}
+      {/* ── The Vault Modal / Drawer ────────────────────────────────────────── */}
+      <TheVaultDrawer
+        open={vaultOpen}
+        onClose={() => setVaultOpen(false)}
+        onOpenChat={() => setChatOpen(true)}
+      />
+
+      {/* ── Atlas AI Chat Drawer ────────────────────────────────────────────── */}
       <AtlasChat open={chatOpen} onClose={() => setChatOpen(false)} />
-    </div>
-  );
-}
-
-function SidebarNav({ collapsed }: { collapsed: boolean }) {
-  const location = useLocation();
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const [indicator, setIndicator] = useState<{ top: number; height: number; visible: boolean }>({
-    top: 0, height: 0, visible: false,
-  });
-
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    if (!list) return;
-    const path = location.pathname;
-    
-    // Find active match
-    const match = [...hqNav]
-      .filter((n) => path.startsWith(n.to))
-      .sort((a, b) => b.to.length - a.to.length)[0];
-      
-    if (!match) { setIndicator((s) => ({ ...s, visible: false })); return; }
-    const activeEl = list.querySelector<HTMLElement>(`[data-to="${match.to}"]`);
-    if (!activeEl) { setIndicator((s) => ({ ...s, visible: false })); return; }
-    const listRect = list.getBoundingClientRect();
-    const rect = activeEl.getBoundingClientRect();
-    setIndicator({
-      top: rect.top - listRect.top,
-      height: rect.height,
-      visible: true,
-    });
-  }, [location.pathname, collapsed]);
-
-  return (
-    <div ref={listRef} className="relative flex-1 py-4 overflow-y-auto px-3">
-      {/* Sliding active indicator block */}
-      {indicator.visible && (
-        <div
-          className="absolute left-3 right-3 rounded-md bg-sidebar-accent/60 border border-sidebar-border/30 transition-all duration-200 ease-out pointer-events-none"
-          style={{ top: indicator.top, height: indicator.height }}
-        />
-      )}
-
-      <div className="space-y-4 relative z-10">
-        {/* Flow Engine */}
-        <div>
-          {!collapsed && (
-            <div className="text-[10px] font-mono font-bold text-primary/80 uppercase tracking-widest px-3 mb-1.5">
-              Acquisition Engine
-            </div>
-          )}
-          <div className="space-y-1">
-            {flowNav.map((n) => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                data-to={n.to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-all duration-150 ${
-                    isActive 
-                      ? "text-primary bg-primary/15 border border-primary/30 shadow-sm" 
-                      : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50"
-                  } ${collapsed ? "justify-center" : ""}`
-                }
-              >
-                <n.icon className="h-4 w-4 shrink-0 text-primary" />
-                {!collapsed && <span className="truncate">{n.label}</span>}
-              </NavLink>
-            ))}
-          </div>
-        </div>
-
-        {/* Vault & Archives */}
-        <div>
-          {!collapsed && (
-            <div className="text-[10px] font-mono font-semibold text-muted-foreground/60 uppercase tracking-widest px-3 mb-1.5 pt-1 border-t border-border/30">
-              The Vault
-            </div>
-          )}
-          <div className="space-y-1">
-            {vaultNav.map((n) => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                data-to={n.to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150 ${
-                    isActive 
-                      ? "text-primary font-medium" 
-                      : "text-sidebar-foreground hover:text-foreground"
-                  } ${collapsed ? "justify-center" : ""}`
-                }
-              >
-                <n.icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="truncate">{n.label}</span>}
-              </NavLink>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
