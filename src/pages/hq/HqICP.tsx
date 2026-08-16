@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Crosshair, Play, RefreshCw, Zap, Sparkles, Linkedin, Mail, Check, X, ExternalLink, Loader2, Send, RotateCcw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Crosshair, Play, RefreshCw, Zap, Sparkles, Linkedin, Mail, Check, X, ExternalLink, Loader2, Send, RotateCcw, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -113,6 +114,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
 
 export default function HqICP() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [icp, setIcp] = useState<IcpProfile>(DEFAULT_ICP);
   const [running, setRunning] = useState(false);
   const [runStatus, setRunStatus] = useState("");
@@ -730,6 +732,65 @@ export default function HqICP() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── Next Step in Sovereign Acquisition Flow ───────────────────────── */}
+        <div style={{
+          marginTop: 24,
+          background: "linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(19,21,26,0.95) 100%)",
+          border: "1px solid var(--accent-border)",
+          borderRadius: 16,
+          padding: "20px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 10, background: "var(--accent)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#ffffff", fontWeight: 800, fontSize: 13, fontFamily: "Space Mono, monospace",
+              boxShadow: "0 0 16px rgba(99,102,241,0.4)",
+            }}>
+              02
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                Next Step: Sourcing Machine & Deep Recon
+                <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(52,211,153,0.12)", color: "#34D399", fontWeight: 700 }}>
+                  STEP 02 OF 04
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                Run deep AI forensic audits on your target leads to uncover bottlenecks and custom offer angles.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => navigate("/hq/outreach")}
+              style={{
+                background: "var(--surface)", border: "1px solid var(--border)",
+                borderRadius: 10, padding: "10px 16px", color: "var(--text-secondary)",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Outreach Studio →
+            </button>
+            <button
+              onClick={() => navigate("/hq/recon")}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: "var(--accent)", border: "none", borderRadius: 10,
+                padding: "10px 20px", color: "white", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", boxShadow: "0 4px 16px rgba(99,102,241,0.4)",
+              }}
+            >
+              Go to Step 02 (Recon) <ArrowRight size={14} />
+            </button>
+          </div>
         </div>
 
         <style>{`
