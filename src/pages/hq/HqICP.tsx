@@ -196,23 +196,14 @@ export default function HqICP() {
     return { success: true, resendId: `resend_${Date.now()}` };
   };
 
-  const approveAndSendLead = async (id: string) => {
-    const lead = leads.find(l => l.id === id);
-    if (!lead) return;
-
-    setSendingId(id);
-    toast.info(`Sending email to ${lead.founder.name} (${lead.company}) via Resend…`);
-
-    const result = await sendRealEmail(lead);
-
+  const approveLeadLocally = (lead: TargetLead) => {
     // Update local state
     setLeads(prev => {
-      const next = prev.map(l => l.id === id ? { ...l, status: 'approved' as const } : l);
+      const next = prev.map(l => l.id === lead.id ? { ...l, status: 'approved' as const } : l);
       localStorage.setItem("atlas_autonomous_leads", JSON.stringify(next));
       return next;
     });
 
-    // Sync to local pipeline storage
     try {
       const savedDeals = JSON.parse(localStorage.getItem("atlas_deals") || "[]");
       savedDeals.unshift({
@@ -220,7 +211,7 @@ export default function HqICP() {
         company_id: lead.id,
         company_name: lead.company,
         stage: "contacted",
-        value: 500, // $500 AI Operations Sprint
+        value: 500,
         probability: 60,
         next_action: "Follow-up in 3 days",
         next_action_due: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
@@ -230,7 +221,7 @@ export default function HqICP() {
 
       const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
       savedOutreach.unshift({
-        id: result.resendId || `msg-${Date.now()}`,
+        id: `msg-${Date.now()}`,
         company_id: lead.id,
         company_name: lead.company,
         type: "cold_email",
@@ -242,6 +233,28 @@ export default function HqICP() {
       });
       localStorage.setItem("atlas_outreach_messages", JSON.stringify(savedOutreach));
     } catch {}
+  };
+
+  const sendViaGmail = (lead: TargetLead) => {
+    const to = lead.founder.email || "";
+    const subject = encodeURIComponent(lead.pitch.email_subject);
+    const body = encodeURIComponent(lead.pitch.email_body);
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+    window.open(gmailUrl, "_blank");
+
+    approveLeadLocally(lead);
+    toast.success(`✓ Opened in Gmail! Deal for ${lead.company} created in Pipeline.`);
+  };
+
+  const approveAndSendLead = async (id: string) => {
+    const lead = leads.find(l => l.id === id);
+    if (!lead) return;
+
+    setSendingId(id);
+    toast.info(`Sending email to ${lead.founder.name} (${lead.company})…`);
+
+    const result = await sendRealEmail(lead);
+    approveLeadLocally(lead);
 
     // Sync to Supabase DB if user is logged in
     if (user) {
@@ -531,13 +544,23 @@ export default function HqICP() {
                       </Button>
 
                       <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => sendViaGmail(lead)}
+                        className="text-xs rounded-full text-red-500 border-red-500/30 hover:bg-red-500/10"
+                      >
+                        <Mail className="w-3.5 h-3.5 mr-1.5 text-red-500" />
+                        Send via Gmail
+                      </Button>
+
+                      <Button
                         size="sm"
                         disabled={sendingId === lead.id}
                         onClick={() => approveAndSendLead(lead.id)}
                         className="bg-primary text-primary-foreground font-semibold text-xs rounded-full px-5 shadow-sm hover:bg-primary/90"
                       >
                         {sendingId === lead.id ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-                        {sendingId === lead.id ? "Sending via Resend…" : "Approve & Send Email"}
+                        {sendingId === lead.id ? "Sending…" : "Direct Resend"}
                       </Button>
                     </div>
                   </div>
