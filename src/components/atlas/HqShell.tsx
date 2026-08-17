@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { 
   Crosshair, Radio, BarChart2, MessageSquare, 
   Database, Zap, User as UserIcon, LogOut, Moon, Sun, ChevronRight, Sparkles
@@ -67,7 +67,9 @@ export default function HqShell() {
     );
   }
 
-  if (!user) return null;
+  if (!loading && !user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col grain overflow-x-hidden">
