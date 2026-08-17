@@ -600,7 +600,7 @@ export default function HqOutreach() {
                         <span className="text-[10px] text-muted-foreground capitalize">{msg.type?.replace("_", " ")}</span>
                       </div>
                       <span className="text-xs text-muted-foreground font-mono">
-                        {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(msg.created_at || msg.sent_at || Date.now()), { addSuffix: true })}
                       </span>
                     </div>
                     {msg.subject && <p className="text-xs font-semibold">{msg.subject}</p>}
