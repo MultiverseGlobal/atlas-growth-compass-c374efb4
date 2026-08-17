@@ -42,88 +42,6 @@ export interface TargetLead {
 
 const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY || "";
 
-// Default targets anchored around: AI Operations Sprint ($500 / 5 Days - 1 Bottleneck Automations)
-const DEFAULT_TARGETS: TargetLead[] = [
-  {
-    id: "1",
-    company: "Perceptric",
-    website: "https://perceptric.com",
-    industry: "B2B Technical SEO & GEO",
-    location: "Singapore (Remote)",
-    team_size: "~8 people",
-    icp_score: 94,
-    founder: {
-      name: "Vincent Nguyen",
-      role: "Founder & CEO",
-      email: "vincent@perceptric.com",
-      linkedin_url: "https://linkedin.com/in/vincent-nguyen-perceptric",
-    },
-    bottleneck: {
-      area: "Technical Schema & Writer Briefing Handoff",
-      observation: "Engineers write the technical content, creating a bottleneck where Vincent manually reviews and formats briefs.",
-      hypothesis: "Eliminating manual CMS and schema handoffs saves ~12 hours of founder time every week.",
-    },
-    pitch: {
-      linkedin_dm: "Hey Vincent — saw Perceptric's technical breakdown on vector search. Really clean. Quick question: with engineers writing your technical drafts, how are you handling the briefing and schema review without spending 10+ hours a week reviewing drafts yourself?",
-      email_subject: "Vincent / Perceptric technical briefing bottleneck",
-      email_body: "Hi Vincent,\n\nNoticed how Perceptric uses practitioner engineers rather than generalist copywriters for your technical SEO clients. The depth is noticeably better than 95% of agency content.\n\nThat said, briefing non-writing engineers and formatting schema handoffs usually creates a massive editorial bottleneck for founders.\n\nWe run a 5-day AI Operations Sprint for $500: we audit your workflow, identify that single briefing bottleneck, build an automated pipeline using your existing tools, and hand off the deployed system with documentation.\n\nOpen to seeing a 2-minute Loom breakdown of how this would look for Perceptric?",
-    },
-    status: 'pending_decision',
-  },
-  {
-    id: "2",
-    company: "Archon Research",
-    website: "https://archon.cx",
-    industry: "Fintech Market Intelligence",
-    location: "London, UK",
-    team_size: "~14 people",
-    icp_score: 91,
-    founder: {
-      name: "Arthur Finch",
-      role: "Co-Founder",
-      email: "arthur@archon.cx",
-      linkedin_url: "https://linkedin.com/in/arthur-finch-archon",
-    },
-    bottleneck: {
-      area: "Quarterly Macro Dossier Synthesis & Formatting",
-      observation: "Delivers bespoke quarterly macroeconomic briefings to family offices.",
-      hypothesis: "Formatting unstructured data into polished client PDF dossiers causes an intense crunch at quarter-end.",
-    },
-    pitch: {
-      linkedin_dm: "Arthur — read Archon's piece on private credit liquidity in Q1. Spot on. Are you still formatting and synthesizing the quarterly family office dossiers manually, or have you automated the deliverable pipeline?",
-      email_subject: "Archon research formatting bottleneck",
-      email_body: "Hi Arthur,\n\nLoved the private credit liquidity breakdown in Archon's latest report.\n\nMost boutique intelligence firms we talk to spend the last 10 days of every quarter locked in editorial hell formatting unstructured data for client dossiers.\n\nWe run an AI Operations Sprint ($500 / 5 days) where we take that single deliverable bottleneck, automate the document synthesis pipeline in your stack, and deploy the working system with full documentation.\n\nWorth a brief 5-minute chat next week to see if it fits?",
-    },
-    status: 'pending_decision',
-  },
-  {
-    id: "3",
-    company: "HyperScalar",
-    website: "https://hyperscalar.io",
-    industry: "Developer Infrastructure & AI Ops",
-    location: "San Francisco, CA",
-    team_size: "~18 people",
-    icp_score: 88,
-    founder: {
-      name: "Elena Rostova",
-      role: "Founder & CTO",
-      email: "elena@hyperscalar.io",
-      linkedin_url: "https://linkedin.com/in/elena-rostova-hyperscalar",
-    },
-    bottleneck: {
-      area: "GitHub Stargazer Enterprise Lead Qualification",
-      observation: "High volume of open-source GitHub stars but low conversion to enterprise tier.",
-      hypothesis: "Engineering team lacks an automated filter to deanonymize enterprise infrastructure buyers from casual developers.",
-    },
-    pitch: {
-      linkedin_dm: "Elena — congrats on hitting 4k stars on HyperScalar. Quick question: are you enriching GitHub stargazers to find enterprise buyers automatically, or is your team looking them up manually on LinkedIn?",
-      email_subject: "HyperScalar GitHub stargazer enterprise conversion",
-      email_body: "Hi Elena,\n\nCongrats on the explosive growth of HyperScalar's open source repo.\n\nNoticed you're getting heavy inbound traffic from enterprise infrastructure engineers. Most developer-first founders struggle to bridge the gap between GitHub stars and enterprise procurement contacts without annoying their community.\n\nWe offer a 5-day AI Operations Sprint ($500): we build an automated qualification filter that deanonymizes developer stargazers and pairs them with their engineering leadership, fully documented and deployed.\n\nWould it be helpful if I shared how we set this up for similar tools?",
-    },
-    status: 'pending_decision',
-  },
-];
-
 export default function HqICP() {
   const { user } = useAuth();
   const { brief } = useMetaphorPipeline();
@@ -141,9 +59,9 @@ export default function HqICP() {
   const [leads, setLeads] = useState<TargetLead[]>(() => {
     try {
       const saved = localStorage.getItem("atlas_autonomous_leads");
-      return saved ? JSON.parse(saved) : DEFAULT_TARGETS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return DEFAULT_TARGETS;
+      return [];
     }
   });
 
@@ -181,9 +99,9 @@ export default function HqICP() {
 
     await new Promise(r => setTimeout(r, 800));
 
-    let newLeads = [...DEFAULT_TARGETS];
+    let newLeads: TargetLead[] = [];
     if (sourcedCompanies.length > 0) {
-      const generatedFromHN: TargetLead[] = sourcedCompanies.slice(0, 3).map((hit, idx) => {
+      newLeads = sourcedCompanies.slice(0, 6).map((hit, idx) => {
         const titleClean = hit.title?.replace(/Show HN:\s*/i, "") || "Founding Team";
         const companyName = titleClean.split("–")[0]?.split("-")[0]?.split(":")[0]?.trim() || `Startup ${idx + 1}`;
         return {
@@ -213,14 +131,17 @@ export default function HqICP() {
           status: 'pending_decision',
         };
       });
-      newLeads = [...generatedFromHN, ...DEFAULT_TARGETS];
     }
 
     setLeads(newLeads);
     localStorage.setItem("atlas_autonomous_leads", JSON.stringify(newLeads));
     setRunning(false);
     setPipelineStep(0);
-    toast.success(`Autonomous Campaign Complete: ${newLeads.length} High-Intent Targets Ready for Review`);
+    if (newLeads.length > 0) {
+      toast.success(`Autonomous Sourcing Complete: ${newLeads.length} Live Founders Ready for Review`);
+    } else {
+      toast.info("No recent live launches matched that specific query. Try searching 'AI', 'SaaS', or 'B2B'.");
+    }
   };
 
   const copyLinkedIn = (lead: TargetLead) => {
@@ -487,14 +408,16 @@ export default function HqICP() {
 
           {activeLeads.length === 0 ? (
             <div className="bg-card border border-border rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <Crosshair className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-foreground">
-                Executive Decision Desk Clear
+                {approvedLeads.length > 0 ? "Executive Decision Desk Clear" : "No Targets Sourced Yet"}
               </h3>
               <p className="text-xs text-muted-foreground max-w-md">
-                All high-intent targets have been dispatched via Resend. Launch a new autonomous campaign above to source the next cohort.
+                {approvedLeads.length > 0
+                  ? `All ${approvedLeads.length} targets have been dispatched via Resend and synced to your Pipeline Kanban. Launch a new campaign above to source the next cohort.`
+                  : "Enter your campaign targeting prompt above and click 'Launch Autonomous Campaign →' to pull real live founders and generate bespoke $500 sprint pitches."}
               </p>
             </div>
           ) : (
