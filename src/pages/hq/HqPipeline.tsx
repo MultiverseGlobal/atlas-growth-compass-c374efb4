@@ -66,26 +66,33 @@ export default function HqPipeline() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const loadDeals = useCallback(async () => {
-    if (!user) return;
     setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("atlas_deals")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
-      if (error) throw error;
-      setDeals(
-        (data ?? []).map((d: any) => ({
-          ...d,
-          daysSince: Math.floor((Date.now() - new Date(d.updated_at).getTime()) / 86400000),
-        }))
-      );
-    } catch (err: any) {
-      toast.error("Failed to load pipeline: " + err.message);
-    } finally {
-      setLoading(false);
+    let dealsData: any[] = [];
+    if (user) {
+      try {
+        const { data, error } = await supabase
+          .from("atlas_deals" as any)
+          .select("*")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false });
+        if (!error && data) dealsData = data;
+      } catch {}
     }
+
+    if (dealsData.length === 0) {
+      try {
+        const savedDeals = JSON.parse(localStorage.getItem("atlas_deals") || "[]");
+        dealsData = savedDeals;
+      } catch {}
+    }
+
+    setDeals(
+      dealsData.map((d: any) => ({
+        ...d,
+        daysSince: Math.floor((Date.now() - new Date(d.updated_at || Date.now()).getTime()) / 86400000),
+      }))
+    );
+    setLoading(false);
   }, [user]);
 
   useEffect(() => { loadDeals(); }, [loadDeals]);

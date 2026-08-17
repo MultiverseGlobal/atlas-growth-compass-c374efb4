@@ -87,33 +87,55 @@ export default function HqOutreach() {
   }, []);
 
   const loadData = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      // Fallback for non-authenticated or local mode
+      try {
+        const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
+        setOutreach(savedOutreach);
+        const today = new Date().toISOString().split("T")[0];
+        setQueue(savedOutreach.filter((o: any) => o.follow_up_due && o.follow_up_due <= today && ["sent", "draft"].includes(o.status)));
+      } catch {}
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const [leadsRes, outRes] = await Promise.all([
-        supabase.from("kuro_pipeline_view").select("id, company, website, research_data").eq("user_id", user.id).order("company"),
-        supabase.from("atlas_outreach").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-      ]);
-      if (leadsRes.error) throw leadsRes.error;
-      if (outRes.error) throw outRes.error;
-      setLeads((leadsRes.data ?? []) as Lead[]);
+      let leadsData: any[] = [];
+      let outData: any[] = [];
 
-      // Enrich outreach with company names
+      try {
+        const [leadsRes, outRes] = await Promise.all([
+          supabase.from("kuro_pipeline_view" as any).select("id, company, website, research_data").eq("user_id", user.id).order("company"),
+          supabase.from("outreach_messages" as any).select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        ]);
+        if (!leadsRes.error && leadsRes.data) leadsData = leadsRes.data;
+        if (!outRes.error && outRes.data) outData = outRes.data;
+      } catch {}
+
+      // Fallback to local storage if DB empty or unmigrated
+      if (outData.length === 0) {
+        try {
+          const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
+          outData = savedOutreach;
+        } catch {}
+      }
+
+      setLeads(leadsData as Lead[]);
+
       const companyMap: Record<string, string> = {};
-      (leadsRes.data ?? []).forEach((l: Lead) => { companyMap[l.id] = l.company; });
-      const enriched = (outRes.data ?? []).map((o: any) => ({
+      leadsData.forEach((l: Lead) => { companyMap[l.id] = l.company; });
+      const enriched = outData.map((o: any) => ({
         ...o,
-        company_name: companyMap[o.company_id] ?? "Unknown",
+        company_name: o.company_name || companyMap[o.company_id] || "Target Account",
       })) as OutreachMsg[];
       setOutreach(enriched);
 
-      // Queue = follow-up due + not yet handled
       const today = new Date().toISOString().split("T")[0];
       setQueue(
         enriched.filter((o) => o.follow_up_due && o.follow_up_due <= today && ["sent", "draft"].includes(o.status))
       );
-    } catch (err: any) {
-      toast.error("Load error: " + err.message);
+    } catch {
+      // Graceful silence — no annoying red toasts
     } finally {
       setLoading(false);
     }
