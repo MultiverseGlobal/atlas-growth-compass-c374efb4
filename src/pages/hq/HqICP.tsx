@@ -2,10 +2,13 @@ import { useState } from "react";
 import { 
   Crosshair, Zap, Sparkles, Linkedin, Mail, Check, 
   X, ExternalLink, Loader2, Send, Building2, 
-  CheckCircle2, ShieldCheck
+  CheckCircle2, ShieldCheck, ChevronRight, Copy
 } from "lucide-react";
 import { useMetaphorPipeline } from "@/hooks/useMetaphorPipeline";
 import { MetaphorBriefCard } from "@/components/MetaphorBriefCard";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 export interface TargetLead {
@@ -248,358 +251,249 @@ export default function HqICP() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)", padding: "28px 36px", color: "var(--foreground)" }}>
-      <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="min-h-screen bg-background text-foreground py-8 px-6 lg:px-12">
+      <div className="max-w-5xl mx-auto space-y-8">
         
         {/* Metaphor Cognitive Context Brief */}
         <MetaphorBriefCard />
 
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--foreground)", letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 10 }}>
-              <Crosshair size={22} color="var(--primary)" />
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+              <Crosshair className="w-7 h-7 text-primary" />
               Autonomous Acquisition Engine
             </h1>
-            <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+            <p className="text-sm text-muted-foreground mt-1">
               Enter your campaign prompt. Atlas executes the entire pipeline end-to-end and stages urgent decisions for your review.
             </p>
           </div>
 
           {activeLeads.length > 0 && (
-            <button
+            <Button
               onClick={approveAll}
-              style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "10px 20px", borderRadius: 99,
-                background: "var(--foreground)", color: "var(--background)",
-                border: "none", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-              }}
+              className="bg-primary text-primary-foreground font-semibold rounded-full px-6 shadow-sm hover:bg-primary/90 shrink-0"
             >
-              <CheckCircle2 size={16} color="var(--color-success)" />
+              <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-300" />
               Approve All Targets ({activeLeads.length})
-            </button>
+            </Button>
           )}
         </div>
 
         {/* ── Single Universal Command Prompt ──────────────────────────────── */}
-        <div style={{
-          background: "var(--color-surface-1)",
-          border: "1px solid var(--color-border-subtle)",
-          borderRadius: 16,
-          padding: 24,
-          boxShadow: "var(--shadow-sm)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Targeting & Execution Prompt
             </span>
             {brief && (
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setPrompt(`Find high-growth founders aligned with: ${brief.active_goals.join(", ")}. Operating under constraints: ${brief.active_constraints.join(", ")}. Strategy focus: ${brief.recommended_focus}.`);
                   toast.success("Injected live Metaphor OS strategic context!");
                 }}
-                style={{
-                  background: "var(--color-primary-dim)",
-                  border: "1px solid var(--color-primary)",
-                  borderRadius: 99,
-                  padding: "4px 12px",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "var(--color-primary)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
+                className="text-xs text-primary border-primary/30 hover:bg-primary/5 rounded-full"
               >
-                <Sparkles size={12} /> Sync with Metaphor Brain
-              </button>
+                <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Sync with Metaphor Brain
+              </Button>
             )}
           </div>
 
-          <textarea
+          <Textarea
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
             disabled={running}
             rows={3}
             placeholder="e.g. Find 10 B2B AI SaaS founders in US/UK doing $1M-$5M ARR who need autonomous operations workflows. Scrape their tech stack, find their founder email/LinkedIn, write a hyper-personalized teardown pitch, and stage them for my 1-click review."
-            style={{
-              width: "100%",
-              background: "var(--color-surface-2)",
-              border: "1px solid var(--color-border-subtle)",
-              borderRadius: 12,
-              padding: "14px 16px",
-              fontSize: 14,
-              lineHeight: 1.6,
-              color: "var(--foreground)",
-              resize: "vertical",
-              outline: "none",
-              fontFamily: "var(--font-sans)",
-            }}
+            className="w-full bg-muted/40 border-border text-foreground text-sm leading-relaxed rounded-xl p-4 resize-y focus-visible:ring-primary"
           />
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontSize: 12, color: "var(--muted)" }}>
-              ⚡ Runs autonomous sourcing → deep forensic recon → bespoke copy synthesis.
-            </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              Runs autonomous sourcing → deep forensic recon → bespoke copy synthesis.
+            </p>
 
-            <button
+            <Button
               onClick={runAutonomousPipeline}
               disabled={running || !prompt.trim()}
-              style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "12px 28px", borderRadius: 99,
-                background: running ? "var(--color-surface-hover)" : "var(--color-primary)",
-                color: running ? "var(--muted)" : "#FFFFFF",
-                border: "none", fontSize: 13, fontWeight: 700,
-                cursor: running ? "not-allowed" : "pointer",
-                transition: "all 0.2s",
-                boxShadow: running ? "none" : "0 4px 16px rgba(78,108,242,0.25)",
-              }}
+              className="bg-primary text-primary-foreground font-bold px-8 py-2.5 rounded-full shadow-md hover:bg-primary/90 shrink-0"
             >
-              {running ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : <Zap size={16} />}
+              {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2 fill-current" />}
               {running ? "Executing Pipeline…" : "Launch Autonomous Campaign →"}
-            </button>
+            </Button>
           </div>
 
           {/* Live 4-Stage Execution Tracker */}
           {running && (
-            <div style={{
-              marginTop: 12,
-              padding: "16px 20px",
-              background: "var(--color-surface-2)",
-              border: "1px solid var(--color-border-subtle)",
-              borderRadius: 12,
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-primary)" }}>
+            <div className="mt-4 p-4 rounded-xl bg-muted/50 border border-border space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-primary flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
                   Stage 0{pipelineStep} of 04 · {pipelineMessage}
                 </span>
-                <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted)" }}>
+                <span className="font-mono text-muted-foreground">
                   {pipelineStep * 25}% Complete
                 </span>
               </div>
-              <div style={{ width: "100%", height: 4, background: "var(--color-surface-hover)", borderRadius: 99, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${pipelineStep * 25}%`, background: "var(--color-primary)", transition: "width 0.4s ease" }} />
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary transition-all duration-500 ease-out" 
+                  style={{ width: `${pipelineStep * 25}%` }} 
+                />
               </div>
             </div>
           )}
         </div>
 
         {/* ── Executive Decision Desk ────────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <ShieldCheck size={18} color="var(--color-primary)" />
-              <span style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)" }}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-bold text-foreground">
                 Executive Decision Desk
-              </span>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                ({activeLeads.length} pending review · {approvedLeads.length} approved)
-              </span>
+              </h2>
+              <Badge variant="secondary" className="text-xs font-mono">
+                {activeLeads.length} Pending · {approvedLeads.length} Approved
+              </Badge>
             </div>
           </div>
 
           {activeLeads.length === 0 ? (
-            <div style={{
-              background: "var(--color-surface-1)",
-              border: "1px solid var(--color-border-subtle)",
-              borderRadius: 16,
-              padding: "48px 24px",
-              textAlign: "center",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 12,
-            }}>
-              <CheckCircle2 size={32} color="var(--color-success)" />
-              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--foreground)" }}>
+            <div className="bg-card border border-border rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-foreground">
                 Executive Decision Desk Clear
-              </div>
-              <div style={{ fontSize: 13, color: "var(--muted)", maxWidth: 440 }}>
+              </h3>
+              <p className="text-xs text-muted-foreground max-w-md">
                 All high-intent targets have been approved or processed. Launch a new autonomous campaign above to source the next cohort.
-              </div>
+              </p>
             </div>
           ) : (
-            activeLeads.map((lead) => (
-              <div
-                key={lead.id}
-                style={{
-                  background: "var(--color-surface-1)",
-                  border: "1px solid var(--color-border-subtle)",
-                  borderRadius: 16,
-                  padding: 24,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 18,
-                  boxShadow: "var(--shadow-sm)",
-                  transition: "all 0.2s",
-                }}
-              >
-                {/* Top Card Bar */}
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 12,
-                      background: "var(--color-surface-2)",
-                      border: "1px solid var(--color-border-subtle)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      <Building2 size={20} color="var(--color-primary)" />
-                    </div>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)" }}>
-                          {lead.company}
-                        </span>
-                        <a
-                          href={lead.website}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{ color: "var(--muted)", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}
-                        >
-                          {lead.website.replace("https://", "")} <ExternalLink size={11} />
-                        </a>
+            <div className="space-y-6">
+              {activeLeads.map((lead) => (
+                <div
+                  key={lead.id}
+                  className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5 hover:border-border/80 transition-colors"
+                >
+                  {/* Card Header: Company, Website, Match Score */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-xl bg-muted/60 border border-border flex items-center justify-center shrink-0">
+                        <Building2 className="w-5 h-5 text-primary" />
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                        {lead.industry} · {lead.location} · {lead.team_size}
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <h3 className="text-base font-bold text-foreground">
+                            {lead.company}
+                          </h3>
+                          <a
+                            href={lead.website}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 bg-muted/50 px-2 py-0.5 rounded-md"
+                          >
+                            {lead.website.replace("https://", "")} <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {lead.industry} · {lead.location} · {lead.team_size}
+                        </p>
                       </div>
                     </div>
-                  </div>
 
-                  {/* ICP Score Pill */}
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    padding: "6px 12px", borderRadius: 99,
-                    background: "rgba(16,185,129,0.08)",
-                    border: "1px solid rgba(16,185,129,0.25)",
-                  }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--color-success)", fontFamily: "var(--font-mono)" }}>
+                    <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono text-xs font-bold px-3 py-1 rounded-full self-start sm:self-auto">
                       {lead.icp_score}% MATCH
+                    </Badge>
+                  </div>
+
+                  {/* Founder Profile & Identified Bottleneck Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-muted/40 border border-border/60 text-xs">
+                    <div>
+                      <span className="font-bold uppercase tracking-wider text-muted-foreground text-[10px]">
+                        Target Founder
+                      </span>
+                      <p className="text-sm font-bold text-foreground mt-1">
+                        {lead.founder.name}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {lead.founder.role}
+                      </p>
+                      <p className="font-mono text-primary mt-1">
+                        {lead.founder.email}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="font-bold uppercase tracking-wider text-primary text-[10px] flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> Identified Operational Bottleneck
+                      </span>
+                      <p className="font-semibold text-foreground mt-1">
+                        {lead.bottleneck.area}
+                      </p>
+                      <p className="text-muted-foreground mt-1 italic leading-relaxed">
+                        "{lead.bottleneck.hypothesis}"
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Generated Pitch Preview */}
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Synthesized Teardown Pitch & Outbound
                     </span>
-                  </div>
-                </div>
-
-                {/* Founder Intel & Identified Bottleneck Grid */}
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1.6fr",
-                  gap: 16,
-                  padding: 16,
-                  borderRadius: 12,
-                  background: "var(--color-surface-2)",
-                  border: "1px solid var(--color-border-subtle)",
-                }}>
-                  {/* Founder Profile */}
-                  <div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
-                      Target Founder
-                    </span>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--foreground)", marginTop: 4 }}>
-                      {lead.founder.name}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                      {lead.founder.role}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--color-primary)", marginTop: 6, fontFamily: "var(--font-mono)" }}>
-                      {lead.founder.email}
+                    <div className="p-4 rounded-xl bg-background border border-border/80 text-xs leading-relaxed space-y-2">
+                      <p className="font-bold text-foreground">
+                        Subject: {lead.pitch.email_subject}
+                      </p>
+                      <p className="text-muted-foreground whitespace-pre-wrap">
+                        {lead.pitch.email_body}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Forensics Bottleneck */}
-                  <div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-primary)", textTransform: "uppercase" }}>
-                      ⚡ Identified Operational Bottleneck
-                    </span>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginTop: 4 }}>
-                      {lead.bottleneck.area}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, lineHeight: 1.5 }}>
-                      "{lead.bottleneck.hypothesis}"
-                    </div>
-                  </div>
-                </div>
-
-                {/* Generated Bespoke Outbound Pitch */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
-                    Synthesized Teardown Pitch & Outbound
-                  </span>
-
-                  {/* Cold Email Subject & Body Preview */}
-                  <div style={{
-                    padding: "14px 16px",
-                    borderRadius: 10,
-                    background: "var(--color-surface-1)",
-                    border: "1px solid var(--color-border-subtle)",
-                    fontSize: 12,
-                    lineHeight: 1.6,
-                    color: "var(--foreground)",
-                  }}>
-                    <div style={{ fontWeight: 700, marginBottom: 6, color: "var(--foreground)" }}>
-                      Subject: {lead.pitch.email_subject}
-                    </div>
-                    <div style={{ whiteSpace: "pre-wrap", color: "var(--muted)" }}>
-                      {lead.pitch.email_body}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--color-border-subtle)" }}>
-                  <button
-                    onClick={() => dismissLead(lead.id)}
-                    style={{
-                      background: "none", border: "none",
-                      color: "var(--muted)", fontSize: 12, fontWeight: 600,
-                      cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
-                    }}
-                  >
-                    <X size={14} /> Dismiss Lead
-                  </button>
-
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button
-                      onClick={() => copyLinkedIn(lead)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6,
-                        padding: "8px 16px", borderRadius: 99,
-                        background: copiedId === lead.id ? "rgba(16,185,129,0.1)" : "var(--color-surface-2)",
-                        border: `1px solid ${copiedId === lead.id ? "var(--color-success)" : "var(--color-border-subtle)"}`,
-                        color: copiedId === lead.id ? "var(--color-success)" : "var(--foreground)",
-                        fontSize: 12, fontWeight: 600,
-                        cursor: "pointer",
-                      }}
+                  {/* Footer Actions */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-border">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => dismissLead(lead.id)}
+                      className="text-muted-foreground hover:text-foreground text-xs self-start sm:self-auto"
                     >
-                      {copiedId === lead.id ? <Check size={13} /> : <Linkedin size={13} />}
-                      {copiedId === lead.id ? "Copied DM" : "Copy LinkedIn DM"}
-                    </button>
+                      <X className="w-3.5 h-3.5 mr-1.5" /> Dismiss Target
+                    </Button>
 
-                    <button
-                      onClick={() => approveLead(lead.id)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6,
-                        padding: "8px 20px", borderRadius: 99,
-                        background: "var(--color-primary)", color: "#FFFFFF",
-                        border: "none", fontSize: 12, fontWeight: 700,
-                        cursor: "pointer", boxShadow: "0 2px 8px rgba(78,108,242,0.25)",
-                      }}
-                    >
-                      <Send size={13} /> Approve & Stage Email
-                    </button>
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyLinkedIn(lead)}
+                        className={`text-xs rounded-full ${copiedId === lead.id ? "text-emerald-500 border-emerald-500/30" : ""}`}
+                      >
+                        {copiedId === lead.id ? <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-500" /> : <Linkedin className="w-3.5 h-3.5 mr-1.5 text-[#0A66C2]" />}
+                        {copiedId === lead.id ? "Copied DM" : "Copy LinkedIn DM"}
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        onClick={() => approveLead(lead.id)}
+                        className="bg-primary text-primary-foreground font-semibold text-xs rounded-full px-5 shadow-sm hover:bg-primary/90"
+                      >
+                        <Send className="w-3.5 h-3.5 mr-1.5" /> Approve & Stage Email
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
 
