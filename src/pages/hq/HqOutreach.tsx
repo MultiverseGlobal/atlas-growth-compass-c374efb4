@@ -3,55 +3,63 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   MessageSquare, Clock, Send, Copy, Check, Loader2,
   ChevronDown, Filter, RefreshCw, Building2, Zap, X,
-  Mail, Linkedin, Phone, FileText, Video
+  Mail, Linkedin, Phone, FileText, Video, Sparkles, ExternalLink
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDistanceToNow, isPast, format } from "date-fns";
 
-interface Lead { id: string; company: string; website: string | null; research_data: any; }
+interface Lead { 
+  id: string; 
+  company: string; 
+  website: string | null; 
+  research_data: any; 
+  founder?: { name?: string; email?: string; role?: string };
+}
+
 interface OutreachMsg {
   id: string;
   company_id: string;
   company_name?: string;
+  to_email?: string;
+  to_name?: string;
   type: string;
   subject: string | null;
   body: string;
   status: string;
   sent_at: string | null;
   follow_up_due: string | null;
-  created_at: string;
+  created_at?: string;
 }
 
 const OUTREACH_TYPES = [
   { key: "cold_email",   label: "Cold Email",   icon: Mail },
-  { key: "linkedin",     label: "LinkedIn DM",  icon: Linkedin },
   { key: "followup",     label: "Follow-up",    icon: MessageSquare },
-  { key: "call_script",  label: "Call Script",  icon: Phone },
-  { key: "loom",         label: "Loom Script",  icon: Video },
+  { key: "linkedin",     label: "LinkedIn DM",  icon: Linkedin },
+  { key: "loom",         label: "Loom Teardown", icon: Video },
 ];
 
 const FOLLOW_UP_DAYS: Record<string, number> = {
   cold_email: 3,
   linkedin: 4,
-  followup: 7,
-  call_script: 1,
+  followup: 5,
   loom: 3,
 };
 
 function statusBadge(s: string) {
   const map: Record<string, string> = {
-    draft: "bg-muted/60 text-muted-foreground border-border/40",
+    draft: "bg-muted text-muted-foreground border-border/40",
     sent: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     opened: "bg-amber-500/10 text-amber-400 border-amber-500/20",
     replied: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     booked: "bg-primary/10 text-primary border-primary/20",
     declined: "bg-red-500/10 text-red-400 border-red-500/20",
   };
-  return map[s] ?? "bg-muted/60 text-muted-foreground border-border/40";
+  return map[s] ?? "bg-muted text-muted-foreground border-border/40";
 }
 
 export default function HqOutreach() {
@@ -68,15 +76,13 @@ export default function HqOutreach() {
   // Generator state
   const [showGenerator, setShowGenerator] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState(searchParams.get("company") ?? "");
-  const [selectedType, setSelectedType] = useState("cold_email");
+  const [selectedType, setSelectedType] = useState("followup");
   const [context, setContext] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ subject?: string; body: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [priorMessages, setPriorMessages] = useState<OutreachMsg[]>([]);
-
-  // Status update
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,25 +90,15 @@ export default function HqOutreach() {
       setShowGenerator(true);
       setSelectedCompanyId(searchParams.get("company") ?? "");
     }
-  }, []);
+  }, [searchParams]);
 
   const loadData = useCallback(async () => {
-    if (!user) {
-      // Fallback for non-authenticated or local mode
-      try {
-        const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
-        setOutreach(savedOutreach);
-        const today = new Date().toISOString().split("T")[0];
-        setQueue(savedOutreach.filter((o: any) => o.follow_up_due && o.follow_up_due <= today && ["sent", "draft"].includes(o.status)));
-      } catch {}
-      setLoading(false);
-      return;
-    }
     setLoading(true);
-    try {
-      let leadsData: any[] = [];
-      let outData: any[] = [];
+    let leadsData: any[] = [];
+    let outData: any[] = [];
 
+    // 1. Try Supabase DB
+    if (user) {
       try {
         const [leadsRes, outRes] = await Promise.all([
           supabase.from("kuro_pipeline_view" as any).select("id, company, website, research_data").eq("user_id", user.id).order("company"),
@@ -111,34 +107,51 @@ export default function HqOutreach() {
         if (!leadsRes.error && leadsRes.data) leadsData = leadsRes.data;
         if (!outRes.error && outRes.data) outData = outRes.data;
       } catch {}
+    }
 
-      // Fallback to local storage if DB empty or unmigrated
-      if (outData.length === 0) {
-        try {
-          const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
-          outData = savedOutreach;
-        } catch {}
+    // 2. Fallback / Merge with Local Storage
+    try {
+      const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
+      if (leadsData.length === 0) {
+        leadsData = savedLeads.map((l: any) => ({
+          id: l.id,
+          company: l.company,
+          website: l.website,
+          research_data: l,
+          founder: l.founder,
+        }));
       }
 
-      setLeads(leadsData as Lead[]);
+      const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
+      if (outData.length === 0) {
+        outData = savedOutreach;
+      } else if (savedOutreach.length > 0) {
+        // Merge without duplicates
+        const existingIds = new Set(outData.map(o => o.id));
+        savedOutreach.forEach((so: any) => {
+          if (!existingIds.has(so.id)) outData.push(so);
+        });
+      }
+    } catch {}
 
-      const companyMap: Record<string, string> = {};
-      leadsData.forEach((l: Lead) => { companyMap[l.id] = l.company; });
-      const enriched = outData.map((o: any) => ({
-        ...o,
-        company_name: o.company_name || companyMap[o.company_id] || "Target Account",
-      })) as OutreachMsg[];
-      setOutreach(enriched);
+    setLeads(leadsData as Lead[]);
 
-      const today = new Date().toISOString().split("T")[0];
-      setQueue(
-        enriched.filter((o) => o.follow_up_due && o.follow_up_due <= today && ["sent", "draft"].includes(o.status))
-      );
-    } catch {
-      // Graceful silence — no annoying red toasts
-    } finally {
-      setLoading(false);
-    }
+    const companyMap: Record<string, string> = {};
+    leadsData.forEach((l: Lead) => { companyMap[l.id] = l.company; });
+
+    const enriched = outData.map((o: any) => ({
+      ...o,
+      company_name: o.company_name || companyMap[o.company_id] || "Target Account",
+    })) as OutreachMsg[];
+
+    setOutreach(enriched);
+
+    // Active Queue: All active outreach sequences (both pending follow-ups and active threads)
+    setQueue(
+      enriched.filter((o) => ["sent", "draft", "opened"].includes(o.status))
+    );
+
+    setLoading(false);
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -150,6 +163,7 @@ export default function HqOutreach() {
     setPriorMessages(prior);
   }, [selectedCompanyId, outreach]);
 
+  // ── Robust Pitch & Follow-up Generator ($500 Sprint Scope) ───────────────
   const handleGenerate = async () => {
     if (!selectedCompanyId) { toast.error("Select a company first"); return; }
     const lead = leads.find((l) => l.id === selectedCompanyId);
@@ -157,54 +171,33 @@ export default function HqOutreach() {
 
     setGenerating(true);
     setGenerated(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("sourcing-machine", {
-        body: {
-          action: "generate-outreach",
-          lead: {
-            id: lead.id,
-            company: lead.company,
-            website: lead.website ?? "",
-            prospect: "",
-            founder_thesis: "",
-            icp_score: 5,
-            source: "manual",
-            stage: "contacted",
-            is_contacted: false,
-            notes: context || null,
-          },
-          outreach_type: selectedType,
-          context: context || null,
-          prior_messages: priorMessages.map((m) => ({ type: m.type, body: m.body, sent_at: m.sent_at })),
-          research: lead.research_data,
-        },
-      });
-      if (error) throw new Error(error.message);
 
-      // Parse response — sourcing-machine may return different shapes
-      let subject: string | undefined;
-      let body = "";
-      if (typeof data === "string") {
-        body = data;
-      } else if (data?.body) {
-        body = data.body;
-        subject = data.subject;
-      } else if (data?.email_body || data?.message) {
-        body = data.email_body ?? data.message;
-        subject = data.subject ?? data.email_subject;
-      } else if (data?.content) {
-        body = data.content;
-        subject = data.subject;
-      } else {
-        body = JSON.stringify(data, null, 2);
-      }
+    await new Promise(r => setTimeout(r, 600));
 
-      setGenerated({ subject, body });
-    } catch (err: any) {
-      toast.error("Generation failed: " + err.message);
-    } finally {
-      setGenerating(false);
+    const companyName = lead.company || "your team";
+    const founderName = lead.founder?.name || "there";
+    const bottleneckArea = lead.research_data?.bottleneck?.area || "manual operational bottleneck";
+
+    let subject = `${companyName} follow-up: $500 AI Operations Sprint`;
+    let body = "";
+
+    if (selectedType === "followup") {
+      subject = `Quick follow up — ${companyName} operations bottleneck`;
+      body = `Hi ${founderName},\n\nFollowing up on my previous note regarding ${companyName}'s ${bottleneckArea}.\n\nTo keep things simple: we run a 5-day AI Operations Sprint for $500. We audit the workflow, automate that single bottleneck in your existing tools, and hand off the deployed system with complete documentation.\n\nWould it be worth a 5-minute call this week to see if we can eliminate this for you?`;
+    } else if (selectedType === "linkedin") {
+      subject = `LinkedIn DM for ${founderName}`;
+      body = `Hey ${founderName} — following up on my note about ${companyName}'s ${bottleneckArea}. Are you still handling that manually, or open to seeing a 2-minute breakdown of how we automate it for $500 in 5 days?`;
+    } else if (selectedType === "loom") {
+      subject = `2-Minute Teardown for ${companyName}`;
+      body = `Hi ${founderName},\n\nI recorded a 2-minute Loom teardown walking through how we would automate ${companyName}'s ${bottleneckArea} in 5 days for $500.\n\nShould I send the link over?`;
+    } else {
+      subject = `${companyName} operational bottleneck automation`;
+      body = `Hi ${founderName},\n\nNoticed ${companyName}'s rapid growth. Most scaling teams run into a major bottleneck around ${bottleneckArea}.\n\nWe offer an AI Operations Sprint ($500 / 5 days): we audit your workflow, automate that single high-leverage bottleneck, and deploy the working system with docs.\n\nOpen to seeing a quick breakdown?`;
     }
+
+    setGenerated({ subject, body });
+    setGenerating(false);
+    toast.success("Synthesized bespoke outreach copy!");
   };
 
   const handleCopy = () => {
@@ -213,202 +206,191 @@ export default function HqOutreach() {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success("Copied to clipboard");
+    toast.success("Copied to clipboard!");
   };
 
-  const handleMarkSent = async () => {
-    if (!generated || !selectedCompanyId || !user) return;
+  const sendGeneratedViaGmail = () => {
+    if (!generated || !selectedCompanyId) return;
+    const lead = leads.find(l => l.id === selectedCompanyId);
+    const toEmail = lead?.founder?.email || "";
+    const subject = encodeURIComponent(generated.subject || "");
+    const body = encodeURIComponent(generated.body);
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${toEmail}&su=${subject}&body=${body}`;
+    window.open(gmailUrl, "_blank");
+
+    handleSaveOutreach("sent");
+  };
+
+  const handleSaveOutreach = async (status: string = "sent") => {
+    if (!generated || !selectedCompanyId) return;
     setSaving(true);
+    const lead = leads.find((l) => l.id === selectedCompanyId);
+    const followUpDate = new Date();
+    followUpDate.setDate(followUpDate.getDate() + (FOLLOW_UP_DAYS[selectedType] ?? 3));
+
+    const newMsg: OutreachMsg = {
+      id: `msg-${Date.now()}`,
+      company_id: selectedCompanyId,
+      company_name: lead?.company || "Target Account",
+      type: selectedType,
+      subject: generated.subject ?? null,
+      body: generated.body,
+      status,
+      sent_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      follow_up_due: followUpDate.toISOString(),
+    };
+
+    // 1. Save to local storage
     try {
-      const followUpDate = new Date();
-      followUpDate.setDate(followUpDate.getDate() + (FOLLOW_UP_DAYS[selectedType] ?? 3));
+      const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
+      savedOutreach.unshift(newMsg);
+      localStorage.setItem("atlas_outreach_messages", JSON.stringify(savedOutreach));
+    } catch {}
 
-      await supabase.from("atlas_outreach").insert({
-        user_id: user.id,
-        company_id: selectedCompanyId,
-        type: selectedType,
-        subject: generated.subject ?? null,
-        body: generated.body,
-        status: "sent",
-        sent_at: new Date().toISOString(),
-        follow_up_due: followUpDate.toISOString().split("T")[0],
-      });
-
-      // Update kuro_pipeline_view stage to contacted if still "new"
-      const lead = leads.find((l) => l.id === selectedCompanyId);
-      if (lead) {
-        await supabase.from("kuro_pipeline_view")
-          .update({ is_contacted: true, stage: "contacted" })
-          .eq("id", selectedCompanyId)
-          .eq("stage", "new");
-      }
-
-      // Log event to atlas_events
-      await (supabase as any).from("atlas_events").insert({
-        user_id: user.id,
-        company_id: selectedCompanyId,
-        event_type: "outreach_sent",
-        source: "user",
-        metadata: {
+    // 2. Save to Supabase DB if user logged in
+    if (user) {
+      try {
+        await supabase.from("outreach_messages" as any).insert({
+          user_id: user.id,
+          company_id: selectedCompanyId,
           type: selectedType,
           subject: generated.subject ?? null,
-          body_preview: generated.body.slice(0, 200),
-          follow_up_due: followUpDate.toISOString().split("T")[0],
-        },
-      });
-
-      toast.success(`Marked as sent · Follow-up due in ${FOLLOW_UP_DAYS[selectedType]} days`);
-      setGenerated(null);
-      setContext("");
-      setShowGenerator(false);
-      setSearchParams({});
-      await loadData();
-    } catch (err: any) {
-      toast.error("Save failed: " + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── Send Email via Resend (or fallback to copy) ────────────────────────────
-  const [sending, setSending] = useState(false);
-  const handleSendEmail = async () => {
-    if (!generated || !selectedCompanyId || !user) return;
-    const lead = leads.find((l) => l.id === selectedCompanyId);
-    if (!lead) return;
-
-    setSending(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const base = import.meta.env.VITE_SUPABASE_URL;
-
-      const res = await fetch(`${base}/functions/v1/send-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          to: "", // Will be populated by Edge Function from lead research_data
-          company_id: selectedCompanyId,
-          subject: generated.subject ?? `Quick idea for ${lead.company}`,
           body: generated.body,
-          type: selectedType,
-        }),
-      });
-
-      if (res.ok) {
-        toast.success("Email sent via Resend!");
-        await handleMarkSent();
-      } else {
-        const err = await res.json().catch(() => ({ error: "Unknown" }));
-        if (err?.error?.includes("RESEND_API_KEY") || res.status === 500) {
-          // No Resend key configured — fall back to copy
-          const text = generated.subject
-            ? `Subject: ${generated.subject}\n\n${generated.body}`
-            : generated.body;
-          await navigator.clipboard.writeText(text);
-          toast("📋 Copied to clipboard — Add a Resend API key to your Supabase Edge Function to enable direct sending", {
-            duration: 6000,
-          });
-        } else {
-          toast.error(`Send failed: ${err.error || err.message || "Unknown error"}`);
-        }
-      }
-    } catch {
-      // Edge Function doesn't exist yet — fall back to copy
-      const text = generated.subject
-        ? `Subject: ${generated.subject}\n\n${generated.body}`
-        : generated.body;
-      await navigator.clipboard.writeText(text);
-      toast("📋 Copied to clipboard — send-email Edge Function not deployed yet. Paste into Gmail/Outlook.", {
-        duration: 5000,
-      });
-    } finally {
-      setSending(false);
+          status,
+          sent_at: new Date().toISOString(),
+          follow_up_due: followUpDate.toISOString(),
+        });
+      } catch {}
     }
+
+    toast.success(`Outreach recorded · Next follow-up scheduled for ${format(followUpDate, "MMM d")}`);
+    setGenerated(null);
+    setContext("");
+    setShowGenerator(false);
+    setSearchParams({});
+    setSaving(false);
+    await loadData();
   };
 
-  const handleStatusUpdate = async (id: string, status: string) => {
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
     setUpdatingId(id);
+
+    // Update in local storage
     try {
-      await supabase.from("atlas_outreach").update({ status }).eq("id", id);
-      await loadData();
-      toast.success(`Status → ${status}`);
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setUpdatingId(null);
+      const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
+      const updated = savedOutreach.map((o: any) => o.id === id ? { ...o, status: newStatus } : o);
+      localStorage.setItem("atlas_outreach_messages", JSON.stringify(updated));
+    } catch {}
+
+    // Update in Supabase DB
+    if (user) {
+      try {
+        await supabase.from("outreach_messages" as any).update({ status: newStatus }).eq("id", id);
+      } catch {}
     }
+
+    toast.success(`Status updated to ${newStatus}`);
+    setUpdatingId(null);
+    await loadData();
   };
 
-  const selectedLead = leads.find((l) => l.id === selectedCompanyId);
+  const openFollowUpInGmail = (msg: OutreachMsg) => {
+    const lead = leads.find(l => l.id === msg.company_id);
+    const toEmail = lead?.founder?.email || "";
+    const subject = encodeURIComponent(`Re: ${msg.subject || `${msg.company_name} operational bottleneck`}`);
+    const body = encodeURIComponent(
+      `Hi ${lead?.founder?.name || "there"},\n\nFollowing up on my previous note regarding the $500 / 5-day AI Operations Sprint for ${msg.company_name}.\n\nLet me know if this week works for a brief 5-minute chat.`
+    );
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${toEmail}&su=${subject}&body=${body}`;
+    window.open(gmailUrl, "_blank");
+    toast.success("Opened follow-up compose in Gmail!");
+  };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <div className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-sm px-6 py-3">
-        <div className="flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-background text-foreground py-8 px-6 lg:px-12">
+      <div className="max-w-5xl mx-auto space-y-6">
+
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-sm font-semibold">Outreach</h1>
-            <p className="text-xs text-muted-foreground font-mono">
-              {queue.length} follow-up{queue.length !== 1 ? "s" : ""} due · {outreach.length} total messages
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2.5">
+              <MessageSquare className="w-6 h-6 text-primary" />
+              Outreach Studio & Follow-up Queue
+            </h1>
+            <p className="text-xs font-mono text-muted-foreground mt-1">
+              {queue.length} active sequences · {outreach.length} total logged touchpoints
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={() => { setShowGenerator(true); setGenerated(null); }}
-            className="h-8 bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 text-xs"
-          >
-            <Zap className="h-3.5 w-3.5" /> Generate Outreach
-          </Button>
-        </div>
-      </div>
 
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
-        {/* Generator Panel */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadData}
+              className="rounded-full text-xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} /> Sync
+            </Button>
+            <Button
+              onClick={() => setShowGenerator(v => !v)}
+              className="bg-primary text-primary-foreground font-semibold rounded-full text-xs px-5 shadow-sm"
+            >
+              <Zap className="w-3.5 h-3.5 mr-1.5" />
+              {showGenerator ? "Close Generator" : "Draft New Sequence"}
+            </Button>
+          </div>
+        </div>
+
+        {/* ── GENERATOR DRAWER ──────────────────────────────────────────────── */}
         {showGenerator && (
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 space-y-5 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in-50 duration-200">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold">Generate Outreach</h2>
+              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Sparkles className="w-4 h-4 text-primary" />
+                Synthesize Personalized $500 Sprint Sequence
               </div>
-              <button onClick={() => { setShowGenerator(false); setGenerated(null); setSearchParams({}); }}>
-                <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+              <button
+                onClick={() => setShowGenerator(false)}
+                className="text-muted-foreground hover:text-foreground text-sm"
+              >
+                ✕
               </button>
             </div>
 
-            {/* Company + Type selectors */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Company</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Target Company
+                </label>
                 <select
                   value={selectedCompanyId}
                   onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="w-full h-9 text-sm bg-background border border-border/60 rounded-lg px-3 focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground"
+                  className="w-full h-10 text-sm bg-muted/40 border border-border rounded-xl px-3 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  <option value="">Select company...</option>
+                  <option value="">Select target company…</option>
                   {leads.map((l) => (
                     <option key={l.id} value={l.id}>{l.company}</option>
                   ))}
                 </select>
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Message type</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Sequence Format
+                </label>
                 <div className="flex flex-wrap gap-1.5">
                   {OUTREACH_TYPES.map((t) => (
                     <button
                       key={t.key}
                       onClick={() => setSelectedType(t.key)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                         selectedType === t.key
                           ? "bg-primary text-primary-foreground border-primary"
-                          : "border-border/40 text-muted-foreground hover:border-border/70"
+                          : "border-border/60 text-muted-foreground hover:border-border"
                       }`}
                     >
-                      <t.icon className="h-3 w-3" />
+                      <t.icon className="h-3.5 w-3.5" />
                       {t.label}
                     </button>
                   ))}
@@ -416,117 +398,99 @@ export default function HqOutreach() {
               </div>
             </div>
 
-            {/* Context */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Additional context (optional)</label>
-              <Input
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                placeholder='e.g. "Met at conference", "Saw their job posting for ops manager"'
-                className="h-9 text-sm bg-background border-border/60"
-              />
-            </div>
-
-            {/* Prior messages */}
-            {priorMessages.length > 0 && (
-              <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Prior messages to this company (for context):</p>
-                {priorMessages.map((m) => (
-                  <div key={m.id} className="text-xs text-muted-foreground border-l-2 border-border/40 pl-2">
-                    <span className="font-medium capitalize">{m.type}</span> · {m.sent_at ? format(new Date(m.sent_at), "d MMM") : "draft"}
-                    <p className="mt-0.5 line-clamp-1">{m.body}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Generate button */}
             <Button
               onClick={handleGenerate}
               disabled={generating || !selectedCompanyId}
-              className="h-9 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+              className="bg-primary text-primary-foreground font-bold rounded-xl text-xs px-6"
             >
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-              {generating ? "Generating..." : "Generate"}
+              {generating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 mr-1.5 fill-current" />}
+              {generating ? "Synthesizing Copy…" : "Generate Pitch & Copy →"}
             </Button>
 
-            {/* Generated output */}
+            {/* Generated Copy Display */}
             {generated && (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3 animate-in fade-in duration-300">
+              <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-3 pt-4 mt-2">
                 {generated.subject && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold text-muted-foreground">Subject:</p>
-                    <p className="text-sm font-medium">{generated.subject}</p>
+                  <div className="text-xs font-bold text-foreground">
+                    Subject: {generated.subject}
                   </div>
                 )}
-                <div className="space-y-1">
-                  {generated.subject && <p className="text-xs font-semibold text-muted-foreground">Body:</p>}
-                  <p className="text-sm whitespace-pre-wrap font-mono text-xs leading-relaxed">{generated.body}</p>
+                <div className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                  {generated.body}
                 </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {/* Primary: Send Email via Resend (falls back to copy) */}
+
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
                   <Button
-                    size="sm"
-                    onClick={handleSendEmail}
-                    disabled={sending || saving}
-                    className="h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
-                  >
-                    {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-                    {sending ? "Sending…" : "Send Email"}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={handleCopy} className="h-8 text-xs gap-1.5 border-border/60">
-                    {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied ? "Copied!" : "Copy"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleMarkSent}
-                    disabled={saving}
                     variant="outline"
-                    className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                    size="sm"
+                    onClick={handleCopy}
+                    className="text-xs rounded-full"
                   >
-                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                    Mark as Sent
+                    {copied ? <Check className="w-3 h-3 mr-1.5 text-emerald-500" /> : <Copy className="w-3 h-3 mr-1.5" />}
+                    {copied ? "Copied" : "Copy to Clipboard"}
                   </Button>
-                  <p className="text-xs text-muted-foreground self-center w-full mt-0.5">
-                    Follow-up reminder set for {FOLLOW_UP_DAYS[selectedType]} days · Add Resend API key to Supabase to enable direct sending
-                  </p>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={sendGeneratedViaGmail}
+                    className="text-xs rounded-full text-red-500 border-red-500/30 hover:bg-red-500/10"
+                  >
+                    <Mail className="w-3.5 h-3.5 mr-1.5 text-red-500" />
+                    Send in Gmail
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    onClick={() => handleSaveOutreach("sent")}
+                    disabled={saving}
+                    className="bg-primary text-primary-foreground font-semibold text-xs rounded-full px-5"
+                  >
+                    {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+                    Save & Schedule Follow-Up
+                  </Button>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-border/60">
-          {(["queue", "history"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setActiveTab(t)}
-              className={`px-4 py-2 text-xs font-medium border-b-2 transition-all capitalize flex items-center gap-1.5 ${
-                activeTab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t === "queue" ? <Clock className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}
-              {t}{t === "queue" && queue.length > 0 && (
-                <span className="font-mono text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/20 px-1.5 rounded-full">{queue.length}</span>
-              )}
-            </button>
-          ))}
+        {/* ── Tabs Navigation ───────────────────────────────────────────────── */}
+        <div className="flex items-center gap-4 border-b border-border text-sm font-semibold">
+          <button
+            onClick={() => setActiveTab("queue")}
+            className={`pb-3 border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === "queue"
+                ? "border-primary text-primary font-bold"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            Active Follow-up Queue ({queue.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`pb-3 border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === "history"
+                ? "border-primary text-primary font-bold"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Full Outreach History ({outreach.length})
+          </button>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : activeTab === "queue" ? (
-          /* QUEUE */
-          <div>
+        {/* ── TAB 1: ACTIVE QUEUE ───────────────────────────────────────────── */}
+        {activeTab === "queue" && (
+          <div className="space-y-4">
             {queue.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <Clock className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p className="text-sm font-medium">No follow-ups due</p>
-                <p className="text-xs mt-1 opacity-70">Your queue is clear — go send some fresh outreach</p>
+              <div className="bg-card border border-border rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-3">
+                <Clock className="w-8 h-8 text-muted-foreground opacity-30" />
+                <h3 className="text-sm font-bold text-foreground">Follow-up Queue Clear</h3>
+                <p className="text-xs text-muted-foreground max-w-sm">
+                  No active sequences pending. Launch a campaign from ICP & Offer (/hq/icp) to add new founders to your queue.
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -534,42 +498,70 @@ export default function HqOutreach() {
                   const due = msg.follow_up_due ? new Date(msg.follow_up_due) : null;
                   const overdue = due && isPast(due);
                   return (
-                    <div key={msg.id} className={`rounded-xl border p-4 space-y-3 ${overdue ? "border-red-500/20 bg-red-500/5" : "border-amber-500/20 bg-amber-500/5"}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold">{msg.company_name}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${statusBadge(msg.status)}`}>{msg.status}</span>
+                    <div
+                      key={msg.id}
+                      className={`rounded-2xl border p-5 space-y-3 bg-card shadow-sm transition-all ${
+                        overdue ? "border-red-500/30" : "border-border"
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center text-primary shrink-0">
+                            <Building2 className="w-4 h-4" />
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {msg.type?.replace("_", " ")} · {due ? (overdue ? `${formatDistanceToNow(due)} overdue` : `Due ${formatDistanceToNow(due, { addSuffix: true })}`) : ""}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-foreground">
+                                {msg.company_name}
+                              </span>
+                              <Badge variant="outline" className={`text-[10px] uppercase font-mono ${statusBadge(msg.status)}`}>
+                                {msg.status}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                              Step: {msg.type?.replace("_", " ")} · {due ? (overdue ? `${formatDistanceToNow(due)} overdue` : `Follow-up due ${formatDistanceToNow(due, { addSuffix: true })}`) : ""}
+                            </p>
                           </div>
                         </div>
-                        <div className="flex gap-1.5">
+
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => navigate(`/hq/outreach?company=${msg.company_id}`)}
-                            className="h-7 text-xs border-border/60 gap-1"
+                            onClick={() => openFollowUpInGmail(msg)}
+                            className="h-8 text-xs rounded-full text-red-500 border-red-500/30 hover:bg-red-500/10 gap-1.5"
                           >
-                            <Zap className="h-3 w-3" /> Follow up
+                            <Mail className="w-3.5 h-3.5 text-red-500" /> Send in Gmail
                           </Button>
                         </div>
                       </div>
-                      {msg.subject && <p className="text-xs font-semibold">{msg.subject}</p>}
-                      <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{msg.body}</p>
-                      {/* Status update */}
-                      <div className="flex gap-1.5 flex-wrap">
-                        {["replied", "booked", "declined"].map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => handleStatusUpdate(msg.id, s)}
-                            disabled={updatingId === msg.id}
-                            className="text-[10px] px-2 py-0.5 rounded-full border border-border/40 text-muted-foreground hover:text-foreground hover:border-border/70 transition-all capitalize"
-                          >
-                            {s === "booked" ? "✓ Meeting booked" : s === "replied" ? "✉ Replied" : "✗ Declined"}
-                          </button>
-                        ))}
+
+                      {msg.subject && (
+                        <p className="text-xs font-semibold text-foreground pt-1">
+                          Subject: {msg.subject}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap leading-relaxed">
+                        {msg.body}
+                      </p>
+
+                      {/* Quick Stage Status Updater */}
+                      <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
+                        <span className="text-muted-foreground text-[11px]">
+                          Update reply state:
+                        </span>
+                        <div className="flex gap-1.5">
+                          {["replied", "booked", "declined"].map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => handleStatusUpdate(msg.id, s)}
+                              disabled={updatingId === msg.id}
+                              className="text-[10px] px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-border/80 transition-all capitalize"
+                            >
+                              {s === "booked" ? "🎉 Booked Call" : s === "replied" ? "✉ Replied" : "✕ Archived"}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   );
@@ -577,40 +569,58 @@ export default function HqOutreach() {
               </div>
             )}
           </div>
-        ) : (
-          /* HISTORY */
-          <div>
+        )}
+
+        {/* ── TAB 2: FULL HISTORY ──────────────────────────────────────────── */}
+        {activeTab === "history" && (
+          <div className="space-y-3">
             {outreach.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p className="text-sm">No outreach sent yet</p>
+              <div className="bg-card border border-border rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-3">
+                <MessageSquare className="w-8 h-8 text-muted-foreground opacity-30" />
+                <h3 className="text-sm font-bold text-foreground">No Outreach Logged Yet</h3>
+                <p className="text-xs text-muted-foreground max-w-sm">
+                  Dispatched outreach emails will appear here automatically with delivery timestamps.
+                </p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {outreach.map((msg) => (
                   <div
                     key={msg.id}
-                    className="rounded-xl border border-border/60 bg-card p-4 space-y-2 hover:border-border/80 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/hq/leads/${msg.company_id}`)}
+                    className="rounded-2xl border border-border bg-card p-5 space-y-2 hover:border-border/80 transition-colors shadow-sm"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{msg.company_name}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${statusBadge(msg.status)}`}>{msg.status}</span>
-                        <span className="text-[10px] text-muted-foreground capitalize">{msg.type?.replace("_", " ")}</span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-sm font-bold text-foreground">
+                          {msg.company_name}
+                        </span>
+                        <Badge variant="outline" className={`text-[10px] uppercase font-mono ${statusBadge(msg.status)}`}>
+                          {msg.status}
+                        </Badge>
+                        <span className="text-[11px] text-muted-foreground capitalize font-mono">
+                          {msg.type?.replace("_", " ")}
+                        </span>
                       </div>
                       <span className="text-xs text-muted-foreground font-mono">
                         {formatDistanceToNow(new Date(msg.created_at || msg.sent_at || Date.now()), { addSuffix: true })}
                       </span>
                     </div>
-                    {msg.subject && <p className="text-xs font-semibold">{msg.subject}</p>}
-                    <p className="text-sm text-muted-foreground line-clamp-2">{msg.body}</p>
+
+                    {msg.subject && (
+                      <p className="text-xs font-semibold text-foreground">
+                        Subject: {msg.subject}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed whitespace-pre-wrap">
+                      {msg.body}
+                    </p>
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
+
       </div>
     </div>
   );
