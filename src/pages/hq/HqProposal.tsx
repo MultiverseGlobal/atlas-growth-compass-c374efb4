@@ -79,18 +79,55 @@ export default function HqProposal() {
 
   // Load leads
   useEffect(() => {
-    if (!user) return;
-    supabase.from("kuro_pipeline_view")
-      .select("id, company, website, research_data, notes")
-      .eq("user_id", user.id)
-      .order("company")
-      .then(({ data }) => {
-        setLeads((data ?? []) as Lead[]);
+    let leadsList: any[] = [];
+    if (user) {
+      supabase.from("kuro_pipeline_view" as any)
+        .select("id, company, website, research_data, notes")
+        .eq("user_id", user.id)
+        .order("company")
+        .then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            setLeads(data as Lead[]);
+            if (selectedLeadId) {
+              const found = data.find((l: any) => l.id === selectedLeadId);
+              if (found) setSelectedLead(found as Lead);
+            }
+            return;
+          }
+          // Fallback to local storage
+          try {
+            const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
+            leadsList = savedLeads.map((l: any) => ({
+              id: l.id,
+              company: l.company,
+              website: l.website,
+              research_data: l,
+              notes: l.bottleneck?.observation || '',
+            }));
+            setLeads(leadsList as Lead[]);
+            if (selectedLeadId) {
+              const found = leadsList.find((l: any) => l.id === selectedLeadId);
+              if (found) setSelectedLead(found as Lead);
+            }
+          } catch {}
+        });
+    } else {
+      try {
+        const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
+        leadsList = savedLeads.map((l: any) => ({
+          id: l.id,
+          company: l.company,
+          website: l.website,
+          research_data: l,
+          notes: l.bottleneck?.observation || '',
+        }));
+        setLeads(leadsList as Lead[]);
         if (selectedLeadId) {
-          const found = (data ?? []).find((l: Lead) => l.id === selectedLeadId);
+          const found = leadsList.find((l: any) => l.id === selectedLeadId);
           if (found) setSelectedLead(found as Lead);
         }
-      });
+      } catch {}
+    }
   }, [user, selectedLeadId]);
 
   const handleLeadChange = (lid: string) => {

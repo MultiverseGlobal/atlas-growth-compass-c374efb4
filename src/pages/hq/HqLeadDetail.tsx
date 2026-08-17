@@ -130,27 +130,60 @@ export default function HqLeadDetail() {
   const [showLogForm, setShowLogForm] = useState(false);
 
   const load = useCallback(async () => {
-    if (!user || !id) return;
+    if (!id) return;
     setLoading(true);
-    try {
-      const [leadRes, interactionsRes, contactsRes, dealRes, eventsRes] = await Promise.all([
-        supabase.from("kuro_pipeline_view").select("*").eq("id", id).eq("user_id", user.id).single(),
-        supabase.from("atlas_interactions").select("*").eq("company_id", id).eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(50),
-        supabase.from("atlas_contacts").select("*").eq("company_id", id).eq("user_id", user.id),
-        supabase.from("atlas_deals").select("*").eq("company_id", id).eq("user_id", user.id).not("stage", "in", "(won,lost)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        (supabase as any).from("atlas_events").select("*").eq("company_id", id).eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(50),
-      ]);
-      if (leadRes.error) throw leadRes.error;
-      setLead(leadRes.data as Lead);
-      setInteractions((interactionsRes.data ?? []) as Interaction[]);
-      setContacts((contactsRes.data ?? []) as Contact[]);
-      setDeal(dealRes.data as Deal | null);
-      setEvents((eventsRes.data ?? []) as AtlasEvent[]);
-    } catch (err: any) {
-      toast.error("Failed to load: " + err.message);
-    } finally {
-      setLoading(false);
+    let leadData: any = null;
+    let interactionsData: any[] = [];
+    let contactsData: any[] = [];
+    let dealData: any = null;
+    let eventsData: any[] = [];
+
+    if (user) {
+      try {
+        const [leadRes, interactionsRes, contactsRes, dealRes, eventsRes] = await Promise.all([
+          supabase.from("kuro_pipeline_view" as any).select("*").eq("id", id).eq("user_id", user.id).maybeSingle(),
+          supabase.from("atlas_interactions" as any).select("*").eq("company_id", id).eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(50),
+          supabase.from("atlas_contacts" as any).select("*").eq("company_id", id).eq("user_id", user.id),
+          supabase.from("atlas_deals" as any).select("*").eq("company_id", id).eq("user_id", user.id).not("stage", "in", "(won,lost)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+          (supabase as any).from("atlas_events").select("*").eq("company_id", id).eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(50),
+        ]);
+        if (!leadRes.error && leadRes.data) leadData = leadRes.data;
+        if (!interactionsRes.error && interactionsRes.data) interactionsData = interactionsRes.data;
+        if (!contactsRes.error && contactsRes.data) contactsData = contactsRes.data;
+        if (!dealRes.error && dealRes.data) dealData = dealRes.data;
+        if (!eventsRes.error && eventsRes.data) eventsData = eventsRes.data;
+      } catch {}
     }
+
+    if (!leadData) {
+      try {
+        const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
+        const found = savedLeads.find((l: any) => l.id === id);
+        if (found) {
+          leadData = {
+            id: found.id,
+            company: found.company,
+            website: found.website,
+            stage: found.status === 'approved' ? 'contacted' : 'new',
+            icp_score: found.icp_score || 90,
+            prospect: found.founder?.name || '',
+            linkedin_url: found.founder?.linkedin_url || '',
+            founder_thesis: found.bottleneck?.hypothesis || '',
+            research_data: found,
+            notes: found.bottleneck?.observation || '',
+            is_contacted: found.status === 'approved',
+            created_at: new Date().toISOString(),
+          };
+        }
+      } catch {}
+    }
+
+    setLead(leadData as Lead);
+    setInteractions(interactionsData as Interaction[]);
+    setContacts(contactsData as Contact[]);
+    setDeal(dealData as Deal | null);
+    setEvents(eventsData as AtlasEvent[]);
+    setLoading(false);
   }, [user, id]);
 
   useEffect(() => { load(); }, [load]);

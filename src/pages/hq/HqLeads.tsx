@@ -87,26 +87,49 @@ export default function HqLeads() {
   }, [showAdd]);
 
   const loadLeads = useCallback(async () => {
-    if (!user) return;
     setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("kuro_pipeline_view")
-        .select("id, company, website, stage, icp_score, is_contacted, source, notes, created_at, research_data")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      const mapped = (data ?? []).map((l: any) => ({
-        ...l,
-        has_research: !!l.research_data && Object.keys(l.research_data ?? {}).length > 0,
-      }));
-      setLeads(mapped);
-      setFiltered(mapped);
-    } catch (err: any) {
-      toast.error("Failed to load leads: " + err.message);
-    } finally {
-      setLoading(false);
+    let leadsList: any[] = [];
+
+    if (user) {
+      try {
+        const { data, error } = await supabase
+          .from("kuro_pipeline_view" as any)
+          .select("id, company, website, stage, icp_score, is_contacted, source, notes, created_at, research_data")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        if (!error && data) leadsList = data;
+      } catch {}
     }
+
+    if (leadsList.length === 0) {
+      try {
+        const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
+        const savedDeals = JSON.parse(localStorage.getItem("atlas_deals") || "[]");
+        const dealsMap: Record<string, any> = {};
+        savedDeals.forEach((d: any) => { dealsMap[d.company_id] = d; });
+
+        leadsList = savedLeads.map((l: any) => ({
+          id: l.id,
+          company: l.company,
+          website: l.website,
+          stage: l.status === 'approved' ? 'contacted' : 'new',
+          icp_score: l.icp_score || 90,
+          is_contacted: l.status === 'approved',
+          source: 'autonomous_sourcing',
+          notes: l.bottleneck?.observation || '',
+          created_at: new Date().toISOString(),
+          research_data: l,
+        }));
+      } catch {}
+    }
+
+    const mapped = leadsList.map((l: any) => ({
+      ...l,
+      has_research: !!l.research_data && Object.keys(l.research_data ?? {}).length > 0,
+    }));
+    setLeads(mapped);
+    setFiltered(mapped);
+    setLoading(false);
   }, [user]);
 
   useEffect(() => { loadLeads(); }, [loadLeads]);
