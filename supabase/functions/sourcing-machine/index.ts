@@ -154,7 +154,8 @@ function extractJson(raw: string, expectArray = false): any {
       }
 
       try {
-        recovered.push(JSON.parse(text.slice(pos, objEnd + 1)));
+        const rawObj = text.slice(pos, objEnd + 1);
+        recovered.push(JSON.parse(sanitizeJsonString(rawObj)));
       } catch (parseErr: any) {
         console.warn(`[extractJson] Skipping malformed object at pos ${pos}: ${parseErr.message}`);
       }
@@ -178,13 +179,41 @@ function extractJson(raw: string, expectArray = false): any {
   // ── NORMAL PATH ─────────────────────────────────────────────────────────────
   const jsonStr = text.slice(start, end + 1);
   try {
-    return JSON.parse(jsonStr);
+    return JSON.parse(sanitizeJsonString(jsonStr));
   } catch (e: any) {
     if (expectArray) {
       try { return [extractJson(jsonStr, false)]; } catch (_) {}
     }
     throw new Error(`JSON parse failed after extraction: ${e.message}\nExtracted: ${jsonStr.slice(0, 200)}`);
   }
+}
+
+function sanitizeJsonString(str: string): string {
+  let result = "";
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (escape) {
+      result += ch;
+      escape = false;
+    } else if (ch === "\\") {
+      result += ch;
+      escape = true;
+    } else if (ch === '"') {
+      inString = !inString;
+      result += ch;
+    } else if (inString && ch === '\n') {
+      result += "\\n";
+    } else if (inString && ch === '\r') {
+      // ignore
+    } else if (inString && ch === '\t') {
+      result += "\\t";
+    } else {
+      result += ch;
+    }
+  }
+  return result;
 }
 
 // Call Kimi AI — model defaults to 8k for single calls; pass 32k + higher maxTokens for bulk arrays
@@ -2158,8 +2187,12 @@ Return ONLY a valid JSON array:
       if (!openaiKey) throw new Error("OPENAI_API_KEY not set");
 
       const lead = body.lead ?? {};
+      const company = lead.company || body.company || "";
+      const website = lead.website || body.website || "";
+      const prospectName = lead.prospectName || body.prospectName || "";
+      
       const outreachType = body.outreach_type ?? "cold_email";
-      const context = body.context ?? null;
+      const context = body.context ?? body.offer ?? null;
       const priorMessages = body.prior_messages ?? [];
       const research = body.research ?? null;
 
@@ -2190,8 +2223,9 @@ ${priorMessages.map((m: any) => `- [${m.type}] ${m.body?.slice(0, 200)}`).join("
 
       const prompt = `You are writing outreach for a founder who builds custom software and automation tools for small businesses.
 
-Company: ${lead.company || ""}
-Website: ${lead.website || ""}
+Company: ${company}
+Website: ${website}
+Prospect Name: ${prospectName}
 ${context ? `Additional context: ${context}` : ""}
 ${researchContext}
 ${priorContext}
@@ -2203,6 +2237,9 @@ IMPORTANT RULES:
 - Be specific and human — no generic lines like "I came across your company"
 - No fake urgency, no buzzwords
 - Sound like a real person, not a sales robot
+- CRITICAL: NEVER USE PLACEHOLDERS like [Company Name], [Founder's Name], or [Your Name]. ALWAYS interpolate the real data.
+- If you don't know the founder's name, just say "Hey," or "Hi team,".
+- Sign off the email as "Ben".
 - If this is a cold email, respond with JSON: {"subject": "...", "body": "..."}
 - For all other types, respond with JSON: {"body": "..."}`;
 

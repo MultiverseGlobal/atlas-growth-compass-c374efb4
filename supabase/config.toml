@@ -27,3 +27,14 @@ entrypoint = "./functions/send-email/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/send-email/*.html" ]
+
+[functions.db-debug]
+enabled = true
+verify_jwt = false
+import_map = "./functions/db-debug/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/db-debug/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/db-debug/*.html" ]

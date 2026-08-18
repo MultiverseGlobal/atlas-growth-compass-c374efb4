@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Play, Pause, Square, CheckCircle2,
   Send, AlertTriangle, Activity, Check,
-  ChevronRight, Sparkles, User, Info, Building, Copy
+  ChevronRight, Sparkles, User, Info, Building, Copy, Mail as MailIcon
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -174,33 +174,78 @@ export default function HqFlow() {
       clearInterval(pollInterval.current);
       pollInterval.current = null;
     }
+
+    return () => {
+      // Don't clear on every render, only on unmount, but we don't have a strict unmount hook here.
+      // Actually, since pollInterval is a ref, it's fine.
+    };
   }, [activeRun]);
+
+  const getDraftDetails = (lead: any) => {
+    let subject = `Quick question regarding ${lead.company}`;
+    let body = "Hello";
+
+    try {
+      const draft = lead.outreach_draft || lead.draft_message;
+      if (typeof draft === 'string') {
+        if (draft.trim().startsWith('{')) {
+          const parsed = JSON.parse(draft);
+          if (parsed.subject) subject = parsed.subject;
+          if (parsed.body) body = parsed.body;
+        } else {
+          body = draft;
+          const subjectMatch = draft.match(/^Subject:\s*([^\n]+)/i);
+          if (subjectMatch) {
+            subject = subjectMatch[1].trim();
+            body = body.replace(/^Subject:\s*[^\n]+\n*/i, '').trim();
+          }
+        }
+      } else if (draft && typeof draft === 'object') {
+        if (draft.subject) subject = draft.subject;
+        if (draft.body) body = draft.body;
+        else body = JSON.stringify(draft, null, 2);
+      }
+    } catch (e) {
+      // Fallback
+    }
+
+    let domain = "example.com";
+    if (lead.website) {
+      try {
+        const url = new URL(lead.website.startsWith('http') ? lead.website : `https://${lead.website}`);
+        domain = url.hostname.replace('www.', '');
+      } catch (e) {
+        domain = lead.website.replace('www.', '');
+      }
+    } else {
+      domain = `${lead.company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+    }
+    
+    return {
+      toEmail: `founder@${domain}`,
+      subject,
+      body
+    };
+  };
 
   const approveLead = async () => {
     if (!activeRun || !pendingLead) return;
-    addLog(`Copying email for ${pendingLead.company}...`, "info");
+    addLog(`Preparing email for ${pendingLead.company}...`, "info");
     
     try {
-      let emailSubject = `Quick question regarding ${pendingLead.company}`;
-      let emailBody = pendingLead.outreach_draft || pendingLead.draft_message || "Hello";
+      const { toEmail, subject, body } = getDraftDetails(pendingLead);
 
-      try {
-        if (emailBody.trim().startsWith('{')) {
-          const parsed = JSON.parse(emailBody);
-          if (parsed.subject) emailSubject = parsed.subject;
-          if (parsed.body) emailBody = parsed.body;
-        }
-      } catch (e) {
-        // Fallback to raw
-      }
-
-      // Copy to clipboard
-      const textToCopy = `Subject: ${emailSubject}\n\n${emailBody}`;
+      // Open Gmail compose window
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.open(gmailUrl, '_blank');
+      
+      // Also copy to clipboard as a backup
+      const textToCopy = `To: ${toEmail}\nSubject: ${subject}\n\n${body}`;
       try {
         await navigator.clipboard.writeText(textToCopy);
-        addLog(`✓ Draft copied to clipboard! Paste into Gmail.`, "success");
+        addLog(`✓ Opened in Gmail! (Draft also copied to clipboard)`, "success");
       } catch (e) {
-        addLog(`✓ Marked as contacted. (Please copy draft manually)`, "success");
+        addLog(`✓ Opened in Gmail!`, "success");
       }
       
       // Update pipeline view
@@ -438,13 +483,28 @@ export default function HqFlow() {
                   </div>
                   
                   {/* Outreach Preview */}
-                  <div className="bg-background rounded border border-border p-3 text-sm font-mono text-muted-foreground mb-4 max-h-32 overflow-y-auto">
-                    {pendingLead.outreach_draft || "Draft not found..."}
-                  </div>
+                  {(() => {
+                    const { toEmail, subject, body } = getDraftDetails(pendingLead);
+                    return (
+                      <div className="bg-background rounded border border-border p-3 text-sm font-sans text-foreground mb-4 max-h-64 overflow-y-auto">
+                        <div className="border-b border-border/50 pb-2 mb-2">
+                          <div className="flex text-xs mb-1">
+                            <span className="w-12 text-muted-foreground">To:</span>
+                            <span className="font-medium text-primary select-all">{toEmail}</span>
+                          </div>
+                          <div className="flex text-xs">
+                            <span className="w-12 text-muted-foreground">Subject:</span>
+                            <span className="font-medium select-all">{subject}</span>
+                          </div>
+                        </div>
+                        <div className="whitespace-pre-wrap select-all">{body}</div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex gap-2">
                     <Button className="flex-1 gap-2" onClick={approveLead}>
-                      <Copy className="w-4 h-4" /> Copy & Next
+                      <MailIcon className="w-4 h-4" /> Open in Gmail & Next
                     </Button>
                     <Button variant="ghost" onClick={rejectLead}>Skip</Button>
                   </div>
