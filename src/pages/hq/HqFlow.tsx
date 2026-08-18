@@ -59,7 +59,7 @@ export default function HqFlow() {
 
       if (data) {
         setActiveRun(data);
-        if (data.status === "awaiting_approval" && data.current_lead_id) {
+        if (data.current_lead_id) {
           fetchPendingLead(data.current_lead_id);
         } else {
           setPendingLead(null);
@@ -178,21 +178,48 @@ export default function HqFlow() {
 
   const approveLead = async () => {
     if (!activeRun || !pendingLead) return;
-    addLog(`✓ Email sent to ${pendingLead.company}`, "success");
+    addLog(`Copying email for ${pendingLead.company}...`, "info");
     
-    await supabase.from("kuro_pipeline_view").update({ is_contacted: true }).eq("id", pendingLead.id);
-    
-    await supabase
-      .from("acquisition_runs")
-      .update({ 
-        status: "running", 
-        contacted_count: activeRun.contacted_count + 1,
-        current_stage: "sending"
-      })
-      .eq("id", activeRun.id);
+    try {
+      let emailSubject = `Quick question regarding ${pendingLead.company}`;
+      let emailBody = pendingLead.outreach_draft || pendingLead.draft_message || "Hello";
+
+      try {
+        if (emailBody.trim().startsWith('{')) {
+          const parsed = JSON.parse(emailBody);
+          if (parsed.subject) emailSubject = parsed.subject;
+          if (parsed.body) emailBody = parsed.body;
+        }
+      } catch (e) {
+        // Fallback to raw
+      }
+
+      // Copy to clipboard
+      const textToCopy = `Subject: ${emailSubject}\n\n${emailBody}`;
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        addLog(`✓ Draft copied to clipboard! Paste into Gmail.`, "success");
+      } catch (e) {
+        addLog(`✓ Marked as contacted. (Please copy draft manually)`, "success");
+      }
       
-    setPendingLead(null);
-    fetchActiveRun();
+      // Update pipeline view
+      await supabase.from("kuro_pipeline_view").update({ is_contacted: true, stage: "contacted" }).eq("id", pendingLead.id);
+      
+      await supabase
+        .from("acquisition_runs")
+        .update({ 
+          status: "running", 
+          contacted_count: activeRun.contacted_count + 1,
+          current_stage: "sending"
+        })
+        .eq("id", activeRun.id);
+        
+      setPendingLead(null);
+      fetchActiveRun();
+    } catch (e: any) {
+      addLog(`Failed: ${e.message}`, "error");
+    }
   };
 
   const rejectLead = async () => {

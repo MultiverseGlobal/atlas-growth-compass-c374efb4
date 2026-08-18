@@ -18,10 +18,17 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { run_id } = body;
+    let { run_id } = body;
 
     if (!run_id) {
-      throw new Error("Missing run_id");
+      // Auto-fetch latest running run for debugging
+      const { data: latestRun } = await supabase.from("acquisition_runs").select("*").eq("status", "running").order("created_at", { ascending: false }).limit(1).single();
+      if (latestRun) {
+        run_id = latestRun.id;
+        console.log("Using auto-resolved run_id:", run_id);
+      } else {
+        throw new Error("Missing run_id and no active runs found.");
+      }
     }
 
     // 1. Fetch the active run
@@ -113,15 +120,25 @@ serve(async (req) => {
         .eq("id", run_id);
         
       // Call sourcing-machine to generate outreach
-      const { data: draftData, error: draftError } = await supabase.functions.invoke("sourcing-machine", {
-        body: {
+      const smUrlOutreach = supabaseUrl.replace(".co", ".co/functions/v1/sourcing-machine");
+      const resOutreach = await fetch(smUrlOutreach, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
           action: "generate-outreach",
-          prospectName: lead.founder_name || lead.company_name,
-          company: lead.company_name,
+          prospectName: lead.prospect || lead.company,
+          company: lead.company,
           research: lead.research_data,
           offer: "Automated Workflow Optimization", // Default fallback
-        }
+          user_id: run.user_id,
+        })
       });
+      let draftData = null, draftError = null;
+      if (!resOutreach.ok) {
+        draftError = await resOutreach.text();
+      } else {
+        draftData = await resOutreach.json();
+      }
       
       if (!draftError && draftData) {
         const draftContent = typeof draftData === 'string' ? draftData : draftData.outreach || JSON.stringify(draftData);
@@ -134,7 +151,14 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } else {
-        console.error("Draft generation failed", draftError);
+        // Return the error so the UI logs it!
+        return new Response(JSON.stringify({ 
+          message: "No action taken. Pipeline might be stalled.",
+          debug: { draftError, draftData }
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
@@ -155,14 +179,24 @@ serve(async (req) => {
         .update({ current_stage: "researching", current_lead_id: lead.id })
         .eq("id", run_id);
         
-      // Call sourcing-machine to analyze pain
-      const { data: painData, error: painError } = await supabase.functions.invoke("sourcing-machine", {
-        body: {
+    // Call sourcing-machine to analyze pain
+      const smUrl = supabaseUrl.replace(".co", ".co/functions/v1/sourcing-machine");
+      const res = await fetch(smUrl, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
           action: "analyze-pain",
-          company: lead.company_name,
+          company: lead.company,
           website: lead.website,
-        }
+          user_id: run.user_id,
+        })
       });
+      let painData = null, painError = null;
+      if (!res.ok) {
+        painError = await res.text();
+      } else {
+        painData = await res.json();
+      }
       
       if (!painError && painData) {
         await supabase
@@ -188,14 +222,24 @@ serve(async (req) => {
       .update({ current_stage: "sourcing", current_lead_id: null })
       .eq("id", run_id);
       
-    const { data: discoverData, error: discoverError } = await supabase.functions.invoke("sourcing-machine", {
-      body: {
+    const smUrl2 = supabaseUrl.replace(".co", ".co/functions/v1/sourcing-machine");
+    const res2 = await fetch(smUrl2, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
         action: "discover-leads",
         source: "clutch",
         industry: "Any",
-        keyword: "digital agency"
-      }
+        keyword: "digital agency",
+        user_id: run.user_id,
+      })
     });
+    let discoverData = null, discoverError = null;
+    if (!res2.ok) {
+      discoverError = await res2.text();
+    } else {
+      discoverData = await res2.json();
+    }
 
     if (!discoverError && discoverData && Array.isArray(discoverData)) {
       let newCount = 0;
@@ -246,7 +290,7 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ message: "No action taken. Pipeline might be stalled." }), {
+    return new Response(JSON.stringify({ message: "No action taken. Pipeline might be stalled.", debug: { discoverError, discoverData } }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 

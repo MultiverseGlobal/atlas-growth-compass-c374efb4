@@ -257,7 +257,7 @@ async function callGroq(systemPrompt: string, userPrompt: string, apiKey: string
     },
     signal: AbortSignal.timeout(50000), // 50 seconds timeout
     body: JSON.stringify({
-      model: "llama-3.1-70b-versatile",
+      model: "llama3-70b-8192",
       temperature: 0.3,
       max_tokens: 2048,
       messages: [
@@ -588,11 +588,11 @@ Deno.serve(async (req: Request) => {
           global: { headers: { Authorization: authHeader } },
         });
 
+    const body: any = await req.json();
+
     let userId: string;
     if (isServiceCall) {
-      return new Response(JSON.stringify({ error: "Service role direct execution not supported" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      userId = body.user_id || "service-role";
     } else {
       const { data: { user }, error: userError } = await userClient.auth.getUser();
       if (userError || !user) {
@@ -602,8 +602,6 @@ Deno.serve(async (req: Request) => {
       }
       userId = user.id;
     }
-
-    const body: SourcingRequest = await req.json();
 
     // ── SOURCE ACTION ────────────────────────────────────────────────────────────
     if (body.action === "source") {
@@ -2208,28 +2206,42 @@ IMPORTANT RULES:
 - If this is a cold email, respond with JSON: {"subject": "...", "body": "..."}
 - For all other types, respond with JSON: {"body": "..."}`;
 
-      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.7,
-          max_tokens: 600,
-        }),
-      });
+      let result: { subject?: string; body: string } | null = null;
+      let aiError: any = null;
 
-      if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
-      const aiData = await aiRes.json();
-      const rawContent = aiData.choices?.[0]?.message?.content ?? "";
-
-      // Try to parse JSON, fall back to plain text
-      let result: { subject?: string; body: string };
       try {
-        const cleaned = rawContent.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
-        result = JSON.parse(cleaned);
-      } catch {
-        result = { body: rawContent };
+        const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+            max_tokens: 600,
+          }),
+        });
+
+        if (!aiRes.ok) throw new Error(`OpenAI error: ${await aiRes.text()}`);
+        const aiData = await aiRes.json();
+        const rawContent = aiData.choices?.[0]?.message?.content ?? "";
+
+        // Try to parse JSON, fall back to plain text
+        try {
+          const cleaned = rawContent.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+          result = JSON.parse(cleaned);
+        } catch {
+          result = { body: rawContent };
+        }
+      } catch (err: any) {
+        console.warn("OpenAI failed for generate-outreach, falling back to Groq:", err.message);
+        aiError = err;
+      }
+
+      if (!result) {
+        const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
+        if (!nimApiKey) throw aiError || new Error("No fallback AI available");
+        
+        result = await callNvidiaNim("You are writing outreach for a founder who builds custom software and automation tools for small businesses. Respond ONLY with valid JSON.", prompt, nimApiKey, false);
       }
 
       return new Response(JSON.stringify(result), {
