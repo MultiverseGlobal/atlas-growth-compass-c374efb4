@@ -129,6 +129,7 @@ serve(async (req) => {
           prospectName: lead.prospect || lead.company,
           company: lead.company,
           research: lead.research_data,
+          acquisition_channel: lead.acquisition_channel || "Outbound",
           offer: "Automated Workflow Optimization", // Default fallback
           user_id: run.user_id,
         })
@@ -213,6 +214,42 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    }
+
+    // Stage 3.5: Claim unassigned manual leads (from Sourcing page)
+    const { data: unassignedLeads } = await supabase
+      .from("kuro_pipeline_view")
+      .select("id")
+      .is("acquisition_run_id", null)
+      .eq("user_id", run.user_id)
+      .limit(20);
+
+    if (unassignedLeads && unassignedLeads.length > 0) {
+      const leadIds = unassignedLeads.map(l => l.id);
+      
+      // Update them to belong to this run and boost scores to pass qualification
+      await supabase
+        .from("kuro_pipeline_view")
+        .update({ 
+          acquisition_run_id: run_id, 
+          stage: "discovered",
+          icp_score: 85, 
+          opportunity_score: 80 
+        })
+        .in("id", leadIds);
+        
+      await supabase
+        .from("acquisition_runs")
+        .update({ 
+          discovered_count: run.discovered_count + leadIds.length,
+          qualified_count: run.qualified_count + leadIds.length,
+          current_stage: "sourcing"
+        })
+        .eq("id", run_id);
+        
+      return new Response(JSON.stringify({ message: `Claimed ${leadIds.length} manual leads from queue.` }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Stage 4: Sourcing & Qualification

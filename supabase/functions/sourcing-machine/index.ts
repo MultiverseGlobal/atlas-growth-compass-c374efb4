@@ -588,7 +588,9 @@ ${lead.notes || "No evaluation details provided."}`;
       source: sourceUrl,
       stage: "Sourced",
       linkedin_url: lead.linkedin_url || null,
-      twitter_url: lead.twitter_url || null
+      twitter_url: lead.twitter_url || null,
+      email: lead.email || null,
+      acquisition_channel: lead.acquisition_channel || "Outbound"
     }
   };
 }
@@ -719,7 +721,8 @@ Given the raw page text or scraped HTML, extract details strictly matching the f
 14. Notes: 2-4 sentences of UNIQUE reasoning for THIS candidate specifically. Do not use template phrases like "Founder has a clear vision" — explain what you actually read.
 15. Next Action: Specific outreach suggestion for THIS person — include their name, channel, and their specific constraint.
 16. stale_data_warning: true if any metrics/revenue claims are older than Jan 2026 (assume current date is July 2026).
-17. is_commercial_business: Boolean. Set to true only if there is explicit evidence of commercial intent in the source content (pricing, revenue, MRR, paying customers, SaaS model, or clear commercial framing). Set to false if it is a hobby project, pure open-source library with no pricing/business model mentioned, or personal side-project without clear commercial intent.
+20. is_commercial_business: Boolean. Set to true only if there is explicit evidence of commercial intent in the source content (pricing, revenue, MRR, paying customers, SaaS model, or clear commercial framing). Set to false if it is a hobby project, pure open-source library with no pricing/business model mentioned, or personal side-project without clear commercial intent.
+21. email: Extract an email address if explicitly stated (e.g. founder@domain.com, hello@domain.com). If none is found, construct a high-probability guess based on their first name and the company website (e.g. firstname@domain.com), or return null if impossible.
 
 Return ONLY a valid JSON object:
 {
@@ -743,7 +746,8 @@ Return ONLY a valid JSON object:
   "notes": "string",
   "next_action": "string",
   "stale_data_warning": boolean,
-  "is_commercial_business": boolean
+  "is_commercial_business": boolean,
+  "email": "string or null"
 }`;
 
       if (kimiApiKey && kimiApiKey !== "your-kimi-api-key") {
@@ -2195,6 +2199,7 @@ Return ONLY a valid JSON array:
       const context = body.context ?? body.offer ?? null;
       const priorMessages = body.prior_messages ?? [];
       const research = body.research ?? null;
+      const acquisitionChannel = body.acquisition_channel ?? lead.acquisition_channel ?? "Outbound";
 
       const typeInstructions: Record<string, string> = {
         cold_email: "Write a cold email. Include a subject line. Keep it under 150 words. Be specific, not generic. Reference something real about their business. End with a soft CTA.",
@@ -2221,27 +2226,38 @@ Previous messages sent to this company (do NOT repeat these angles):
 ${priorMessages.map((m: any) => `- [${m.type}] ${m.body?.slice(0, 200)}`).join("\n")}`
         : "";
 
-      const prompt = `You are writing outreach for a founder who builds custom software and automation tools for small businesses.
+      const channelContext = acquisitionChannel === "Inbound"
+        ? "This person came to us through inbound content — they already have some awareness. The message should feel like a natural follow-up, not a cold approach."
+        : acquisitionChannel === "Referral"
+        ? "This person was referred to us. The message can reference the shared context lightly (e.g. 'a mutual contact mentioned you') without being specific."
+        : acquisitionChannel === "Partnership"
+        ? "This person was introduced via a partner. The tone should feel warm and pre-validated, not cold."
+        : "This is a cold outreach. The message must do all the trust-building work itself.";
+
+      const prompt = `You are writing outreach for a solo consultant who finds and removes operational bottlenecks.
 
 Company: ${company}
 Website: ${website}
 Prospect Name: ${prospectName}
+Acquisition Channel: ${acquisitionChannel}
 ${context ? `Additional context: ${context}` : ""}
 ${researchContext}
 ${priorContext}
+Channel Guidance: ${channelContext}
 
 Task: ${typeInstructions[outreachType] || typeInstructions.cold_email}
 
-IMPORTANT RULES:
-- Write from the perspective of a solo founder, not an agency
-- Be specific and human — no generic lines like "I came across your company"
-- No fake urgency, no buzzwords
-- Sound like a real person, not a sales robot
-- CRITICAL: NEVER USE PLACEHOLDERS like [Company Name], [Founder's Name], or [Your Name]. ALWAYS interpolate the real data.
-- If you don't know the founder's name, just say "Hey," or "Hi team,".
-- Sign off the email as "Ben".
-- If this is a cold email, respond with JSON: {"subject": "...", "body": "..."}
-- For all other types, respond with JSON: {"body": "..."}`;
+IMPORTANT RULES (CURIOSITY LOOP MODEL):
+1. OBSERVATION — Open with a specific, concrete thing you noticed about their business. Do NOT write "I noticed your website" or generic observations.
+2. WHAT YOU FOUND — Frame it as: "I looked at [their process/operation] and found [specific thing]. I recorded a short [3-5 minute] walkthrough."
+3. OFFER — End with the lowest-friction possible ask: "Want to see it?" or "Happy to send it over if useful."
+4. NO PITCHING — Do NOT ask for a call. Do NOT pitch a service. Do NOT promise outcomes ("I guarantee", "double your revenue").
+5. BE HUMAN — Sound like a real person, not a sales robot. Write in first person.
+6. NO PLACEHOLDERS — NEVER USE PLACEHOLDERS like [Company Name], [Founder's Name], or [Your Name]. ALWAYS interpolate the real data.
+7. If you don't know the founder's name, just say "Hey," or "Hi team,".
+8. Sign off the email as "Ben".
+9. If this is a cold email, respond with JSON: {"subject": "...", "body": "..."}
+10. For all other types, respond with JSON: {"body": "..."}`;
 
       let result: { subject?: string; body: string } | null = null;
       let aiError: any = null;

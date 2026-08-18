@@ -23,6 +23,7 @@ interface Lead {
   created_at: string;
   research_data?: any;
   has_research?: boolean;
+  acquisition_channel?: string | null;
 }
 
 const STAGES = ["all", "new", "researched", "contacted", "interested", "proposal_sent", "won", "lost"];
@@ -434,9 +435,14 @@ export default function HqLeads() {
                   <div className="mt-5 pt-4 border-t border-border/40 flex items-center justify-between relative z-10">
                     <div className="flex flex-col">
                       <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground mb-1">STATUS</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${stageBadge(lead.stage)} w-fit uppercase tracking-wider`}>
-                        {stageLabel(lead.stage)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${stageBadge(lead.stage)} w-fit uppercase tracking-wider`}>
+                          {stageLabel(lead.stage)}
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 uppercase">
+                          {lead.acquisition_channel || "Outbound"}
+                        </span>
+                      </div>
                     </div>
                     
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>

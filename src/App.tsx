@@ -21,7 +21,9 @@ import HqLeadDetail from "./pages/hq/HqLeadDetail";
 import HqProposal from "./pages/hq/HqProposal";
 import HqReport from "./pages/hq/HqReport";
 import HqSettings from "./pages/hq/HqSettings";
+import HqPartnerships from "./pages/hq/HqPartnerships";
 import PublicProfile from "./pages/PublicProfile";
+import Landing from "./pages/Landing";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 
@@ -41,8 +43,8 @@ const App = () => (
         <SovereignSyncWrapper>
           <AuthProvider>
           <Routes>
-            {/* ── Home: straight into the flow ─────────────────────────── */}
-            <Route path="/" element={<Navigate to="/hq/acquire" replace />} />
+            {/* ── Home: Inbound Capture Surface ─────────────────────────── */}
+            <Route path="/" element={<Landing />} />
 
             {/* ── Auth ─────────────────────────────────────────────────── */}
             <Route path="/auth" element={<Auth />} />
@@ -69,6 +71,7 @@ const App = () => (
               <Route path="leads/:id" element={<HqLeadDetail />} />
               <Route path="leads/:id/proposal" element={<HqProposal />} />
               <Route path="report" element={<HqReport />} />
+              <Route path="partnerships" element={<HqPartnerships />} />
               <Route path="settings" element={<HqSettings />} />
             </Route>
 

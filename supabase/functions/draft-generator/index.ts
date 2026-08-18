@@ -15,6 +15,8 @@ interface DraftGeneratorRequest {
     source?: string;
     linkedin_url?: string | null;
     twitter_url?: string | null;
+    email?: string | null;
+    acquisition_channel?: string | null;
     notes?: string | null;
   };
   raw_text?: string;
@@ -142,21 +144,45 @@ Deno.serve(async (req: Request) => {
     const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
     const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
 
-    const systemPrompt = `You are Atlas HQ Outreach Writer — a professional B2B copywriter specializing in highly personalized, low-friction, non-pitch first touch outreach messages.
+    const acquisitionChannel = body.lead.acquisition_channel || "Outbound";
 
-Given a startup profile with the founder's stated thesis/problem (dominant constraint), company name, website, and raw content, your job is to:
-1. Generate a first-touch outreach message following this strict formula:
-   - Direct quote or close paraphrase of their stated problem (e.g. "I saw your note about [thesis]...")
-   - Process/deliverable framing of how Atlas Relevance applies (e.g. "We focus on mapping [process]..." or "Here is what we see in similar setups...").
-   - Low-friction, non-pitch call-to-action (e.g. "Happy to share a quick checklist if you're open to it" or "Would you like me to send over our findings?").
-   - STRICT GUARDRAIL: Do NOT use outcome-promising language. Never say "I'll double your MRR", "this will increase conversion", "we will solve this for you", or "I guarantee we'll find X". Only describe the process/findings ("here's what we found", "happy to share what we see").
-2. Resolve the Contact Channel:
-   - Scan the input text/URLs/handles for a contact email first (e.g. founder@company.com or hello@company.com).
-   - If not found, fall back to a Telegram handle (e.g. @tgname) or X handle (e.g. @xhandle) if found in text.
-   - Otherwise, set the contact channel to "Contact channel not found — needs manual research".
+    // Tailor the framing based on the channel this lead came from
+    const channelContext = acquisitionChannel === "Inbound"
+      ? "This person came to us through inbound content — they already have some awareness. The message should feel like a natural follow-up, not a cold approach."
+      : acquisitionChannel === "Referral"
+      ? "This person was referred to us. The message can reference the shared context lightly (e.g. 'a mutual contact mentioned you') without being specific."
+      : acquisitionChannel === "Partnership"
+      ? "This person was introduced via a partner. The tone should feel warm and pre-validated, not cold."
+      : "This is a cold outreach. The message must do all the trust-building work itself.";
 
-Return ONLY a valid JSON object matching this schema:
+    const systemPrompt = `You are a B2B outreach writer for a solo consultant who finds and removes operational bottlenecks costing small agencies 10+ hours a week.
+
+Your job is to write a first-touch message following the CURIOSITY LOOP model:
+
+## The Model
+1. OBSERVATION — Open with a specific, concrete thing you noticed about their business or their stated problem. This must reference their actual founder thesis / stated constraint. Do NOT write "I noticed your website" or generic observations.
+2. WHAT YOU FOUND — Frame it as: "I looked at [their process/operation] and found [specific thing]. I recorded a short [3-5 minute] walkthrough."
+3. OFFER — End with the lowest-friction possible ask: "Want to see it?" or "Happy to send it over if useful."
+
+## Rules
+- Do NOT ask for a call. Do NOT pitch a service. Do NOT promise outcomes.
+- Do NOT use phrases like: "I'd love to connect", "I'd be happy to help", "Let me know if you're interested", "I guarantee", "double your revenue", "scale your business".
+- The message should feel like it was written by a human who actually looked at their business, not by a template.
+- Subject line must be specific to THEM — no generic subjects like "Quick question" or "Following up".
+- Total body length: 4-6 sentences max. Short. Punchy. Confident.
+- Write in first person, no sign-off needed (they will add it).
+
+## Channel Context
+${channelContext}
+
+## Contact Channel Resolution
+- Use the provided email if present. If not, use LinkedIn URL. If not, use Twitter handle.
+- Format as: "email: [address]", "linkedin: [url]", or "twitter: [handle]".
+- If none available, return: "Contact channel not found — needs manual research".
+
+Return ONLY a valid JSON object:
 {
+  "subject": "string",
   "draft_message": "string",
   "contact_channel": "string"
 }`;
@@ -164,10 +190,14 @@ Return ONLY a valid JSON object matching this schema:
     const userPrompt = `Company: ${body.lead.company}
 Prospect: ${body.lead.prospect}
 Website: ${body.lead.website}
-Founder Thesis/Problem: ${body.lead.founder_thesis}
+Founder's Stated Problem (Thesis): ${body.lead.founder_thesis}
+Acquisition Channel: ${body.lead.acquisition_channel || "Outbound"}
+Known Email: ${body.lead.email || "not found"}
+LinkedIn: ${body.lead.linkedin_url || "not found"}
+Twitter/X: ${body.lead.twitter_url || "not found"}
 Source: ${body.lead.source || ""}
-Notes/Context: ${body.lead.notes || ""}
-Additional Content (for contact details search): ${body.raw_text || ""}`;
+Context & Notes: ${body.lead.notes || ""}
+Additional Raw Content: ${body.raw_text || ""}`;
 
     let result: any = null;
     let errToThrow: any = null;
@@ -201,10 +231,17 @@ Additional Content (for contact details search): ${body.raw_text || ""}`;
     }
 
     if (!result) {
-      // Fallback fallback if AI keys fail completely (non-auth error)
-      const mockChannel = body.lead.linkedin_url ? `LinkedIn message: ${body.lead.linkedin_url}` : "Contact channel not found — needs manual research";
+      // Hard fallback if all AI keys fail
+      const mockChannel = body.lead.email
+        ? `email: ${body.lead.email}`
+        : body.lead.linkedin_url
+        ? `linkedin: ${body.lead.linkedin_url}`
+        : body.lead.twitter_url
+        ? `twitter: ${body.lead.twitter_url}`
+        : "Contact channel not found — needs manual research";
       result = {
-        draft_message: `Hi ${body.lead.prospect},\n\nI saw your note regarding the constraint: "${body.lead.founder_thesis}". We map growth bottlenecks and design custom scaling roadmaps. Happy to share what we see in startup diagnostics if you are open to checking it out.\n\nBest,\nAtlas growth team`,
+        subject: `Quick observation on ${body.lead.company}`,
+        draft_message: `Hi ${body.lead.prospect},\n\nI was looking at ${body.lead.company} and noticed something about the constraint you mentioned: "${body.lead.founder_thesis}". I put together a short 4-minute walkthrough of where I'd look first.\n\nWant me to send it over?`,
         contact_channel: mockChannel
       };
     }

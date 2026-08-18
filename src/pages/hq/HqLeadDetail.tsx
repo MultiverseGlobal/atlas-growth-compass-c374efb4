@@ -6,7 +6,7 @@ import {
   Clock, CheckCircle2, Edit2, Save, X, ExternalLink,
   TrendingUp, Zap, ChevronDown, ChevronRight, RefreshCw,
   Target, BarChart2, Sparkles, Activity, Send, BookOpen,
-  AlertTriangle, DollarSign, CalendarClock, Star
+  AlertTriangle, DollarSign, CalendarClock, Star, Network
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,8 +17,10 @@ import { format, formatDistanceToNow } from "date-fns";
 import { PainEngine } from "@/components/atlas/PainEngine";
 import { OfferBuilder } from "@/components/atlas/OfferBuilder";
 import type { PainHypothesis } from "@/components/atlas/PainEngine";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
-type Tab = "overview" | "research" | "pain" | "offer" | "outreach" | "timeline" | "proposal" | "notes";
+type Tab = "overview" | "research" | "pain" | "offer" | "outreach" | "timeline" | "proposal" | "notes" | "referrals";
 
 interface Lead {
   id: string;
@@ -33,6 +35,7 @@ interface Lead {
   research_data: any;
   founder_thesis: string | null;
   priority: string | null;
+  acquisition_channel: string | null;
 }
 
 interface Interaction {
@@ -85,6 +88,7 @@ const TABS: { id: Tab; label: string; icon: typeof Target }[] = [
   { id: "outreach",  label: "Outreach",  icon: Send },
   { id: "timeline",  label: "Timeline",  icon: Activity },
   { id: "proposal",  label: "Proposal",  icon: FileText },
+  { id: "referrals", label: "Referrals", icon: Network },
   { id: "notes",     label: "Notes",     icon: BookOpen },
 ];
 
@@ -109,6 +113,7 @@ export default function HqLeadDetail() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [deal, setDeal] = useState<Deal | null>(null);
   const [events, setEvents] = useState<AtlasEvent[]>([]);
+  const [referrals, setReferrals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>((searchParams.get("tab") as Tab) ?? "overview");
 
@@ -129,6 +134,11 @@ export default function HqLeadDetail() {
   const [loggingInteraction, setLoggingInteraction] = useState(false);
   const [showLogForm, setShowLogForm] = useState(false);
 
+  // Referrals
+  const [showReferralForm, setShowReferralForm] = useState(false);
+  const [newReferral, setNewReferral] = useState({ company: "", contact: "", email: "" });
+  const [savingReferral, setSavingReferral] = useState(false);
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -137,21 +147,24 @@ export default function HqLeadDetail() {
     let contactsData: any[] = [];
     let dealData: any = null;
     let eventsData: any[] = [];
+    let referralsData: any[] = [];
 
     if (user) {
       try {
-        const [leadRes, interactionsRes, contactsRes, dealRes, eventsRes] = await Promise.all([
+        const [leadRes, interactionsRes, contactsRes, dealRes, eventsRes, referralsRes] = await Promise.all([
           supabase.from("kuro_pipeline_view" as any).select("*").eq("id", id).eq("user_id", user.id).maybeSingle(),
           supabase.from("atlas_interactions" as any).select("*").eq("company_id", id).eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(50),
           supabase.from("atlas_contacts" as any).select("*").eq("company_id", id).eq("user_id", user.id),
           supabase.from("atlas_deals" as any).select("*").eq("company_id", id).eq("user_id", user.id).not("stage", "in", "(won,lost)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
           (supabase as any).from("atlas_events").select("*").eq("company_id", id).eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(50),
+          (supabase as any).from("atlas_referrals").select("*").eq("referrer_lead_id", id).eq("user_id", user.id).order("created_at", { ascending: false }),
         ]);
         if (!leadRes.error && leadRes.data) leadData = leadRes.data;
         if (!interactionsRes.error && interactionsRes.data) interactionsData = interactionsRes.data;
         if (!contactsRes.error && contactsRes.data) contactsData = contactsRes.data;
         if (!dealRes.error && dealRes.data) dealData = dealRes.data;
         if (!eventsRes.error && eventsRes.data) eventsData = eventsRes.data;
+        if (!referralsRes.error && referralsRes.data) referralsData = referralsRes.data;
       } catch {}
     }
 
@@ -172,6 +185,7 @@ export default function HqLeadDetail() {
             research_data: found,
             notes: found.bottleneck?.observation || '',
             is_contacted: found.status === 'approved',
+            acquisition_channel: found.acquisition_channel || 'Outbound',
             created_at: new Date().toISOString(),
           };
         }
@@ -183,6 +197,7 @@ export default function HqLeadDetail() {
     setContacts(contactsData as Contact[]);
     setDeal(dealData as Deal | null);
     setEvents(eventsData as AtlasEvent[]);
+    setReferrals(referralsData);
     setLoading(false);
   }, [user, id]);
 
@@ -273,6 +288,42 @@ export default function HqLeadDetail() {
     }
   };
 
+  const handleCreateReferral = async () => {
+    if (!newReferral.company.trim() || !user || !id) return;
+    setSavingReferral(true);
+    try {
+      await (supabase as any).from("atlas_referrals").insert({
+        user_id: user.id,
+        referrer_lead_id: id,
+        referred_company_name: newReferral.company,
+        referred_contact_name: newReferral.contact,
+        referred_contact_email: newReferral.email,
+        status: "pending"
+      });
+      
+      // Also automatically add this new company to the pipeline as a new lead
+      await supabase.from("kuro_pipeline_view").insert({
+        user_id: user.id,
+        company: newReferral.company,
+        prospect: newReferral.contact || newReferral.company,
+        email: newReferral.email,
+        acquisition_channel: "Referral",
+        stage: "new",
+        notes: `Referred by ${lead?.company}`,
+        icp_score: lead?.icp_score || 50,
+      });
+
+      toast.success("Referral recorded and added to pipeline");
+      setNewReferral({ company: "", contact: "", email: "" });
+      setShowReferralForm(false);
+      load();
+    } catch (err: any) {
+      toast.error("Failed to add referral: " + err.message);
+    } finally {
+      setSavingReferral(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -280,6 +331,17 @@ export default function HqLeadDetail() {
       </div>
     );
   }
+
+  const handleUpdateChannel = async (val: string) => {
+    if (!lead || !id) return;
+    try {
+      await supabase.from("kuro_pipeline_view").update({ acquisition_channel: val }).eq("id", id);
+      setLead({ ...lead, acquisition_channel: val });
+      toast.success("Channel updated");
+    } catch (err: any) {
+      toast.error("Failed to update channel");
+    }
+  };
 
   if (!lead) {
     return (
@@ -315,6 +377,18 @@ export default function HqLeadDetail() {
                   lead.stage === "lost" ? "text-red-400 border-red-500/30 bg-red-500/10" :
                   "text-primary border-primary/30 bg-primary/10"
                 }`}>{stageLabel(lead.stage)}</span>
+                
+                <Select value={lead.acquisition_channel || "Outbound"} onValueChange={handleUpdateChannel}>
+                  <SelectTrigger className="h-6 text-[10px] px-2 py-0.5 w-auto rounded font-mono uppercase border-indigo-500/30 bg-indigo-500/10 text-indigo-400">
+                    <SelectValue placeholder="Channel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Outbound">Outbound</SelectItem>
+                    <SelectItem value="Inbound">Inbound</SelectItem>
+                    <SelectItem value="Referral">Referral</SelectItem>
+                    <SelectItem value="Partnership">Partnership</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {lead.website && (
                 <a href={lead.website} target="_blank" rel="noreferrer"
@@ -749,6 +823,64 @@ export default function HqLeadDetail() {
             <p className="text-xs text-muted-foreground/50 font-mono text-center">
               Tip: Run Pain Analysis and build an Offer first. Proposals with a clear pain → solution chain convert better.
             </p>
+          </div>
+        )}
+
+        {/* ── REFERRALS ── */}
+        {tab === "referrals" && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border/60 bg-card p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Referrals Generated</div>
+                <Button variant="outline" size="sm" onClick={() => setShowReferralForm(true)} className="h-7 text-xs gap-1">
+                  <Plus className="h-3 w-3" /> Record Referral
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Did {lead.company} refer another company to you? Track it here to measure the impact of your delivery.
+              </p>
+              
+              {referrals.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/40 p-8 text-center mt-4">
+                  <Network className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">No referrals yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-3 mt-4">
+                  {referrals.map((r) => (
+                    <div key={r.id} className="rounded-lg border border-border/40 bg-background p-3 flex justify-between items-center">
+                      <div>
+                        <div className="font-semibold text-sm">{r.referred_company_name}</div>
+                        <div className="text-xs text-muted-foreground">{r.referred_contact_name || "Unknown contact"} {r.referred_contact_email && `(${r.referred_contact_email})`}</div>
+                      </div>
+                      <div className="text-[10px] font-mono px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 uppercase">
+                        {r.status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {lead.stage === "won" && (
+              <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2 mt-4">
+                <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" /> Post-Delivery Growth Loop
+                </div>
+                <p className="text-sm text-foreground/80">
+                  This lead is marked as WON. After successful delivery, ask for a referral to generate zero-cost acquisition.
+                </p>
+                <div className="mt-2 bg-background border border-border/40 rounded p-3 text-xs font-mono text-muted-foreground">
+                  "Hey {lead.prospect || 'there'} - stoked we were able to knock out the {lead.research_data?.bottleneck?.area || 'operational'} bottleneck. If you know any other founders who are stuck with a similar issue, I'd love an intro. No worries if not!"
+                </div>
+                <Button size="sm" variant="outline" onClick={() => {
+                   navigator.clipboard.writeText(`Hey ${lead.prospect || 'there'} - stoked we were able to knock out the ${lead.research_data?.bottleneck?.area || 'operational'} bottleneck. If you know any other founders who are stuck with a similar issue, I'd love an intro. No worries if not!`);
+                   toast.success("Copied referral prompt!");
+                }} className="h-7 text-[10px] mt-2 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300">
+                  Copy Prompt
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

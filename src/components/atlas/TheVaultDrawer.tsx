@@ -19,6 +19,7 @@ const VAULT_SECTIONS = [
       { to: "/app", icon: Map, label: "Strategic Maps & Roadmaps", desc: "Long-range master maps, execution milestones & dependencies" },
       { to: "/hq/leads", icon: Users2, label: "Leads Archive & Intelligence", desc: "Qualified founder directory, ICP matrices, pain profiles" },
       { to: "/hq/dashboard", icon: Compass, label: "Mission Control", desc: "High-altitude revenue telemetry, pipeline velocity & win rates" },
+      { to: "/hq/partnerships", icon: Users2, label: "Partnership CRM", desc: "Manage agency partners, track referrals and commissions" },
     ],
   },
   {

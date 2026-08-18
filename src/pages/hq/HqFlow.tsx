@@ -222,7 +222,7 @@ export default function HqFlow() {
     }
     
     return {
-      toEmail: `founder@${domain}`,
+      toEmail: lead.email || `founder@${domain}`,
       subject,
       body
     };
@@ -395,6 +395,11 @@ export default function HqFlow() {
                     </span>
                     {pendingLead ? (
                       <div className="animate-in fade-in slide-in-from-right-2 duration-300 ease-out">
+                        <div className="mb-2 flex gap-2">
+                          <span className="text-[10px] font-bold tracking-widest uppercase text-primary bg-primary/10 px-2 py-1 rounded">
+                            {pendingLead.acquisition_channel || "Outbound"}
+                          </span>
+                        </div>
                         <h3 className="text-2xl font-display font-bold">{pendingLead.company}</h3>
                         <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
                           <Building className="w-3.5 h-3.5" /> 
