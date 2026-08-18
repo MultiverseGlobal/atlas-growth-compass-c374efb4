@@ -10,13 +10,13 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format, isToday, isPast, formatDistanceToNow } from "date-fns";
 
-interface RevenueData {
-  revenue_this_month: number;
-  pipeline_weighted: number;
-  deals_won_this_month: number;
-  deals_lost_this_month: number;
-  avg_deal_size: number;
-  active_deals: number;
+interface AcquisitionData {
+  target: number;
+  contacted: number;
+  discovered: number;
+  qualified: number;
+  researched: number;
+  status: string;
 }
 
 interface FollowUp {
@@ -43,14 +43,6 @@ interface StalledDeal {
 interface OutreachStats {
   sentThisWeek: number;
   repliesThisWeek: number;
-}
-
-const GOAL = 500;
-const CURRENCY = "£";
-
-function formatMoney(n: number) {
-  if (n >= 1000) return `${CURRENCY}${(n / 1000).toFixed(1)}k`;
-  return `${CURRENCY}${Math.round(n).toLocaleString()}`;
 }
 
 function stageLabel(s: string) {
@@ -80,7 +72,7 @@ export default function HqDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  const [revenue, setRevenue] = useState<RevenueData | null>(null);
+  const [acquisition, setAcquisition] = useState<AcquisitionData | null>(null);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [stalled, setStalled] = useState<StalledDeal[]>([]);
   const [outreachStats, setOutreachStats] = useState<OutreachStats>({ sentThisWeek: 0, repliesThisWeek: 0 });
@@ -95,29 +87,31 @@ export default function HqDashboard() {
     }
     setLoading(true);
     try {
-      // 1. Revenue summary (safely fallback if view doesn't exist yet)
-      let rev: RevenueData = { revenue_this_month: 0, pipeline_weighted: 0, deals_won_this_month: 0, deals_lost_this_month: 0, avg_deal_size: 0, active_deals: 0 };
+      // 1. Acquisition summary
+      let acq: AcquisitionData = { target: 20, contacted: 0, discovered: 0, qualified: 0, researched: 0, status: "idle" };
       try {
-        const { data: revRow } = await supabase
-          .from("atlas_revenue_summary")
+        const { data: runRow } = await supabase
+          .from("acquisition_runs")
           .select("*")
           .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .maybeSingle();
 
-        if (revRow) {
-          rev = {
-            revenue_this_month: Number(revRow.revenue_this_month ?? 0),
-            pipeline_weighted: Number(revRow.pipeline_weighted ?? 0),
-            deals_won_this_month: Number(revRow.deals_won_this_month ?? 0),
-            deals_lost_this_month: Number(revRow.deals_lost_this_month ?? 0),
-            avg_deal_size: Number(revRow.avg_deal_size ?? 0),
-            active_deals: Number(revRow.active_deals ?? 0),
+        if (runRow) {
+          acq = {
+            target: runRow.target ?? 20,
+            contacted: runRow.contacted_count ?? 0,
+            discovered: runRow.discovered_count ?? 0,
+            qualified: runRow.qualified_count ?? 0,
+            researched: runRow.researched_count ?? 0,
+            status: runRow.status ?? "idle"
           };
         }
       } catch (e) {
-        console.warn("atlas_revenue_summary fallback:", e);
+        console.warn("Acquisition fetch fallback:", e);
       }
-      setRevenue(rev);
+      setAcquisition(acq);
 
       // 2. Follow-ups due
       try {
@@ -241,7 +235,7 @@ export default function HqDashboard() {
     await loadDashboard();
   };
 
-  const revenuePercent = revenue ? Math.min(100, Math.round((revenue.revenue_this_month / GOAL) * 100)) : 0;
+  const acqPercent = acquisition ? Math.min(100, Math.round((acquisition.contacted / acquisition.target) * 100)) : 0;
   const today = format(new Date(), "EEEE, d MMMM yyyy");
 
   if (authLoading || loading) {
@@ -264,13 +258,10 @@ export default function HqDashboard() {
           <p className="text-xs text-muted-foreground font-mono">{today}</p>
         </div>
         <div className="flex items-center gap-4">
-          {/* Revenue ticker */}
-          <div className="hidden sm:flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg bg-emerald-500/8 border border-emerald-500/20">
-            <DollarSign className="h-3 w-3 text-emerald-400" />
-            <span className="text-emerald-400 font-semibold">{formatMoney(revenue?.revenue_this_month ?? 0)}</span>
-            <span className="text-muted-foreground">/ {formatMoney(GOAL)} goal</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground">Pipeline: {formatMoney(revenue?.pipeline_weighted ?? 0)}</span>
+          {/* Engine Status */}
+          <div className="hidden sm:flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+            <Zap className="h-3 w-3 text-primary" />
+            <span className="text-primary font-semibold uppercase">{acquisition?.status || "IDLE"}</span>
           </div>
           <Button
             variant="outline"
@@ -285,35 +276,36 @@ export default function HqDashboard() {
       </div>
 
       <div className="p-6 space-y-6 max-w-6xl mx-auto">
-        {/* Revenue Progress */}
+        {/* Acquisition Progress */}
         <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-foreground font-mono tracking-tight">
-                {formatMoney(revenue?.revenue_this_month ?? 0)}
-                <span className="text-sm font-normal text-muted-foreground ml-2">/ {formatMoney(GOAL)} goal</span>
+                {acquisition?.contacted ?? 0}
+                <span className="text-sm font-normal text-muted-foreground ml-2">/ {acquisition?.target ?? 20} daily target sent</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">{revenuePercent}% of monthly target</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{acqPercent}% of daily acquisition quota</p>
             </div>
             <div className="text-right">
-              <div className="text-xs text-muted-foreground">Pipeline (weighted)</div>
-              <div className="text-lg font-bold font-mono text-primary mt-0.5">{formatMoney(revenue?.pipeline_weighted ?? 0)}</div>
+              <Button size="sm" variant="default" onClick={() => navigate("/hq/flow")} className="gap-2 text-xs">
+                Open Engine <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
             </div>
           </div>
           {/* Progress bar */}
           <div className="h-2 bg-muted/40 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700"
-              style={{ width: `${revenuePercent}%` }}
+              className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all duration-700"
+              style={{ width: `${acqPercent}%` }}
             />
           </div>
           {/* Stats row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
             {[
-              { label: "Won this month", value: revenue?.deals_won_this_month ?? 0, unit: "deals", color: "text-emerald-400" },
-              { label: "Lost this month", value: revenue?.deals_lost_this_month ?? 0, unit: "deals", color: "text-red-400" },
-              { label: "Active deals", value: revenue?.active_deals ?? 0, unit: "open", color: "text-primary" },
-              { label: "Avg deal size", value: formatMoney(revenue?.avg_deal_size ?? 0), unit: "", color: "text-amber-400", raw: true },
+              { label: "Contacted today", value: acquisition?.contacted ?? 0, unit: "sent", color: "text-primary" },
+              { label: "Researched today", value: acquisition?.researched ?? 0, unit: "leads", color: "text-foreground" },
+              { label: "Qualified today", value: acquisition?.qualified ?? 0, unit: "leads", color: "text-foreground" },
+              { label: "Sourced today", value: acquisition?.discovered ?? 0, unit: "leads", color: "text-foreground", raw: true },
             ].map((stat) => (
               <div key={stat.label} className="rounded-lg bg-muted/20 border border-border/40 p-3">
                 <div className={`text-lg font-bold font-mono ${stat.color}`}>

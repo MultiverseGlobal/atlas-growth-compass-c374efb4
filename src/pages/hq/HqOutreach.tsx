@@ -18,6 +18,7 @@ interface Lead {
   company: string; 
   website: string | null; 
   research_data: any; 
+  outreach_draft?: string;
   founder?: { name?: string; email?: string; role?: string };
 }
 
@@ -101,7 +102,7 @@ export default function HqOutreach() {
     if (user) {
       try {
         const [leadsRes, outRes] = await Promise.all([
-          supabase.from("kuro_pipeline_view" as any).select("id, company, website, research_data").eq("user_id", user.id).order("company"),
+          supabase.from("kuro_pipeline_view" as any).select("id, company, website, research_data, outreach_draft").eq("user_id", user.id).order("company"),
           supabase.from("outreach_messages" as any).select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         ]);
         if (!leadsRes.error && leadsRes.data) leadsData = leadsRes.data;
@@ -177,22 +178,28 @@ export default function HqOutreach() {
     const companyName = lead.company || "your team";
     const founderName = lead.founder?.name || "there";
     const bottleneckArea = lead.research_data?.bottleneck?.area || "manual operational bottleneck";
+    const observation = lead.research_data?.bottleneck?.observation || "";
 
     let subject = `${companyName} follow-up: $500 AI Operations Sprint`;
     let body = "";
 
-    if (selectedType === "followup") {
-      subject = `Quick follow up — ${companyName} operations bottleneck`;
-      body = `Hi ${founderName},\n\nFollowing up on my previous note regarding ${companyName}'s ${bottleneckArea}.\n\nTo keep things simple: we run a 5-day AI Operations Sprint for $500. We audit the workflow, automate that single bottleneck in your existing tools, and hand off the deployed system with complete documentation.\n\nWould it be worth a 5-minute call this week to see if we can eliminate this for you?`;
-    } else if (selectedType === "linkedin") {
-      subject = `LinkedIn DM for ${founderName}`;
-      body = `Hey ${founderName} — following up on my note about ${companyName}'s ${bottleneckArea}. Are you still handling that manually, or open to seeing a 2-minute breakdown of how we automate it for $500 in 5 days?`;
-    } else if (selectedType === "loom") {
-      subject = `2-Minute Teardown for ${companyName}`;
-      body = `Hi ${founderName},\n\nI recorded a 2-minute Loom teardown walking through how we would automate ${companyName}'s ${bottleneckArea} in 5 days for $500.\n\nShould I send the link over?`;
+    if (lead.outreach_draft && selectedType !== "linkedin" && selectedType !== "loom") {
+       subject = `Quick question on ${companyName}'s operations`;
+       body = lead.outreach_draft;
     } else {
-      subject = `${companyName} operational bottleneck automation`;
-      body = `Hi ${founderName},\n\nNoticed ${companyName}'s rapid growth. Most scaling teams run into a major bottleneck around ${bottleneckArea}.\n\nWe offer an AI Operations Sprint ($500 / 5 days): we audit your workflow, automate that single high-leverage bottleneck, and deploy the working system with docs.\n\nOpen to seeing a quick breakdown?`;
+      if (selectedType === "followup") {
+        subject = `Quick follow up — ${companyName} operations bottleneck`;
+        body = `Hi ${founderName},\n\nFollowing up on my previous note regarding ${companyName}'s ${bottleneckArea}.\n\nTo keep things simple: we run a 5-day AI Operations Sprint for $500. We audit the workflow, automate that single bottleneck in your existing tools, and hand off the deployed system with complete documentation.\n\nWould it be worth a 5-minute call this week to see if we can eliminate this for you?`;
+      } else if (selectedType === "linkedin") {
+        subject = `LinkedIn DM for ${founderName}`;
+        body = `Hey ${founderName} — following up on my note about ${companyName}'s ${bottleneckArea}. Are you still handling that manually, or open to seeing a 2-minute breakdown of how we automate it for $500 in 5 days?`;
+      } else if (selectedType === "loom") {
+        subject = `2-Minute Teardown for ${companyName}`;
+        body = `Hi ${founderName},\n\nI recorded a 2-minute Loom teardown walking through how we would automate ${companyName}'s ${bottleneckArea} in 5 days for $500.\n\nShould I send the link over?`;
+      } else {
+        subject = `${companyName} operational bottleneck automation`;
+        body = `Hi ${founderName},\n\nNoticed ${companyName}'s rapid growth. Most scaling teams run into a major bottleneck around ${bottleneckArea}. ${observation}\n\nWe offer an AI Operations Sprint ($500 / 5 days): we audit your workflow, automate that single high-leverage bottleneck, and deploy the working system with docs.\n\nOpen to seeing a quick breakdown?`;
+      }
     }
 
     setGenerated({ subject, body });

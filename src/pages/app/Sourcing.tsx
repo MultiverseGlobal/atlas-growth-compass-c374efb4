@@ -153,13 +153,16 @@ export default function Sourcing() {
   const [reanalyzingLeadId, setReanalyzingLeadId] = useState<string | null>(null);
 
   // Sourcing mode state
-  const [sourcingMode, setSourcingMode] = useState<"agency_500" | "url" | "text" | "hn" | "starter_story" | "yc">("agency_500");
+  const [sourcingMode, setSourcingMode] = useState<"agency_500" | "url" | "text" | "hn" | "starter_story" | "yc" | "clutch" | "upwork">("agency_500");
   const [rawTextInput, setRawTextInput] = useState("");
   const [hnQueryType, setHnQueryType] = useState("Show HN");
   const [hnCustomQuery, setHnCustomQuery] = useState("");
   const [hnTimeRange, setHnTimeRange] = useState("past_week");
   const [ycFilter, setYcFilter] = useState("recent");
   const [ycIndustry, setYcIndustry] = useState("");
+  const [clutchIndustry, setClutchIndustry] = useState("");
+  const [clutchLocation, setClutchLocation] = useState("");
+  const [upworkKeyword, setUpworkKeyword] = useState("");
 
   // ── Deep Handoff Functions (Phase 3 Ecosystem) ────────────────────────────
   const handleLoad500Agencies = async () => {
@@ -313,6 +316,8 @@ export default function Sourcing() {
 
     const isUrlMode = sourcingMode === "url";
     const isHnMode = sourcingMode === "hn";
+    const isClutchMode = sourcingMode === "clutch";
+    const isUpworkMode = sourcingMode === "upwork";
 
     // ── HACKER NEWS MODE ─────────────────────────────────────────────
     if (isHnMode) {
@@ -2354,6 +2359,10 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                       <optgroup label="Sovereign Sprints">
                         <option value="agency_500">🏢 $500 AI Ops Agency Pipeline (500 Leads)</option>
                       </optgroup>
+                      <optgroup label="Agency Directories">
+                        <option value="clutch">🔵 Clutch Directory</option>
+                        <option value="upwork">🟢 Upwork Agencies</option>
+                      </optgroup>
                       <optgroup label="Automated Directories">
                         <option value="hn">📰 Hacker News (Show HN)</option>
                         <option value="starter_story">🚀 Starter Story</option>
@@ -2532,12 +2541,65 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                         </div>
                       )}
 
+                      {/* ── CLUTCH DIRECTORY MODE ── */}
+                      {sourcingMode === "clutch" && (
+                        <div className="flex flex-col gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground">Industry Niche</label>
+                            <Input
+                              placeholder="e.g. SEO, Web Design, PPC"
+                              value={clutchIndustry}
+                              onChange={(e) => setClutchIndustry(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground">Location (optional)</label>
+                            <Input
+                              placeholder="e.g. London, Austin, Remote"
+                              value={clutchLocation}
+                              onChange={(e) => setClutchLocation(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="rounded-md border border-blue-500/20 bg-blue-500/[0.04] p-2 flex gap-1.5 items-start">
+                            <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-muted-foreground leading-normal">
+                              Scrapes Clutch using DuckDuckGo HTML bypass. Targets agencies with 5-30 employees.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── UPWORK MODE ── */}
+                      {sourcingMode === "upwork" && (
+                        <div className="flex flex-col gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground">Keyword Search</label>
+                            <Input
+                              placeholder="e.g. Digital Marketing Agency"
+                              value={upworkKeyword}
+                              onChange={(e) => setUpworkKeyword(e.target.value)}
+                              className="h-8 text-xs"
+                              required={sourcingMode === "upwork"}
+                            />
+                          </div>
+                          <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] p-2 flex gap-1.5 items-start">
+                            <Info className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-muted-foreground leading-normal">
+                              Extracts active Upwork agencies and drafts automation proposals for them.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       <Button 
                         type="submit"
                         disabled={
                           sourcing || 
                           (sourcingMode === "url" ? !urlsInput.trim() :
                            sourcingMode === "text" ? !rawTextInput.trim() :
+                           sourcingMode === "upwork" ? !upworkKeyword.trim() :
                            sourcingMode === "hn" && hnQueryType === "custom" ? !hnCustomQuery.trim() : false)
                         }
                         className="h-9 gap-1.5 font-medium w-full"
@@ -2547,6 +2609,8 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                         ) : (
                           sourcingMode === "agency_500" ? <><ArrowRight className="h-3.5 w-3.5" /> Load 500 Agency Prospects</> :
                           sourcingMode === "hn" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from Hacker News</> :
+                          sourcingMode === "clutch" ? <><ArrowRight className="h-3.5 w-3.5" /> Extract from Clutch</> :
+                          sourcingMode === "upwork" ? <><ArrowRight className="h-3.5 w-3.5" /> Extract from Upwork</> :
                           sourcingMode === "starter_story" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from Starter Story</> :
                           sourcingMode === "yc" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from YC Directory</> :
                           sourcingMode === "url" ? (() => {

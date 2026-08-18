@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface SourcingRequest {
-  action: "source" | "bulk-source" | "export-notion" | "list-notion-databases" | "validate-notion-database" | "hn-source" | "starter-story-source" | "yc-source" | "re-analyze" | "generate-outreach" | "generate-report";
+  action: "source" | "bulk-source" | "export-notion" | "list-notion-databases" | "validate-notion-database" | "hn-source" | "starter-story-source" | "yc-source" | "clutch-source" | "upwork-source" | "re-analyze" | "generate-outreach" | "generate-report";
   url?: string;
   urls?: string[];
   raw_text?: string;
@@ -16,7 +16,12 @@ interface SourcingRequest {
   time_range?: string;
   // YC params
   filter?: string;
+  // Clutch & YC params
   industry?: string;
+  // Clutch params
+  location?: string;
+  // Upwork params
+  keyword?: string;
   lead?: {
     id?: string;
     prospect: string;
@@ -1601,6 +1606,108 @@ Return ONLY a valid JSON array:
       } catch (err: any) {
         console.error("YC Sourcing Error:", err.message);
         return new Response(JSON.stringify({ error: "YC sourcing failed: " + err.message }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // ── CLUTCH SOURCE ACTION ──────────────────────────────────────────────
+    if (body.action === "clutch-source") {
+      const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
+
+      const industry = body.industry || "digital marketing";
+      const location = body.location ? ` "${body.location}"` : "";
+      
+      try {
+        // Search DuckDuckGo for Clutch agency profiles matching the criteria
+        const query = `site:clutch.co/profile/ "${industry}"${location} "5 - 49 Employees"`;
+        const snippets = await searchDuckDuckGo(query);
+
+        if (!snippets.trim()) {
+          return new Response(JSON.stringify({ leads: [], rejected: [], total: 0, message: "No agencies found on Clutch matching this criteria." }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const prompt = `${GLOBAL_SYSTEM_PROMPT}\n\nTask: Extract digital agencies from these Clutch search snippets.\n\n${snippets}\n\nReturn an array of JSON objects matching the schema.`;
+
+        let arrayResult: any = [];
+        if (kimiApiKey) {
+          try { arrayResult = await callKimi(prompt, `Snippets:\n${snippets}`, kimiApiKey, true, "moonshot-v1-32k", 8192); } catch (e) { }
+        }
+        if ((!arrayResult || !arrayResult.length) && groqApiKey) {
+          try { arrayResult = await callGroq(prompt, `Snippets:\n${snippets}`, groqApiKey, true); } catch (e) { }
+        }
+        if ((!arrayResult || !arrayResult.length) && nimApiKey) {
+          try { arrayResult = await callNvidiaNim(prompt, `Snippets:\n${snippets}`, nimApiKey, true); } catch (e) { }
+        }
+
+        const filteredLeads: any[] = [];
+        const rejectedLeads: any[] = [];
+        const items = Array.isArray(arrayResult) ? arrayResult : [];
+        for (const item of items) {
+          const evaluation = validateAndEvaluateLead(item, "Clutch Search");
+          if (!evaluation.disqualified) filteredLeads.push(evaluation.evaluatedLead);
+          else rejectedLeads.push({ company: item.company_name || "Unknown", prospect: item.founder_name || "Unknown", reason: evaluation.reason, raw_data: item });
+        }
+
+        return new Response(JSON.stringify({ leads: filteredLeads, rejected: rejectedLeads, total: filteredLeads.length + rejectedLeads.length }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: "Clutch sourcing failed: " + err.message }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // ── UPWORK SOURCE ACTION ──────────────────────────────────────────────
+    if (body.action === "upwork-source") {
+      const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+      const groqApiKey = Deno.env.get("GROQ_API_KEY");
+      const nimApiKey = Deno.env.get("NVIDIA_NIM_API_KEY");
+
+      const keyword = body.keyword || "agency";
+      
+      try {
+        const query = `site:upwork.com/agencies/ "${keyword}"`;
+        const snippets = await searchDuckDuckGo(query);
+
+        if (!snippets.trim()) {
+          return new Response(JSON.stringify({ leads: [], rejected: [], total: 0, message: "No agencies found on Upwork matching this criteria." }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const prompt = `${GLOBAL_SYSTEM_PROMPT}\n\nTask: Extract agencies from these Upwork search snippets.\n\n${snippets}\n\nReturn an array of JSON objects matching the schema.`;
+
+        let arrayResult: any = [];
+        if (kimiApiKey) {
+          try { arrayResult = await callKimi(prompt, `Snippets:\n${snippets}`, kimiApiKey, true, "moonshot-v1-32k", 8192); } catch (e) { }
+        }
+        if ((!arrayResult || !arrayResult.length) && groqApiKey) {
+          try { arrayResult = await callGroq(prompt, `Snippets:\n${snippets}`, groqApiKey, true); } catch (e) { }
+        }
+        if ((!arrayResult || !arrayResult.length) && nimApiKey) {
+          try { arrayResult = await callNvidiaNim(prompt, `Snippets:\n${snippets}`, nimApiKey, true); } catch (e) { }
+        }
+
+        const filteredLeads: any[] = [];
+        const rejectedLeads: any[] = [];
+        const items = Array.isArray(arrayResult) ? arrayResult : [];
+        for (const item of items) {
+          const evaluation = validateAndEvaluateLead(item, "Upwork Search");
+          if (!evaluation.disqualified) filteredLeads.push(evaluation.evaluatedLead);
+          else rejectedLeads.push({ company: item.company_name || "Unknown", prospect: item.founder_name || "Unknown", reason: evaluation.reason, raw_data: item });
+        }
+
+        return new Response(JSON.stringify({ leads: filteredLeads, rejected: rejectedLeads, total: filteredLeads.length + rejectedLeads.length }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: "Upwork sourcing failed: " + err.message }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }

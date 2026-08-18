@@ -6,3 +6,13 @@ additional_redirect_urls = ["http://localhost:5173/onboarding", "http://localhos
 
 [auth.email]
 # enable_confirmations is managed via the Supabase Dashboard → Auth settings
+[functions.step-acquisition]
+enabled = true
+verify_jwt = false
+import_map = "./functions/step-acquisition/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/step-acquisition/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/step-acquisition/*.html" ]

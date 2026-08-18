@@ -1,4 +1,4 @@
-﻿-- Create icp_profiles table for autonomous sourcing & outreach pipeline
+-- Create icp_profiles table for autonomous sourcing & outreach pipeline
 CREATE TABLE IF NOT EXISTS public.icp_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
