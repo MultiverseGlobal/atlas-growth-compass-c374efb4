@@ -52,9 +52,10 @@ const App = () => (
 
             {/* ── Sovereign Acquisition Flow (Single Shell) ────────────── */}
             <Route path="/hq" element={<HqShell />}>
-              <Route index element={<Navigate to="/hq/acquire" replace />} />
+              <Route index element={<Navigate to="/hq/flow" replace />} />
               {/* Step 1: Acquisition Engine */}
-              <Route path="acquire" element={<HqFlow />} />
+              <Route path="flow" element={<HqFlow />} />
+              <Route path="acquire" element={<Navigate to="/hq/flow" replace />} />
               {/* Step 2: ICP & Offer Definition */}
               <Route path="icp" element={<HqICP />} />
               {/* Step 3: Sourcing Machine */}
@@ -72,9 +73,8 @@ const App = () => (
             </Route>
 
             {/* ── Legacy redirects (don't break bookmarks) ─────────────── */}
-            <Route path="/flow" element={<Navigate to="/hq/acquire" replace />} />
-            <Route path="/hq/flow" element={<Navigate to="/hq/acquire" replace />} />
-            <Route path="/hq/dashboard" element={<Navigate to="/hq/acquire" replace />} />
+            <Route path="/flow" element={<Navigate to="/hq/flow" replace />} />
+            <Route path="/hq/dashboard" element={<Navigate to="/hq/flow" replace />} />
             <Route path="/hq/discover" element={<Navigate to="/hq/recon" replace />} />
             <Route path="/hq/team" element={<Navigate to="/hq/settings" replace />} />
             <Route path="/hq/prospects" element={<Navigate to="/hq/leads" replace />} />

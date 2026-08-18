@@ -13,7 +13,7 @@ import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 
 // ─── The 4 Sequential Sovereign Acquisition Steps ─────────────────────────────
 const SEQUENTIAL_STEPS = [
-  { step: "01", to: "/hq/acquire",  label: "Acquisition", icon: Radio,         desc: "Daily stateful acquisition engine" },
+  { step: "01", to: "/hq/flow",     label: "Acquisition", icon: Radio,         desc: "Daily stateful acquisition engine" },
   { step: "02", to: "/hq/icp",      label: "ICP & Offer", icon: Crosshair,     desc: "Define target thesis & pain engine" },
   { step: "03", to: "/hq/leads",    label: "Leads",       icon: Database,      desc: "Qualified prospect intelligence" },
   { step: "04", to: "/hq/pipeline", label: "Pipeline",    icon: BarChart2,     desc: "Stage velocity & deal Kanban" },
@@ -77,7 +77,7 @@ export default function HqShell() {
       <header className="sticky top-0 z-40 w-full h-16 border-b border-border bg-background/85 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between gap-4">
         {/* Left: Brand Identity */}
         <div className="flex items-center gap-3 shrink-0">
-          <NavLink to="/hq/icp" className="flex items-center gap-2.5 group">
+          <NavLink to="/hq/flow" className="flex items-center gap-2.5 group">
             <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
               <LogoMark size={20} className="text-primary" />
             </div>
