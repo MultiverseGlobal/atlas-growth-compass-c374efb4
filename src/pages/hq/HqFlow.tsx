@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Play, Pause, Square, CheckCircle2,
   Send, AlertTriangle, Activity, Check,
-  ChevronRight, Sparkles, User, Info, Building
+  ChevronRight, Sparkles, User, Info, Building, Copy
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -444,7 +444,7 @@ export default function HqFlow() {
 
                   <div className="flex gap-2">
                     <Button className="flex-1 gap-2" onClick={approveLead}>
-                      <Send className="w-4 h-4" /> Send
+                      <Copy className="w-4 h-4" /> Copy & Next
                     </Button>
                     <Button variant="ghost" onClick={rejectLead}>Skip</Button>
                   </div>
