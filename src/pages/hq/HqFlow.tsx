@@ -143,13 +143,23 @@ export default function HqFlow() {
     }
   };
 
+  const isProcessing = useRef(false);
+
   const startPolling = () => {
-    clearInterval(pollInterval.current);
-    pollInterval.current = setInterval(async () => {
-      const currentRun = activeRunRef.current;
-      if (!currentRun || currentRun.status !== "running") return;
+    if (pollInterval.current) return;
+    
+    const tick = async () => {
+      if (isProcessing.current) return;
+      isProcessing.current = true;
       
       try {
+        const { data: currentRun } = await supabase.from("acquisition_runs").select("*").order("created_at", { ascending: false }).limit(1).single();
+        
+        if (!currentRun || currentRun.status !== "running") {
+          isProcessing.current = false;
+          return;
+        }
+        
         const { data, error } = await supabase.functions.invoke("step-acquisition", {
           body: { run_id: currentRun.id }
         });
@@ -160,26 +170,34 @@ export default function HqFlow() {
           addLog(data.message, data.message.toLowerCase().includes("sent") ? "success" : "info");
         }
         
-        fetchActiveRun();
+        await fetchActiveRun();
       } catch (e: any) {
         addLog(`Error: ${e.message}`, "error");
+      } finally {
+        isProcessing.current = false;
       }
-    }, 10000); // Poll every 10 seconds to step the acquisition loop
+    };
+
+    // Fire immediately, then set interval
+    tick();
+    pollInterval.current = setInterval(tick, 10000);
   };
 
   useEffect(() => {
     if (activeRun && activeRun.status === "running" && !pollInterval.current) {
       startPolling();
-    } else if (activeRun?.status !== "running") {
+    } else if (activeRun?.status !== "running" && pollInterval.current) {
       clearInterval(pollInterval.current);
       pollInterval.current = null;
     }
 
     return () => {
-      // Don't clear on every render, only on unmount, but we don't have a strict unmount hook here.
-      // Actually, since pollInterval is a ref, it's fine.
+      if (pollInterval.current) {
+        clearInterval(pollInterval.current);
+        pollInterval.current = null;
+      }
     };
-  }, [activeRun]);
+  }, [activeRun?.status]);
 
   const getDraftDetails = (lead: any) => {
     let subject = `Quick question regarding ${lead.company}`;
