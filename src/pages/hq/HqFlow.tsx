@@ -147,7 +147,9 @@ export default function HqFlow() {
           body: { run_id: activeRun.id }
         });
         
-        if (data && data.message) {
+        if (error) {
+          addLog(`Edge Function Error: ${error.message}`, "error");
+        } else if (data && data.message) {
           addLog(data.message, data.message.toLowerCase().includes("sent") ? "success" : "info");
         }
         
