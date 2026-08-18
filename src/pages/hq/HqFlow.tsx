@@ -23,6 +23,12 @@ export default function HqFlow() {
   const [pendingLead, setPendingLead] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Use a ref for activeRun to avoid stale closures in setInterval
+  const activeRunRef = useRef<any>(null);
+  useEffect(() => {
+    activeRunRef.current = activeRun;
+  }, [activeRun]);
+
   // Poll interval reference
   const pollInterval = useRef<any>(null);
 
@@ -140,11 +146,12 @@ export default function HqFlow() {
   const startPolling = () => {
     clearInterval(pollInterval.current);
     pollInterval.current = setInterval(async () => {
-      if (!activeRun || activeRun.status !== "running") return;
+      const currentRun = activeRunRef.current;
+      if (!currentRun || currentRun.status !== "running") return;
       
       try {
         const { data, error } = await supabase.functions.invoke("step-acquisition", {
-          body: { run_id: activeRun.id }
+          body: { run_id: currentRun.id }
         });
         
         if (error) {
