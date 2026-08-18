@@ -153,13 +153,52 @@ export default function Sourcing() {
   const [reanalyzingLeadId, setReanalyzingLeadId] = useState<string | null>(null);
 
   // Sourcing mode state
-  const [sourcingMode, setSourcingMode] = useState<"url" | "text" | "hn" | "starter_story" | "yc">("hn");
+  const [sourcingMode, setSourcingMode] = useState<"agency_500" | "url" | "text" | "hn" | "starter_story" | "yc">("agency_500");
   const [rawTextInput, setRawTextInput] = useState("");
   const [hnQueryType, setHnQueryType] = useState("Show HN");
   const [hnCustomQuery, setHnCustomQuery] = useState("");
   const [hnTimeRange, setHnTimeRange] = useState("past_week");
   const [ycFilter, setYcFilter] = useState("recent");
   const [ycIndustry, setYcIndustry] = useState("");
+
+  // ── Deep Handoff Functions (Phase 3 Ecosystem) ────────────────────────────
+  const handleLoad500Agencies = async () => {
+    try {
+      const resp = await fetch("/data/agency_500_sprint_pipeline.json");
+      const data: Lead[] = await resp.json();
+      const existingNames = new Set(leads.map(l => l.company.toLowerCase()));
+      const freshLeads = data.filter(l => !existingNames.has(l.company.toLowerCase()));
+      
+      setLeads(prev => [...freshLeads, ...prev]);
+      toast.success(`⚡ Loaded ${freshLeads.length} Agency Prospects for $500 AI Ops Sprint!`);
+    } catch (err: any) {
+      toast.error("Failed to load 500 Agency Dataset: " + err.message);
+    }
+  };
+
+  const handleSendToClario = (lead: Lead) => {
+    const pitch = lead.draft_message || lead.notes || `Hey ${lead.prospect}, saw what ${lead.company} is doing...`;
+    const clarioUrl = `http://localhost:5174/?script=${encodeURIComponent(pitch)}&mode=video&name=${encodeURIComponent(lead.company + " - Pitch")}`;
+    window.open(clarioUrl, "_blank");
+    toast.success(`🎬 Opened in Clario Studio: ${lead.company}`);
+  };
+
+  const handleExecuteInWilliam = (lead: Lead) => {
+    const task = {
+      id: lead.id,
+      title: `Outreach to ${lead.prospect} (${lead.company})`,
+      action: `Send $500 AI Ops Sprint pitch via LinkedIn/Email. Pitch: ${lead.draft_message}`,
+      priority: lead.priority || "P1",
+      channel: lead.contact_channel || "LinkedIn",
+      timestamp: new Date().toISOString()
+    };
+    const existing = JSON.parse(localStorage.getItem("william_focus_queue") || "[]");
+    localStorage.setItem("william_focus_queue", JSON.stringify([task, ...existing.filter((t: any) => t.id !== lead.id)]));
+    if (lead.draft_message) {
+      navigator.clipboard.writeText(lead.draft_message);
+    }
+    toast.success(`⚡ Queued in William Focus Tasks & Copied Pitch!`);
+  };
 
   // Preview & Organize Staging Flow state
   const [previewLead, setPreviewLead] = useState<Partial<Lead> | null>(null);
@@ -266,6 +305,11 @@ export default function Sourcing() {
   // Sourcing pipeline execution
   const handleSource = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (sourcingMode === "agency_500") {
+      await handleLoad500Agencies();
+      return;
+    }
 
     const isUrlMode = sourcingMode === "url";
     const isHnMode = sourcingMode === "hn";
@@ -1798,6 +1842,25 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                   <Button 
                     variant="outline" 
                     size="sm" 
+                    onClick={() => handleSendToClario(activeSplitLead)}
+                    className="text-xs text-primary hover:bg-primary/10 border-primary/30 gap-1.5 font-medium"
+                    title="Send pitch to Clario Studio for video/carousel creation"
+                  >
+                    ✦ Send to Clario
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleExecuteInWilliam(activeSplitLead)}
+                    className="text-xs text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/30 gap-1.5 font-medium"
+                    title="Queue action task in William Execution Engine"
+                  >
+                    ⚡ Execute in William
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
                     onClick={() => handleReanalyzeLead(activeSplitLead)}
                     disabled={reanalyzingLeadId === activeSplitLead.id}
                     className="text-xs text-amber-500 hover:bg-amber-500/15 border-border hover:border-amber-500/30 gap-1.5 disabled:opacity-40"
@@ -2200,6 +2263,14 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
               <Button
                 variant="outline"
                 size="sm"
+                onClick={handleLoad500Agencies}
+                className="text-xs h-8 gap-1.5 bg-emerald-500/10 text-emerald-600 border-emerald-500/25 hover:bg-emerald-500/20 font-semibold"
+              >
+                ✦ Load 500 Agency Prospects
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={downloadCSV}
                 className="text-xs h-8 gap-1.5"
                 disabled={leads.length === 0}
@@ -2213,6 +2284,18 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
               >
                 <Plus className="h-3.5 w-3.5" /> Add Lead
               </Button>
+            </div>
+          </div>
+
+          {/* ── Metaphor Context Live Briefing Banner ── */}
+          <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-primary font-bold text-xs">🧠 Metaphor Context:</span>
+              <span className="text-xs font-medium text-foreground">$500 AI Operations Sprint (5–30 Headcount Digital Agencies)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground font-mono">Cognitive Pipeline: Metaphor ⇄ Atlas ⇄ William ⇄ Clario</span>
+              <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-mono">LIVE</Badge>
             </div>
           </div>
 
@@ -2268,6 +2351,9 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                       onChange={(e) => setSourcingMode(e.target.value as any)}
                       className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
+                      <optgroup label="Sovereign Sprints">
+                        <option value="agency_500">🏢 $500 AI Ops Agency Pipeline (500 Leads)</option>
+                      </optgroup>
                       <optgroup label="Automated Directories">
                         <option value="hn">📰 Hacker News (Show HN)</option>
                         <option value="starter_story">🚀 Starter Story</option>
@@ -2282,6 +2368,24 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
 
                   <div className="p-4">
                     <form onSubmit={handleSource} className="flex flex-col gap-3">
+
+                      {/* ── AGENCY 500 SPRINT MODE ── */}
+                      {sourcingMode === "agency_500" && (
+                        <div className="flex flex-col gap-2">
+                          <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] p-3 space-y-1.5">
+                            <p className="text-[11px] font-semibold text-emerald-600">🏢 $500 AI Ops Agency Pipeline</p>
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                              500 pre-scored digital, web, and marketing agencies (5–30 headcount) tagged with operational triggers and personalized pitches.
+                            </p>
+                          </div>
+                          <div className="rounded-md border border-primary/15 bg-primary/[0.02] p-2 flex gap-1.5 items-start">
+                            <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-muted-foreground leading-normal">
+                              Loads all 500 prospects into your board with 1-click Clario and William handoff actions.
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* ── URL MODE ── */}
                       {sourcingMode === "url" && (
@@ -2441,6 +2545,7 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                         {sourcing ? (
                           <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {bulkProgress ? `Processing ${bulkProgress.current}/${bulkProgress.total}...` : "Analyzing..."}</>
                         ) : (
+                          sourcingMode === "agency_500" ? <><ArrowRight className="h-3.5 w-3.5" /> Load 500 Agency Prospects</> :
                           sourcingMode === "hn" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from Hacker News</> :
                           sourcingMode === "starter_story" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from Starter Story</> :
                           sourcingMode === "yc" ? <><ArrowRight className="h-3.5 w-3.5" /> Pull from YC Directory</> :
