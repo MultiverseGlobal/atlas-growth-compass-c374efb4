@@ -24,28 +24,31 @@ interface Deal {
 }
 
 const STAGES: { key: string; label: string; color: string }[] = [
-  { key: "contacted",     label: "Contacted",     color: "text-muted-foreground" },
-  { key: "interested",    label: "Interested",     color: "text-amber-400" },
-  { key: "call_booked",   label: "Call Booked",    color: "text-blue-400" },
-  { key: "proposal_sent", label: "Proposal Sent",  color: "text-purple-400" },
+  { key: "contacted",     label: "Contacted",      color: "text-muted-foreground" },
+  { key: "replied",       label: "Replied",        color: "text-amber-400" },
+  { key: "discovery",     label: "Discovery",      color: "text-blue-400" },
+  { key: "proposal",      label: "Proposal",       color: "text-purple-400" },
+  { key: "negotiation",   label: "Negotiation",    color: "text-rose-400" },
   { key: "won",           label: "Won ✓",          color: "text-emerald-400" },
   { key: "lost",          label: "Lost",           color: "text-red-400" },
 ];
 
 const STAGE_BORDER: Record<string, string> = {
   contacted:     "border-border/60",
-  interested:    "border-amber-500/30",
-  call_booked:   "border-blue-500/30",
-  proposal_sent: "border-purple-500/30",
+  replied:       "border-amber-500/30",
+  discovery:     "border-blue-500/30",
+  proposal:      "border-purple-500/30",
+  negotiation:   "border-rose-500/30",
   won:           "border-emerald-500/30",
   lost:          "border-red-500/20",
 };
 
 const STAGE_BG: Record<string, string> = {
   contacted:     "",
-  interested:    "bg-amber-500/3",
-  call_booked:   "bg-blue-500/3",
-  proposal_sent: "bg-purple-500/3",
+  replied:       "bg-amber-500/3",
+  discovery:     "bg-blue-500/3",
+  proposal:      "bg-purple-500/3",
+  negotiation:   "bg-rose-500/3",
   won:           "bg-emerald-500/5",
   lost:          "bg-red-500/3",
 };

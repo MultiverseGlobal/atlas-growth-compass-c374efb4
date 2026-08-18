@@ -382,85 +382,91 @@ export default function HqLeads() {
             )}
           </div>
         ) : (
-          <div className="rounded-xl border border-border/60 overflow-hidden">
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-4 py-2.5 bg-muted/20 border-b border-border/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              <span>Company</span>
-              <span className="hidden sm:block">Stage</span>
-              <span className="hidden md:block">ICP Score</span>
-              <span className="hidden lg:block">Added</span>
-              <span>Actions</span>
-            </div>
-            {/* Rows */}
-            <div className="divide-y divide-border/30">
-              {filtered.map((lead) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((lead) => {
+              const hypothesis = lead.has_research 
+                ? (typeof lead.research_data === 'string' 
+                    ? lead.research_data 
+                    : lead.research_data.bottleneck?.hypothesis || "Identifying operational bottlenecks...")
+                : "Awaiting research.";
+
+              return (
                 <div
                   key={lead.id}
                   onClick={() => navigate(`/hq/leads/${lead.id}`)}
-                  className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-4 py-3 hover:bg-muted/20 cursor-pointer transition-colors group items-center"
+                  className="bg-card border border-border/60 hover:border-primary/40 rounded-xl p-5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 cursor-pointer group flex flex-col h-full relative overflow-hidden"
                 >
-                  {/* Company */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-8 w-8 rounded-lg bg-muted/40 border border-border/40 flex items-center justify-center shrink-0">
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{lead.company}</div>
-                      {lead.website && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Globe className="h-2.5 w-2.5" />
-                          <span className="truncate">{lead.website.replace(/^https?:\/\//, "")}</span>
-                        </div>
-                      )}
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  
+                  <div className="flex justify-between items-start mb-4 relative z-10">
+                    <div>
+                      <h3 className="font-display font-bold text-lg group-hover:text-primary transition-colors">{lead.company}</h3>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                        <Globe className="h-3 w-3" />
+                        <span className="truncate max-w-[180px]">{lead.website ? lead.website.replace(/^https?:\/\//, "") : "Unknown location"}</span>
+                      </div>
                     </div>
                     {lead.has_research && (
-                      <div className="shrink-0 h-5 w-5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center" title="Research available">
-                        <Brain className="h-2.5 w-2.5 text-primary" />
+                      <div className="shrink-0 h-6 w-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center" title="Research available">
+                        <Brain className="h-3 w-3 text-primary" />
                       </div>
                     )}
                   </div>
-                  {/* Stage */}
-                  <div className="hidden sm:flex">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${stageBadge(lead.stage)}`}>
-                      {stageLabel(lead.stage)}
-                    </span>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4 relative z-10">
+                    <div className="bg-secondary/40 rounded-lg p-3">
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground">ICP FIT</span>
+                      <div className="text-lg font-mono font-bold mt-0.5">{lead.icp_score ?? "--"}</div>
+                    </div>
+                    <div className="bg-secondary/40 rounded-lg p-3">
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground">OPP. SCORE</span>
+                      <div className="text-lg font-mono font-bold mt-0.5">{(lead as any).opportunity_score ?? "--"}</div>
+                    </div>
                   </div>
-                  {/* ICP Score */}
-                  <div className="hidden md:flex">
-                    <IcpDot score={lead.icp_score ?? 5} />
+
+                  <div className="flex-1 relative z-10">
+                    <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Pain Hypothesis</span>
+                    <p className="text-sm mt-1.5 text-foreground/80 line-clamp-3">
+                      {hypothesis}
+                    </p>
                   </div>
-                  {/* Added */}
-                  <div className="hidden lg:block text-xs text-muted-foreground font-mono">
-                    {formatDistanceToNow(new Date(lead.created_at), { addSuffix: true })}
-                  </div>
-                  {/* Actions */}
-                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => handleResearch(lead, e)}
-                      disabled={researchingId === lead.id}
-                      className="h-7 px-2 border-border/50 hover:border-primary/50 hover:text-primary text-xs gap-1"
-                      title={lead.website ? "Research this company" : "Add website to research"}
-                    >
-                      {researchingId === lead.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Brain className="h-3 w-3" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate(`/hq/leads/${lead.id}`)}
-                      className="h-7 w-7 p-0"
-                    >
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
+
+                  <div className="mt-5 pt-4 border-t border-border/40 flex items-center justify-between relative z-10">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground mb-1">STATUS</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${stageBadge(lead.stage)} w-fit uppercase tracking-wider`}>
+                        {stageLabel(lead.stage)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => handleResearch(lead, e)}
+                        disabled={researchingId === lead.id}
+                        className="h-8 w-8 p-0 border-border/50 hover:border-primary/50 hover:text-primary transition-colors"
+                        title={lead.website ? "Research this company" : "Add website to research"}
+                      >
+                        {researchingId === lead.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Brain className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/hq/leads/${lead.id}`)}
+                        className="h-8 w-8 p-0 group-hover:translate-x-1 transition-transform"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
       </div>
