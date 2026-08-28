@@ -1,0 +1,224 @@
+import { useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useLocation } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { friendlyError } from "@/lib/errors";
+
+export type IntegrationRow = {
+  id: string;
+  provider: "github" | "stripe" | "notion" | "slack" | "google" | "metaphor";
+  status: "active" | "error" | "disconnected" | "syncing";
+  external_account_label: string | null;
+  last_sync_at: string | null;
+  settings?: any;
+};
+
+export function useIntegrations() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const location = useLocation();
+
+  // ── Handle OAuth return: ?connected=<provider> or ?oauth_error=<msg> ───────
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const connected = params.get("connected");
+    const oauthError = params.get("oauth_error");
+
+    if (connected) {
+      const name = connected.charAt(0).toUpperCase() + connected.slice(1);
+      toast.success(`${name} connected successfully! 🎉`);
+      qc.invalidateQueries({ queryKey: ["integrations", user?.id] });
+      // Clean up URL params without full reload
+      window.history.replaceState({}, "", location.pathname);
+    }
+
+    if (oauthError) {
+      const friendlyMessages: Record<string, string> = {
+        invalid_state: "OAuth session expired or invalid. Please try again.",
+        state_expired: "OAuth session expired. Please try again.",
+        provider_mismatch: "OAuth provider mismatch. Please try again.",
+        store_failed: "Failed to save the connection. Please try again.",
+        access_denied: "You cancelled the connection.",
+        missing_params: "OAuth flow was incomplete. Please try again.",
+      };
+      const msg = friendlyMessages[oauthError] ?? `OAuth error: ${oauthError}`;
+      toast.error(msg);
+      window.history.replaceState({}, "", location.pathname);
+    }
+  }, [location.search]);
+
+  // ── Fetch integrations ────────────────────────────────────────────────────
+  const query = useQuery({
+    queryKey: ["integrations", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data: { user: freshUser } } = await supabase.auth.getUser();
+      if (!freshUser) return [];
+
+      // Auto-register GitHub if the user signed in with GitHub OAuth
+      const githubIdentity = freshUser.identities?.find((i) => i.provider === "github");
+      if (githubIdentity) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const providerToken = sessionData.session?.provider_token;
+        if (providerToken) {
+          (supabase as any).rpc("upsert_github_token", {
+            p_token: providerToken,
+            p_scopes: "read:user repo",
+            p_expires_at: null,
+          }).then(({ error }: { error: any }) => {
+            if (error) console.warn("[integrations] upsert_github_token failed:", error.message);
+          });
+        }
+
+        const { data: existing } = await supabase
+          .from("integrations")
+          .select("id")
+          .eq("user_id", freshUser.id)
+          .eq("provider", "github")
+          .maybeSingle();
+
+        if (!existing) {
+          const label = freshUser.user_metadata?.user_name || freshUser.user_metadata?.full_name || "Connected GitHub";
+          await supabase.from("integrations").insert({
+            user_id: freshUser.id,
+            provider: "github",
+            status: "active",
+            external_account_label: label,
+            external_account_id: githubIdentity.id,
+          });
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("integrations")
+        .select("id, provider, status, external_account_label, last_sync_at, settings")
+        .eq("user_id", user.id);
+      if (error) throw error;
+      return (data ?? []) as IntegrationRow[];
+    },
+    enabled: !!user,
+  });
+
+  // ── GitHub OAuth (uses Supabase built-in) ────────────────────────────────
+  const connectGitHub = async (redirectPath?: string) => {
+    const destination = redirectPath ?? "/app/integrations";
+    const callbackUrl = `${window.location.origin}/auth/callback`;
+    try {
+      sessionStorage.setItem("atlas.auth.next", destination);
+    } catch (e) {
+      console.warn("[integrations] failed to set sessionStorage", e);
+    }
+    try {
+      const { error } = await supabase.auth.linkIdentity({
+        provider: "github",
+        options: {
+          scopes: "read:user repo",
+          redirectTo: callbackUrl,
+          queryParams: { prompt: "consent" },
+        },
+      });
+      if (error) {
+        try { sessionStorage.setItem("atlas.auth.next", destination); } catch {}
+        const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+          provider: "github",
+          options: { scopes: "read:user repo", redirectTo: callbackUrl },
+        });
+        if (oauthErr) throw oauthErr;
+      }
+    } catch (err: unknown) {
+      toast.error(friendlyError(err));
+    }
+  };
+
+  // ── Generic OAuth via Edge Function ──────────────────────────────────────
+  const connectViaEdgeFunction = async (provider: "notion" | "slack" | "google") => {
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        `oauth-initiate?provider=${provider}`,
+        { method: "GET" }
+      );
+
+      if (error) {
+        throw new Error(error.message ?? `Failed to initiate ${provider} OAuth`);
+      }
+
+      if (!data?.url) {
+        throw new Error("No OAuth URL returned from server.");
+      }
+
+      // Redirect the user to the provider's OAuth page
+      window.location.href = data.url;
+    } catch (err: unknown) {
+      toast.error(friendlyError(err));
+    }
+  };
+
+  // ── Metaphor OS OAuth ─────────────────────────────────────────────────────
+  const connectMetaphor = () => {
+    const clientId = "atlas";
+    // Uses localhost or vercel URL dynamically
+    const redirectUri = `${window.location.origin}/auth/metaphor/callback`;
+    
+    const isProd = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+    const metaphorBase = isProd 
+      ? "https://metaphor-backend.onrender.com/api/v1/mcp"
+      : "http://localhost:8000/api/v1/mcp";
+      
+    const metaphorAuthUrl = `${metaphorBase}/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+    window.location.href = metaphorAuthUrl;
+  };
+
+  const connectNotion = () => connectViaEdgeFunction("notion");
+  const connectSlack = () => connectViaEdgeFunction("slack");
+  const connectGoogle = () => connectViaEdgeFunction("google");
+
+  // ── Disconnect ────────────────────────────────────────────────────────────
+  const disconnect = useMutation({
+    mutationFn: async (integrationId: string) => {
+      const { data: integration } = await supabase
+        .from("integrations")
+        .select("provider")
+        .eq("id", integrationId)
+        .maybeSingle();
+
+      if (integration?.provider === "github" && user) {
+        const githubIdentity = user.identities?.find((i) => i.provider === "github");
+        if (githubIdentity) {
+          const { error: unlinkError } = await supabase.auth.unlinkIdentity(githubIdentity as any);
+          if (unlinkError) {
+            console.warn("Failed to unlink GitHub identity:", unlinkError.message);
+          }
+        }
+      }
+
+      const { error } = await supabase
+        .from("integrations")
+        .delete()
+        .eq("id", integrationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["integrations", user?.id] });
+      toast.success("Integration disconnected");
+    },
+    onError: (err: Error) => toast.error(friendlyError(err)),
+  });
+
+  const updateSettings = useMutation({
+    mutationFn: async ({ integrationId, settings }: { integrationId: string; settings: any }) => {
+      const { error } = await supabase
+        .from("integrations")
+        .update({ settings })
+        .eq("id", integrationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["integrations", user?.id] });
+    },
+    onError: (err: Error) => toast.error(friendlyError(err)),
+  });
+
+  return { ...query, connectGitHub, connectNotion, connectSlack, connectGoogle, connectMetaphor, disconnect, updateSettings };
+}

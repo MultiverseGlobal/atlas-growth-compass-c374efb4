@@ -1,0 +1,105 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/hooks/useAuth";
+import { useSovereignSync } from "@/hooks/useSovereignSync";
+
+import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
+import MetaphorAuthCallback from "./pages/MetaphorAuthCallback";
+import Onboarding from "./pages/Onboarding";
+import HqShell from "./components/atlas/HqShell";
+import HqFlow from "./pages/hq/HqFlow";
+import HqICP from "./pages/hq/HqICP";
+import HqRecon from "./pages/hq/HqRecon";
+import HqPipeline from "./pages/hq/HqPipeline";
+import HqOutreach from "./pages/hq/HqOutreach";
+import HqLeads from "./pages/hq/HqLeads";
+import HqLeadDetail from "./pages/hq/HqLeadDetail";
+import HqProposal from "./pages/hq/HqProposal";
+import HqReport from "./pages/hq/HqReport";
+import HqSettings from "./pages/hq/HqSettings";
+import HqPartnerships from "./pages/hq/HqPartnerships";
+import HqMediaJobs from "./pages/hq/HqMediaJobs";
+import PublicProfile from "./pages/PublicProfile";
+import Landing from "./pages/Landing";
+import Privacy from "./pages/Privacy";
+import NotFound from "./pages/NotFound";
+
+const SovereignSyncWrapper = ({ children }: { children: React.ReactNode }) => {
+  useSovereignSync();
+  return <>{children}</>;
+};
+
+const queryClient = new QueryClient();
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <SovereignSyncWrapper>
+          <AuthProvider>
+          <Routes>
+            {/* ── Home: Inbound Capture Surface ─────────────────────────── */}
+            <Route path="/" element={<Landing />} />
+
+            {/* ── Auth ─────────────────────────────────────────────────── */}
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/metaphor/callback" element={<MetaphorAuthCallback />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+
+            {/* ── Sovereign Acquisition Flow (Single Shell) ────────────── */}
+            <Route path="/hq" element={<HqShell />}>
+              <Route index element={<Navigate to="/hq/flow" replace />} />
+              {/* Step 1: Acquisition Engine */}
+              <Route path="flow" element={<HqFlow />} />
+              <Route path="acquire" element={<Navigate to="/hq/flow" replace />} />
+              {/* Step 2: ICP & Offer Definition */}
+              <Route path="icp" element={<HqICP />} />
+              {/* Step 3: Sourcing Machine */}
+              <Route path="recon" element={<HqRecon />} />
+              {/* Step 3: Pipeline Flow */}
+              <Route path="pipeline" element={<HqPipeline />} />
+              {/* Step 4: Outreach Studio */}
+              <Route path="outreach" element={<HqOutreach />} />
+              {/* Vault-accessible pages */}
+              <Route path="leads" element={<HqLeads />} />
+              <Route path="leads/:id" element={<HqLeadDetail />} />
+              <Route path="leads/:id/proposal" element={<HqProposal />} />
+              <Route path="report" element={<HqReport />} />
+              <Route path="partnerships" element={<HqPartnerships />} />
+              <Route path="media-jobs" element={<HqMediaJobs />} />
+              <Route path="settings" element={<HqSettings />} />
+            </Route>
+
+            {/* ── Legacy redirects (don't break bookmarks) ─────────────── */}
+            <Route path="/flow" element={<Navigate to="/hq/flow" replace />} />
+            <Route path="/hq/dashboard" element={<Navigate to="/hq/flow" replace />} />
+            <Route path="/hq/discover" element={<Navigate to="/hq/recon" replace />} />
+            <Route path="/hq/team" element={<Navigate to="/hq/settings" replace />} />
+            <Route path="/hq/prospects" element={<Navigate to="/hq/leads" replace />} />
+            <Route path="/hq/proposal" element={<Navigate to="/hq/leads" replace />} />
+            <Route path="/landing" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/start" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/map/starter" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/app" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/app/*" element={<Navigate to="/hq/icp" replace />} />
+
+            {/* ── Public ───────────────────────────────────────────────── */}
+            <Route path="/:handle" element={<PublicProfile />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          </AuthProvider>
+        </SovereignSyncWrapper>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;

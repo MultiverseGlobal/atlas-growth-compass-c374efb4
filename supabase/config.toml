@@ -1,0 +1,51 @@
+project_id = "nfhlpihrqrbiaefmopnq"
+
+[auth]
+enable_signup = true
+additional_redirect_urls = ["http://localhost:5173/onboarding", "http://localhost:5173/app/integrations", "https://atlas-scale.vercel.app/app/integrations", "https://atlas-scale.vercel.app/auth/callback"]
+
+[auth.email]
+# enable_confirmations is managed via the Supabase Dashboard → Auth settings
+[functions.step-acquisition]
+enabled = true
+verify_jwt = false
+import_map = "./functions/step-acquisition/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/step-acquisition/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/step-acquisition/*.html" ]
+
+[functions.send-email]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-email/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/send-email/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/send-email/*.html" ]
+
+[functions.db-debug]
+enabled = true
+verify_jwt = false
+import_map = "./functions/db-debug/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/db-debug/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/db-debug/*.html" ]
+
+[functions.submit-inbound-lead]
+enabled = true
+verify_jwt = false
+import_map = "./functions/submit-inbound-lead/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/submit-inbound-lead/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/submit-inbound-lead/*.html" ]

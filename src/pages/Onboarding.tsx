@@ -1,0 +1,668 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { Logo } from "@/components/atlas/Logo";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ShieldCheck,
+  Globe,
+  Plug,
+  Target,
+  Briefcase,
+  Rocket,
+  Users,
+  Coins,
+  FileText,
+  Layout,
+  Code2,
+  TrendingUp,
+  GitPullRequest,
+  Sparkles,
+  MapPin,
+  ArrowUpRight,
+  Plug
+} from "lucide-react";
+import { loadStarterMap } from "@/lib/starterMap";
+import { useIntegrations } from "@/hooks/useIntegrations";
+import { friendlyError } from "@/lib/errors";
+import { CompassLoader } from "@/pages/app/Home";
+import { getGitHubToken, fetchUserRepos, GitHubRepo } from "@/lib/github";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const FORM_STEPS = ["Profile", "Context", "Data sources", "Outcome"];
+const TOTAL_FORM_STEPS = FORM_STEPS.length;
+const CELEBRATE_STEP = TOTAL_FORM_STEPS; // step index 4 = celebration
+
+const sources = [
+  {
+    id: "github", name: "GitHub", detail: "PRs, issues, releases",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+      </svg>
+    ),
+  },
+  {
+    id: "stripe", name: "Stripe", detail: "Revenue and churn",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+        <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" />
+      </svg>
+    ),
+  },
+  {
+    id: "notion", name: "Notion", detail: "Docs and databases",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+        <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933z" />
+      </svg>
+    ),
+  },
+  {
+    id: "slack", name: "Slack", detail: "Team conversations",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5">
+        <path fill="#E01E5A" d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z"/>
+        <path fill="#36C5F0" d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z"/>
+        <path fill="#2EB67D" d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312z"/>
+        <path fill="#ECB22E" d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
+      </svg>
+    ),
+  },
+  {
+    id: "manual", name: "Manual context", detail: "Notes and file uploads",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+    ),
+  },
+  {
+    id: "metaphor", name: "Metaphor OS", detail: "Core Context Keeper",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8Z"/>
+        <path d="M12 6v6l4 2"/>
+      </svg>
+    ),
+  },
+];
+
+function getRecommendedSources(goalText: string): string[] {
+  const normalized = (goalText || "").toLowerCase();
+  const recommended: string[] = [];
+
+  // Only GitHub and Stripe can be recommended — Notion/Slack/Manual never get the badge
+  if (
+    normalized.includes("customer") ||
+    normalized.includes("user") ||
+    normalized.includes("signup") ||
+    normalized.includes("growth")
+  ) {
+    recommended.push("stripe");
+  }
+
+  if (
+    normalized.includes("ship") ||
+    normalized.includes("build") ||
+    normalized.includes("launch") ||
+    normalized.includes("feature")
+  ) {
+    recommended.push("github");
+  }
+
+  if (
+    normalized.includes("churn") ||
+    normalized.includes("retention") ||
+    normalized.includes("keep")
+  ) {
+    recommended.push("stripe");
+  }
+
+  if (
+    normalized.includes("revenue") ||
+    normalized.includes("mrr") ||
+    normalized.includes("pricing")
+  ) {
+    recommended.push("stripe");
+  }
+
+  return recommended;
+}
+
+const areas = [
+  { id: "engineering", label: "Engineering & Dev", description: "Monitor commit velocity, code review times, and deployment blockers.", icon: <Code2 className="h-4.5 w-4.5" /> },
+  { id: "product", label: "Product & UX", description: "Align milestone deliveries, cycle times, and shipping deadlines.", icon: <Layout className="h-4.5 w-4.5" /> },
+  { id: "marketing", label: "Growth & Sales", description: "Ingest client conversions, sign-ups, and user acquisition funnels.", icon: <TrendingUp className="h-4.5 w-4.5" /> },
+  { id: "operations", label: "Operations & Finance", description: "Audit Stripe MRR checkpoints, team updates, and active contracts.", icon: <Briefcase className="h-4.5 w-4.5" /> },
+];
+
+const constraints = [
+  { id: "velocity", label: "Shipping Velocity", description: "Accelerate feature shipping and reduce development bottlenecks.", icon: <Rocket className="h-4.5 w-4.5" /> },
+  { id: "acquisition", label: "User Acquisition", description: "Improve active sign-up conversions and outbound funnels.", icon: <Users className="h-4.5 w-4.5" /> },
+  { id: "alignment", label: "Team Alignment", description: "Coordinate cross-functional tasks and resolve resource locks.", icon: <GitPullRequest className="h-4.5 w-4.5" /> },
+  { id: "fundraising", label: "Fundraising & MRR", description: "Structure reporting sheets, capture MRR growth, prepare pitches.", icon: <Coins className="h-4.5 w-4.5" /> },
+];
+
+const outcomes = [
+  { id: "weekly", label: "Weekly Advisory Report", description: "A detailed diagnosis of recent signals, constraints, and recommendations.", icon: <FileText className="h-4.5 w-4.5" /> },
+  { id: "investor", label: "Investor Operating Summary", description: "High-level summary of velocity and traction formatted for shareouts.", icon: <ShieldCheck className="h-4.5 w-4.5" /> },
+  { id: "public", label: "Public Progress Page", description: "A shareable roadmap dashboard for customers and stakeholders.", icon: <Globe className="h-4.5 w-4.5" /> },
+  { id: "map", label: "Strategy Roadmapping", description: "Visual map trails tracing goals directly to operational action items.", icon: <Target className="h-4.5 w-4.5" /> },
+];
+
+function generateStarterWaypoints(
+  mapId: string,
+  userId: string,
+  goalStatement: string,
+  area: string,
+  constraint: string
+) {
+  let constraintTitle = "Connect a source to generate a constraint.";
+  let evidenceTitle = "No signals yet.";
+  let moveTitle = "Link GitHub or add a manual note below.";
+
+  if (constraint === "velocity") {
+    constraintTitle = "Engineering throughput is limited by task completion velocity.";
+    evidenceTitle = "GitHub repository connection pending. Baseline velocity is set to starter metrics.";
+    moveTitle = "Connect GitHub to start monitoring automated commit and PR signals.";
+  } else if (constraint === "acquisition") {
+    constraintTitle = "Customer acquisition funnels are undocumented and unmeasured.";
+    evidenceTitle = "Data integration for Stripe and analytics is pending. Manual traction tracking active.";
+    moveTitle = "Submit a manual note detailing your current week-over-week user growth rate.";
+  } else if (constraint === "alignment") {
+    constraintTitle = "Cross-functional dependencies are slowing down release iterations.";
+    evidenceTitle = "Notion and Slack data sources are offline. Strategy alignments are self-reported.";
+    moveTitle = "Document your current active milestone in the timeline view.";
+  } else if (constraint === "fundraising") {
+    constraintTitle = "Operating metrics are not aggregated into standard investor disclosures.";
+    evidenceTitle = "Investor update template initialized. Financial signals require Stripe integration.";
+    moveTitle = "Configure the investor report output in your settings to schedule weekly sends.";
+  }
+
+  return [
+    { map_id: mapId, user_id: userId, kind: "goal" as const, title: goalStatement, confidence: "established" as const, position: 0 },
+    { map_id: mapId, user_id: userId, kind: "constraint" as const, title: constraintTitle, confidence: "emerging" as const, position: 1 },
+    { map_id: mapId, user_id: userId, kind: "evidence" as const, title: evidenceTitle, confidence: "emerging" as const, position: 2 },
+    { map_id: mapId, user_id: userId, kind: "move" as const, title: moveTitle, confidence: "established" as const, position: 3 },
+  ];
+}
+
+// ── Atlas Setup type (from StartMap wizard) ─────────────────────────────────
+type AtlasSetup = {
+  firstName: string;
+  lastName: string;
+  mapName?: string;
+  goal: string;
+  goalCategory: string;
+  integrationIntents: string[];
+};
+
+function readAtlasSetup(): AtlasSetup | null {
+  try {
+    const raw = sessionStorage.getItem("atlas.setup");
+    if (!raw) return null;
+    return JSON.parse(raw) as AtlasSetup;
+  } catch {
+    return null;
+  }
+}
+
+export default function Onboarding() {
+  const { user, loading } = useAuth();
+  const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Detect if user came through the StartMap wizard ──────────────────────
+  const [wizardSetup] = useState<AtlasSetup | null>(() => readAtlasSetup());
+  const [autoCompleting, setAutoCompleting] = useState(false);
+  const [autoCompleteMapId, setAutoCompleteMapId] = useState<string | null>(null);
+  const [showConnect, setShowConnect] = useState(false);
+
+  const { data: integrations = [], connectGitHub, connectMetaphor } = useIntegrations();
+
+  const getInitialStep = () => {
+    const urlStep = searchParams.get("step");
+    if (urlStep) return parseInt(urlStep);
+
+    try {
+      const savedNext = sessionStorage.getItem("atlas.auth.next");
+      if (savedNext) {
+        const savedUrl = new URL(savedNext, window.location.origin);
+        const savedStep = savedUrl.searchParams.get("step");
+        if (savedStep) {
+          sessionStorage.removeItem("atlas.auth.next");
+          return parseInt(savedStep);
+        }
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    return 0;
+  };
+
+  const [step, setStep] = useState(getInitialStep());
+  const [celebrationProgress, setCelebrationProgress] = useState(0);
+  const [handle, setHandle] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [selectedSources, setSelectedSources] = useState<string[]>(["github"]);
+  const [saving, setSaving] = useState(false);
+
+  // Guided context states — pre-filled from wizard if available
+  const starterMap = loadStarterMap();
+  const [goal, setGoal] = useState(wizardSetup?.goal ?? starterMap?.goalStatement ?? "");
+  const [operatingArea, setOperatingArea] = useState(
+    wizardSetup?.goalCategory === "growth" ? "marketing" :
+    wizardSetup?.goalCategory === "fundraising" ? "operations" :
+    wizardSetup?.goalCategory === "engineering" ? "engineering" : "engineering"
+  );
+  const [primaryConstraint, setPrimaryConstraint] = useState(
+    wizardSetup?.goalCategory === "growth" ? "acquisition" :
+    wizardSetup?.goalCategory === "fundraising" ? "fundraising" :
+    wizardSetup?.goalCategory === "engineering" ? "velocity" : "velocity"
+  );
+  const [desiredOutcome, setDesiredOutcome] = useState("weekly");
+
+  const isGitHubConnected = integrations.some(i => i.provider === "github" && i.status === "active");
+
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<string>("");
+  const [loadingRepos, setLoadingRepos] = useState(false);
+
+  useEffect(() => {
+    if (isGitHubConnected) {
+      const loadRepos = async () => {
+        setLoadingRepos(true);
+        try {
+          const token = await getGitHubToken();
+          if (token) {
+            const repoList = await fetchUserRepos(token);
+            setRepos(repoList);
+            if (repoList.length > 0 && !selectedRepo) {
+              setSelectedRepo(repoList[0].full_name);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to load GitHub repos in onboarding:", e);
+        } finally {
+          setLoadingRepos(false);
+        }
+      };
+      loadRepos();
+    }
+  }, [isGitHubConnected]);
+
+  const goToStep = (s: number) => {
+    setStep(s);
+    // Don't push celebration step into URL
+    if (s < TOTAL_FORM_STEPS) {
+      setSearchParams(s > 0 ? { step: String(s) } : {}, { replace: true });
+    }
+  };
+
+  // Sync step state with URL search params changes
+  useEffect(() => {
+    const s = searchParams.get("step");
+    if (s) {
+      const parsed = parseInt(s);
+      if (!isNaN(parsed) && parsed !== step) {
+        setStep(parsed);
+      }
+    } else if (step > 0 && step < TOTAL_FORM_STEPS) {
+      setStep(0);
+    }
+  }, [searchParams]);
+
+  // Ensure URL search params match the step state if initialized from storage
+  useEffect(() => {
+    if (step > 0 && step < TOTAL_FORM_STEPS && searchParams.get("step") !== String(step)) {
+      setSearchParams({ step: String(step) }, { replace: true });
+    }
+  }, [step, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!loading && !user) nav("/auth");
+  }, [user, loading, nav]);
+
+  // If no wizard setup is found, redirect to the new StartMap /start wizard
+  useEffect(() => {
+    if (!loading && user && !wizardSetup) {
+      nav("/start", { replace: true });
+    }
+  }, [loading, user, wizardSetup, nav]);
+
+  // ── Auto-complete: if wizard setup exists, run finish() immediately ────────
+  useEffect(() => {
+    if (loading || !user || !wizardSetup || autoCompleting) return;
+    // Pre-fill display name from wizard
+    const fullName = [wizardSetup.firstName, wizardSetup.lastName].filter(Boolean).join(" ");
+    const derivedHandle = wizardSetup.firstName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20);
+    setDisplayName(fullName || derivedHandle);
+    setHandle(derivedHandle);
+    setAutoCompleting(true);
+    // Small delay so state updates flush before finish() reads them
+    const timer = setTimeout(() => {
+      finishWithSetup(wizardSetup, fullName || derivedHandle, derivedHandle);
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user, wizardSetup]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("handle, display_name")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setHandle(data.handle ?? "");
+        setDisplayName(data.display_name ?? "");
+      });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const cleanHandle = useMemo(() => handle.trim().toLowerCase().replace(/^@/, ""), [handle]);
+  const validHandle = /^[a-z0-9_]{3,20}$/.test(cleanHandle);
+
+  const canContinue =
+    step === 0 ? validHandle :
+    step === 1 ? (goal.trim().length >= 4 && !!operatingArea && !!primaryConstraint) :
+    step === 2 ? true :
+    step === 3 ? !!desiredOutcome : true;
+
+  // Celebration auto-redirect
+  useEffect(() => {
+    if (step !== CELEBRATE_STEP) return;
+    setCelebrationProgress(0);
+    const DURATION = 4200; // ms before redirect
+    const TICK = 50;
+    let elapsed = 0;
+    const timer = setInterval(() => {
+      elapsed += TICK;
+      setCelebrationProgress(Math.min((elapsed / DURATION) * 100, 100));
+      if (elapsed >= DURATION) {
+        clearInterval(timer);
+        nav("/app", { replace: true });
+      }
+    }, TICK);
+    return () => clearInterval(timer);
+  }, [step, nav]);
+
+  const toggleSource = (id: string) => {
+    setSelectedSources((cur) => cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id]);
+  };
+
+  const saveProfileDraft = async () => {
+    if (!user || !validHandle) return false;
+    const { error } = await supabase.from("profiles").upsert({
+      id: user.id,
+      handle: cleanHandle,
+      display_name: displayName.trim() || cleanHandle,
+    }, { onConflict: "id" });
+    if (error) { toast.error(friendlyError(error)); return false; }
+    return true;
+  };
+
+  const next = async () => {
+    if (step === 0) {
+      if (!validHandle) { toast.error("Handle must be 3–20 chars: a-z, 0-9, _"); return; }
+      setSaving(true);
+      const ok = await saveProfileDraft();
+      setSaving(false);
+      if (!ok) return;
+    }
+    if (!canContinue) return;
+    goToStep(Math.min(step + 1, TOTAL_FORM_STEPS - 1));
+  };
+
+  const handleConnectGitHub = async () => {
+    if (step === 2 && validHandle) await saveProfileDraft();
+    connectGitHub("/onboarding?step=2");
+  };
+
+  // ── Core finish logic extracted so wizard auto-complete can call it ────────
+  const finishCore = async (finalGoal: string, cleanH: string, dispName: string, repo: string) => {
+    if (!user) return null;
+    setSaving(true);
+    try {
+      // Save profile: retry with a random suffix if the unique handle constraint fails
+      let profileError = null;
+      let finalHandle = cleanH;
+      
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { error } = await supabase.from("profiles").upsert({
+          id: user.id,
+          handle: finalHandle,
+          display_name: dispName || finalHandle,
+          onboarded_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+
+        if (!error) {
+          profileError = null;
+          break;
+        }
+
+        profileError = error;
+        const msg = error.message?.toLowerCase() || "";
+        if (msg.includes("handle") || msg.includes("unique") || msg.includes("duplicate")) {
+          const suffix = Math.floor(100 + Math.random() * 900);
+          finalHandle = `${cleanH.slice(0, 16)}_${suffix}`;
+        } else {
+          break;
+        }
+      }
+
+      if (profileError) {
+        toast.error(friendlyError(profileError));
+        if (profileError.message?.includes("handle")) setStep(0);
+        setSaving(false);
+        return null;
+      }
+
+      // Insert the map
+      const { data: mapData, error: mapError } = await supabase
+        .from("maps")
+        .insert({
+          user_id: user.id,
+          name: wizardSetup?.mapName?.trim() || finalGoal.slice(0, 80),
+          goal_statement: finalGoal,
+          confidence: "starter",
+          is_published: false,
+        })
+        .select("id")
+        .single();
+
+      if (mapError) {
+        toast.error(friendlyError(mapError));
+        setSaving(false);
+        return null;
+      }
+
+      if (mapData?.id) {
+        const starterWaypoints = generateStarterWaypoints(
+          mapData.id, user.id, finalGoal, operatingArea, primaryConstraint
+        );
+        const { error: wpError } = await supabase.from("waypoints").insert(starterWaypoints);
+        if (wpError) console.warn("[Onboarding] waypoint insert failed:", wpError.message);
+
+        if (isGitHubConnected && repo) {
+          const { error: srcError } = await supabase.from("sources").insert({
+            map_id: mapData.id, user_id: user.id, provider: "github", label: repo,
+          });
+          if (!srcError) {
+            supabase.functions.invoke("sync-github", {
+              body: { action: "sync", map_id: mapData.id, repo_full_name: repo },
+            }).catch(() => {});
+          }
+        }
+      }
+
+      try {
+        localStorage.removeItem("atlas.starter");
+        sessionStorage.removeItem("atlas.setup");
+      } catch { /* non-critical */ }
+
+      setSaving(false);
+      return mapData?.id ?? null;
+    } catch (err: any) {
+      console.error("[finishCore] error during setup:", err);
+      toast.error(err.message || "An unexpected error occurred during map initialization.");
+      setSaving(false);
+      return null;
+    }
+  };
+
+  // ── Wizard fast-track: called automatically when atlas.setup exists ────────
+  const finishWithSetup = async (setup: AtlasSetup, dispName: string, cleanH: string) => {
+    try {
+      const finalGoal = setup.goal || "Grow my business";
+      const mapId = await finishCore(finalGoal, cleanH, dispName, "");
+      if (mapId) {
+        setAutoCompleteMapId(mapId);
+        
+        // If they chose to connect metaphor, pause the flow to let them connect
+        if (setup.integrationIntents?.includes('metaphor')) {
+          setTimeout(() => {
+            setShowConnect(true);
+          }, 2800);
+        } else {
+          // Brief pause to let the "Building" screen render, then go to the map with tour
+          setTimeout(() => {
+            nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
+          }, 2800);
+        }
+      } else {
+        // Fallback: if something went wrong, stop auto-completing and let user complete onboarding manually
+        setAutoCompleting(false);
+        setStep(0);
+      }
+    } catch (err: any) {
+      console.error("[finishWithSetup] error:", err);
+      setAutoCompleting(false);
+      setStep(0);
+    }
+  };
+
+  const finish = async () => {
+    if (!user) return;
+    if (!validHandle) { toast.error("Choose a valid public handle first."); setStep(0); return; }
+    const finalGoal = goal.trim() || (starterMap ? starterMap.goalStatement : "Grow my business");
+    const mapId = await finishCore(finalGoal, cleanHandle, displayName.trim() || cleanHandle, selectedRepo);
+    if (mapId) {
+      goToStep(CELEBRATE_STEP);
+    }
+  };
+
+  if (loading || !user) return <div className="min-h-screen bg-background" />;
+
+  // ─── Wizard fast-track screen (from StartMap wizard) ──────────────────────────
+  if (wizardSetup && autoCompleting) {
+    const steps = [
+      { text: "Creating your profile", done: true },
+      { text: `Goal set: "${(wizardSetup.goal || "").slice(0, 50)}${(wizardSetup.goal || "").length > 50 ? "…" : ""}"`, done: true },
+      { text: "Initialising map waypoints", done: !!autoCompleteMapId },
+      { text: "Launching your map…", done: false },
+    ];
+    return (
+      <div className="min-h-screen bg-background grain flex flex-col items-center justify-center px-6 py-16 relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-[500px] w-[500px] rounded-full bg-primary/8 blur-[120px]" />
+          <div className="absolute bottom-0 right-0 h-[300px] w-[300px] rounded-full bg-primary/5 blur-[100px]" />
+        </div>
+        <div className="relative z-10 flex flex-col items-center text-center max-w-md w-full">
+          {/* Compass */}
+          <div className="relative mb-8">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-24 w-24 rounded-full border border-primary/20 sonar-ring" style={{ animationDelay: "0s" }} />
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-24 w-24 rounded-full border border-primary/15 sonar-ring" style={{ animationDelay: "0.7s" }} />
+            </div>
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 border border-primary/30">
+              <svg className="h-9 w-9 text-primary compass-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" fill="currentColor" fillOpacity="0.25" />
+                <line x1="12" y1="2" x2="12" y2="4" strokeLinecap="round" />
+                <line x1="12" y1="20" x2="12" y2="22" strokeLinecap="round" />
+                <line x1="2" y1="12" x2="4" y2="12" strokeLinecap="round" />
+                <line x1="20" y1="12" x2="22" y2="12" strokeLinecap="round" />
+              </svg>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-widest text-primary mb-4">
+            <Sparkles className="h-3.5 w-3.5" /> Building your map
+          </div>
+          <h1 className="font-display text-4xl font-semibold leading-tight md:text-5xl">
+            Welcome, {wizardSetup.firstName}.
+          </h1>
+          <p className="mt-4 text-sm text-muted-foreground max-w-xs">
+            Your Atlas map is being assembled. You'll land right on it.
+          </p>
+          <div className="mt-8 grid grid-cols-1 gap-2 w-full text-left">
+            {steps.map((item, i) => (
+              <div key={i} className="flex items-center gap-2.5 rounded-lg border border-border/50 bg-card/60 px-3 py-2.5">
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                  item.done ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground/40"
+                }`}>
+                  {item.done ? <Check className="h-3 w-3" /> : <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30 animate-pulse" />}
+                </div>
+                <span className={`text-xs ${item.done ? "text-foreground/80" : "text-muted-foreground/60"}`}>{item.text}</span>
+              </div>
+            ))}
+          </div>
+
+          {showConnect && autoCompleteMapId && (
+            <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex flex-col items-center">
+              <p className="text-sm text-foreground/80 mb-4">
+                You selected <strong>Metaphor OS</strong> during setup. Connect it now to synchronize your cognitive context.
+              </p>
+              <div className="flex flex-col gap-3 w-full max-w-[240px]">
+                <Button 
+                  onClick={() => connectMetaphor(`/app/map/${autoCompleteMapId}?tour=1&focus=1`)}
+                  className="w-full gap-2"
+                >
+                  <Plug className="h-4 w-4" /> Connect Metaphor OS
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => nav(`/app/map/${autoCompleteMapId}?tour=1&focus=1`, { replace: true })}
+                  className="w-full text-muted-foreground hover:text-foreground"
+                >
+                  Skip for now
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback: if no wizard setup exists or if fast-track setup has completed/failed, show a loading spinner
+  // (the redirect effect at the top will automatically send the user to /start)
+  return (
+    <div className="min-h-screen bg-background grain flex items-center justify-center">
+      <CompassLoader />
+    </div>
+  );
+}
