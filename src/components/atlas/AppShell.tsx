@@ -7,6 +7,7 @@ import {
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useHandoffBroadcast } from "@/hooks/useHandoffBroadcast";
+import { useHandoffReceiver } from "@/hooks/useHandoffReceiver";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
@@ -47,6 +48,8 @@ export default function AppShell() {
       });
   }, [user, navigate]);
 
+  const { activeSession } = useHandoffReceiver();
+
   // Global shortcut (Cmd+K) to toggle The Vault
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -69,6 +72,22 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col grain overflow-x-hidden">
+      {/* Magic Handoff Global Overlay */}
+      {activeSession && (
+        <div className="fixed bottom-6 left-6 z-50 flex items-center gap-3 bg-primary/20 backdrop-blur-lg border border-primary/50 text-primary-foreground px-4 py-3 rounded-2xl shadow-lg shadow-primary/20 animate-in slide-in-from-bottom-4 fade-in duration-300">
+          <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+          <div className="flex flex-col">
+            <span className="text-xs font-bold text-primary">Resume from {activeSession.app}</span>
+            <span className="text-[10px] text-primary/80">Available to handoff</span>
+          </div>
+          <button 
+            onClick={() => navigate(activeSession.path + (activeSession.search || ""))}
+            className="ml-2 bg-primary text-primary-foreground text-xs px-3 py-1.5 rounded-lg font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            Open
+          </button>
+        </div>
+      )}
       {/* ── Top Sovereign Process Header ───────────────────────────────────── */}
       <header className="sticky top-0 z-40 w-full h-16 border-b border-border bg-background/85 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between gap-4">
         {/* Brand */}
