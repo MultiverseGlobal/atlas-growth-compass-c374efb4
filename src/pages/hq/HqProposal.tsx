@@ -94,39 +94,7 @@ export default function HqProposal() {
             }
             return;
           }
-          // Fallback to local storage
-          try {
-            const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
-            leadsList = savedLeads.map((l: any) => ({
-              id: l.id,
-              company: l.company,
-              website: l.website,
-              research_data: l,
-              notes: l.bottleneck?.observation || '',
-            }));
-            setLeads(leadsList as Lead[]);
-            if (selectedLeadId) {
-              const found = leadsList.find((l: any) => l.id === selectedLeadId);
-              if (found) setSelectedLead(found as Lead);
-            }
-          } catch {}
         });
-    } else {
-      try {
-        const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
-        leadsList = savedLeads.map((l: any) => ({
-          id: l.id,
-          company: l.company,
-          website: l.website,
-          research_data: l,
-          notes: l.bottleneck?.observation || '',
-        }));
-        setLeads(leadsList as Lead[]);
-        if (selectedLeadId) {
-          const found = leadsList.find((l: any) => l.id === selectedLeadId);
-          if (found) setSelectedLead(found as Lead);
-        }
-      } catch {}
     }
   }, [user, selectedLeadId]);
 

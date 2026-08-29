@@ -82,13 +82,6 @@ export default function HqPipeline() {
       } catch {}
     }
 
-    if (dealsData.length === 0) {
-      try {
-        const savedDeals = JSON.parse(localStorage.getItem("atlas_deals") || "[]");
-        dealsData = savedDeals;
-      } catch {}
-    }
-
     setDeals(
       dealsData.map((d: any) => ({
         ...d,

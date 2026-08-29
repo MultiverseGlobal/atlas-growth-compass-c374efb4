@@ -109,31 +109,6 @@ export default function HqOutreach() {
       } catch {}
     }
 
-    // 2. Fallback / Merge with Local Storage
-    try {
-      const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
-      if (leadsData.length === 0) {
-        leadsData = savedLeads.map((l: any) => ({
-          id: l.id,
-          company: l.company,
-          website: l.website,
-          research_data: l,
-          founder: l.founder,
-        }));
-      }
-
-      const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
-      if (outData.length === 0) {
-        outData = savedOutreach;
-      } else if (savedOutreach.length > 0) {
-        // Merge without duplicates
-        const existingIds = new Set(outData.map(o => o.id));
-        savedOutreach.forEach((so: any) => {
-          if (!existingIds.has(so.id)) outData.push(so);
-        });
-      }
-    } catch {}
-
     setLeads(leadsData as Lead[]);
 
     const companyMap: Record<string, string> = {};
@@ -257,14 +232,6 @@ export default function HqOutreach() {
       follow_up_due: followUpDate.toISOString(),
     };
 
-    // 1. Save to local storage
-    try {
-      const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
-      savedOutreach.unshift(newMsg);
-      localStorage.setItem("atlas_outreach_messages", JSON.stringify(savedOutreach));
-    } catch {}
-
-    // 2. Save to Supabase DB if user logged in
     if (user) {
       try {
         await supabase.from("outreach_messages" as any).insert({
@@ -291,14 +258,6 @@ export default function HqOutreach() {
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     setUpdatingId(id);
 
-    // Update in local storage
-    try {
-      const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
-      const updated = savedOutreach.map((o: any) => o.id === id ? { ...o, status: newStatus } : o);
-      localStorage.setItem("atlas_outreach_messages", JSON.stringify(updated));
-    } catch {}
-
-    // Update in Supabase DB
     if (user) {
       try {
         await supabase.from("outreach_messages" as any).update({ status: newStatus }).eq("id", id);

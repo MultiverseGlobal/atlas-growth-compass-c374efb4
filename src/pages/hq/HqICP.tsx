@@ -189,18 +189,51 @@ export default function HqICP() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
   
-  const [leads, setLeads] = useState<TargetLead[]>(() => {
-    try {
-      const saved = localStorage.getItem("atlas_autonomous_leads");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
+  const [leads, setLeads] = useState<TargetLead[]>([]);
+
+  useEffect(() => {
+    const loadLeadsFromDb = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from("pipeline_crm")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("status", ["pending_decision", "approved"]);
+
+      if (!error && data) {
+        const mapped = data.map(dbLead => ({
+          id: dbLead.id,
+          source: dbLead.source,
+          company: dbLead.company,
+          website: dbLead.website,
+          industry: dbLead.industry,
+          location: dbLead.location,
+          team_size: dbLead.team_size,
+          icp_score: dbLead.icp_score,
+          rating: dbLead.rating,
+          founder: {
+            name: dbLead.prospect,
+            role: "Founder",
+            email: "founder@example.com",
+            linkedin_url: dbLead.linkedin_url,
+          },
+          bottleneck: {
+            area: dbLead.bottleneck_area,
+            observation: dbLead.bottleneck_observation,
+            hypothesis: dbLead.bottleneck_hypothesis || dbLead.founder_thesis,
+          },
+          pitch: {
+            linkedin_dm: dbLead.pitch_linkedin_dm,
+            email_subject: dbLead.pitch_email_subject,
+            email_body: dbLead.pitch_email_body,
+          },
+          status: dbLead.status as any
+        }));
+        setLeads(mapped);
       }
-      return [];
-    } catch {
-      return [];
-    }
-  });
+    };
+    loadLeadsFromDb();
+  }, [user]);
 
   const activeLeads = leads.filter(l => l.status === 'pending_decision');
   const approvedLeads = leads.filter(l => l.status === 'approved');
@@ -367,11 +400,37 @@ export default function HqICP() {
 
     await new Promise(r => setTimeout(r, 600));
 
+    const mappedDbLeads = newLeads.map(l => ({
+      user_id: user?.id,
+      company: l.company,
+      website: l.website,
+      industry: l.industry,
+      location: l.location,
+      team_size: l.team_size,
+      rating: l.rating,
+      prospect: l.founder.name,
+      source: l.source,
+      icp_score: l.icp_score,
+      founder_thesis: l.bottleneck.hypothesis,
+      bottleneck_area: l.bottleneck.area,
+      bottleneck_observation: l.bottleneck.observation,
+      bottleneck_hypothesis: l.bottleneck.hypothesis,
+      pitch_linkedin_dm: l.pitch.linkedin_dm,
+      pitch_email_subject: l.pitch.email_subject,
+      pitch_email_body: l.pitch.email_body,
+      stage: 'Sourced',
+      status: 'pending_decision'
+    }));
+
+    if (user) {
+      await supabase.from("pipeline_crm").insert(mappedDbLeads);
+    }
+
     setLeads(newLeads);
-    localStorage.setItem("atlas_autonomous_leads", JSON.stringify(newLeads));
+    // localStorage.setItem("atlas_autonomous_leads", JSON.stringify(newLeads)); // Removed
     setRunning(false);
     setPipelineStep(0);
-    toast.success(`Autonomous Sourcing Complete: ${newLeads.length} ${selectedChannel.toUpperCase()} Targets Ready for Review`);
+    toast.success(`Autonomous Sourcing Complete: ${newLeads.length} ${selectedChannel.toUpperCase()} Targets Saved to Database`);
   };
 
   const copyLinkedIn = (lead: TargetLead) => {
@@ -381,43 +440,47 @@ export default function HqICP() {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
-  const approveLeadLocally = (lead: TargetLead) => {
+  const approveLeadLocally = async (lead: TargetLead) => {
     setLeads(prev => {
       const next = prev.map(l => l.id === lead.id ? { ...l, status: 'approved' as const } : l);
-      localStorage.setItem("atlas_autonomous_leads", JSON.stringify(next));
+      // localStorage.setItem("atlas_autonomous_leads", JSON.stringify(next)); // Removed
       return next;
     });
 
+    if (!user) return;
+
     try {
-      const savedDeals = JSON.parse(localStorage.getItem("atlas_deals") || "[]");
-      savedDeals.unshift({
-        id: `deal-${lead.id}`,
+      // 1. Update pipeline_crm status
+      await supabase.from("pipeline_crm").update({ status: 'approved', is_contacted: true }).eq('company', lead.company);
+
+      // 2. Create Deal
+      const dealDueDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      await supabase.from("atlas_deals").insert({
+        user_id: user.id,
         company_id: lead.id,
         company_name: lead.company,
         stage: "contacted",
         value: 500,
         probability: 60,
         next_action: "Follow-up in 3 days",
-        next_action_due: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
+        next_action_due: dealDueDate,
       });
-      localStorage.setItem("atlas_deals", JSON.stringify(savedDeals));
 
-      const savedOutreach = JSON.parse(localStorage.getItem("atlas_outreach_messages") || "[]");
-      savedOutreach.unshift({
-        id: `msg-${Date.now()}`,
+      // 3. Create Outreach
+      await supabase.from("atlas_outreach").insert({
+        user_id: user.id,
         company_id: lead.id,
         company_name: lead.company,
         type: "cold_email",
         subject: lead.pitch.email_subject,
         body: lead.pitch.email_body,
         status: "sent",
-        sent_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        follow_up_due: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        follow_up_due: dealDueDate,
       });
-      localStorage.setItem("atlas_outreach_messages", JSON.stringify(savedOutreach));
-    } catch {}
+
+    } catch (err) {
+      console.error("Failed to approve lead in DB:", err);
+    }
   };
 
   const sendViaGmail = (lead: TargetLead) => {
@@ -503,12 +566,17 @@ export default function HqICP() {
     toast.success(`✓ Email sent to ${lead.founder.name}! Deal added to Pipeline.`);
   };
 
-  const dismissLead = (id: string) => {
+  const dismissLead = async (id: string) => {
+    const lead = leads.find(l => l.id === id);
     setLeads(prev => {
       const next = prev.map(l => l.id === id ? { ...l, status: 'dismissed' as const } : l);
-      localStorage.setItem("atlas_autonomous_leads", JSON.stringify(next));
+      // localStorage.setItem("atlas_autonomous_leads", JSON.stringify(next)); // Removed
       return next;
     });
+
+    if (lead && user) {
+      await supabase.from("pipeline_crm").update({ status: 'dismissed' }).eq('company', lead.company);
+    }
     toast.info("Lead archived.");
   };
 
@@ -679,7 +747,7 @@ export default function HqICP() {
                           {lead.company}
                         </span>
                         <Badge variant="outline" className="text-[10px] uppercase font-mono bg-primary/10 text-primary border-primary/20">
-                          {lead.source.toUpperCase()}
+                          {lead.source?.toUpperCase() || 'UNKNOWN'}
                         </Badge>
                         {lead.rating && (
                           <Badge variant="outline" className="text-[10px] font-mono bg-amber-500/10 text-amber-400 border-amber-500/20">

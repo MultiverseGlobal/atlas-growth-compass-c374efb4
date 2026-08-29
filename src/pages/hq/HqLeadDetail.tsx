@@ -168,29 +168,6 @@ export default function HqLeadDetail() {
       } catch {}
     }
 
-    if (!leadData) {
-      try {
-        const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
-        const found = savedLeads.find((l: any) => l.id === id);
-        if (found) {
-          leadData = {
-            id: found.id,
-            company: found.company,
-            website: found.website,
-            stage: found.status === 'approved' ? 'contacted' : 'new',
-            icp_score: found.icp_score || 90,
-            prospect: found.founder?.name || '',
-            linkedin_url: found.founder?.linkedin_url || '',
-            founder_thesis: found.bottleneck?.hypothesis || '',
-            research_data: found,
-            notes: found.bottleneck?.observation || '',
-            is_contacted: found.status === 'approved',
-            acquisition_channel: found.acquisition_channel || 'Outbound',
-            created_at: new Date().toISOString(),
-          };
-        }
-      } catch {}
-    }
 
     setLead(leadData as Lead);
     setInteractions(interactionsData as Interaction[]);

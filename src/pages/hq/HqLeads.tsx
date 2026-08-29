@@ -102,28 +102,6 @@ export default function HqLeads() {
       } catch {}
     }
 
-    if (leadsList.length === 0) {
-      try {
-        const savedLeads = JSON.parse(localStorage.getItem("atlas_autonomous_leads") || "[]");
-        const savedDeals = JSON.parse(localStorage.getItem("atlas_deals") || "[]");
-        const dealsMap: Record<string, any> = {};
-        savedDeals.forEach((d: any) => { dealsMap[d.company_id] = d; });
-
-        leadsList = savedLeads.map((l: any) => ({
-          id: l.id,
-          company: l.company,
-          website: l.website,
-          stage: l.status === 'approved' ? 'contacted' : 'new',
-          icp_score: l.icp_score || 90,
-          is_contacted: l.status === 'approved',
-          source: 'autonomous_sourcing',
-          notes: l.bottleneck?.observation || '',
-          created_at: new Date().toISOString(),
-          research_data: l,
-        }));
-      } catch {}
-    }
-
     const mapped = leadsList.map((l: any) => ({
       ...l,
       has_research: !!l.research_data && Object.keys(l.research_data ?? {}).length > 0,
