@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -66,6 +67,8 @@ function IcpDot({ score }: { score: number }) {
 
 export default function HqLeads() {
   const { user } = useAuth();
+  const { data: integrations = [] } = useIntegrations();
+  const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -166,9 +169,10 @@ export default function HqLeads() {
         }).catch((e) => console.warn("Auto-enrich error:", e));
 
         // Auto-push to Notion if configured
-        const autoNotion = localStorage.getItem("atlas.sourcing.auto_notion") === "true";
-        const defaultDbId = localStorage.getItem("atlas.sourcing.default_notion_db");
-        if (autoNotion && defaultDbId) {
+        if (notionIntegration) {
+          const autoNotion = notionIntegration.settings?.auto_notion === true;
+          const defaultDbId = notionIntegration.settings?.notion_database_id;
+          if (autoNotion && defaultDbId) {
           supabase.functions.invoke("sourcing-machine", {
             body: {
               action: "export-notion",

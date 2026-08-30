@@ -11,13 +11,14 @@ import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
 import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 import { EcosystemSwitcher } from "@/components/atlas/EcosystemSwitcher";
+import { CommandPalette } from "@pseudonyms/ui";
 
 // ── 4-Step Daily Acquisition Workflow ──────────────────────────────────────────
 const SEQUENTIAL_STEPS = [
-  { step: "01", to: "/hq/flow",     label: "Today",    icon: Target,         desc: "Daily acquisition engine — run 20 prospects" },
-  { step: "02", to: "/hq/recon",    label: "Scout",    icon: Search,         desc: "Research a company — AI pain signal extraction" },
-  { step: "03", to: "/hq/outreach", label: "Outreach",  icon: MessageSquare,  desc: "Active sequences — Email, LinkedIn DM, Loom" },
-  { step: "04", to: "/hq/pipeline", label: "Pipeline",  icon: BarChart2,      desc: "Deal Kanban — stage velocity and revenue" },
+  { step: "01", to: "/hq/flow",     label: "Today",    icon: Target,         desc: "Daily acquisition engine — run 20 prospects", badge: null },
+  { step: "02", to: "/hq/recon",    label: "Scout",    icon: Search,         desc: "Research a company — AI pain signal extraction", badge: null },
+  { step: "03", to: "/hq/outreach", label: "Outreach",  icon: MessageSquare,  desc: "Active sequences — Email, LinkedIn DM, Loom", badge: 3 },
+  { step: "04", to: "/hq/pipeline", label: "Pipeline",  icon: BarChart2,      desc: "Deal Kanban — stage velocity and revenue", badge: 2 },
 ];
 
 export default function HqShell() {
@@ -45,17 +46,8 @@ export default function HqShell() {
       });
   }, [user]);
 
-  // Global shortcut (Cmd+K) to toggle The Vault
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setVaultOpen((v) => !v);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  // ⌘K now handled by <CommandPalette /> mounted in JSX — removes duplicate handler
+
 
   if (loading) {
     return (
@@ -106,7 +98,7 @@ export default function HqShell() {
                 )}
                 <NavLink
                   to={s.to}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                     isActive
                       ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
                       : "text-muted-foreground hover:text-foreground hover:bg-background/80"
@@ -118,6 +110,11 @@ export default function HqShell() {
                   </span>
                   <s.icon className="h-3.5 w-3.5 shrink-0" />
                   <span>{s.label}</span>
+                  {s.badge != null && (
+                    <span className="ml-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-primary/20 text-primary text-[9px] font-mono">
+                      {s.badge}
+                    </span>
+                  )}
                 </NavLink>
               </div>
             );
@@ -213,6 +210,23 @@ export default function HqShell() {
 
       {/* ── Atlas AI Chat Drawer ────────────────────────────────────────────── */}
       <AtlasChat open={chatOpen} onClose={() => setChatOpen(false)} />
+
+      {/* ── Command Palette (⌘K) — shared from @pseudonyms/ui ──────────────── */}
+      <CommandPalette
+        currentApp="atlas"
+        extraCommands={[
+          {
+            id: "atlas-actions",
+            label: "Atlas",
+            accent: "#10b981",
+            commands: [
+              { id: "today",    label: "Daily OS",       description: "Run today\'s 20 prospects", accent: "#10b981", action: () => { window.location.hash = "/hq/flow"; } },
+              { id: "pipeline", label: "Open Pipeline",  description: "Deal Kanban",              accent: "#10b981", action: () => { window.location.hash = "/hq/pipeline"; } },
+              { id: "newlead",  label: "New Lead",       description: "Add to pipeline",          accent: "#10b981", shortcut: "⌘N", action: () => {} },
+            ],
+          },
+        ]}
+      />
     </div>
   );
 }

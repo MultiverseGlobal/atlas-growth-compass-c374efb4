@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle2, Circle, Target, Users, MessageSquare, Video, ArrowRight, Zap, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface TouchTarget {
   id: string;
@@ -15,21 +17,58 @@ interface TouchTarget {
 }
 
 export function DailyOsTracker() {
-  const [counts, setCounts] = useState<{ direct: number; partner: number; linkedin: number; proof: number }>(() => {
-    try {
-      const saved = localStorage.getItem("atlas_daily_os_counts");
-      if (saved) return JSON.parse(saved);
-    } catch (_) {}
-    return { direct: 3, partner: 2, linkedin: 3, proof: 1 };
-  });
+  const { user } = useAuth();
+  const [counts, setCounts] = useState<{ direct: number; partner: number; linkedin: number; proof: number }>({ direct: 0, partner: 0, linkedin: 0, proof: 0 });
+  const [recordId, setRecordId] = useState<string | null>(null);
 
-  const increment = (key: "direct" | "partner" | "linkedin" | "proof") => {
-    setCounts(prev => {
-      const next = { ...prev, [key]: prev[key] + 1 };
-      localStorage.setItem("atlas_daily_os_counts", JSON.stringify(next));
-      return next;
-    });
+  useEffect(() => {
+    if (!user) return;
+    const fetchToday = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from("founder_execution_loop")
+        .select("id, metrics")
+        .eq("user_id", user.id)
+        .eq("date", today)
+        .maybeSingle();
+
+      if (data) {
+        setRecordId(data.id);
+        if (data.metrics) {
+          setCounts(data.metrics as any);
+        }
+      } else {
+        const defaultMetrics = { direct: 0, partner: 0, linkedin: 0, proof: 0 };
+        const { data: newData } = await supabase
+          .from("founder_execution_loop")
+          .insert({
+            user_id: user.id,
+            date: today,
+            metrics: defaultMetrics
+          })
+          .select("id")
+          .single();
+        
+        if (newData) {
+          setRecordId(newData.id);
+          setCounts(defaultMetrics);
+        }
+      }
+    };
+    fetchToday();
+  }, [user]);
+
+  const increment = async (key: "direct" | "partner" | "linkedin" | "proof") => {
+    const nextCounts = { ...counts, [key]: counts[key] + 1 };
+    setCounts(nextCounts);
     toast.success(`Logged touch in Daily OS!`);
+
+    if (recordId) {
+      await supabase
+        .from("founder_execution_loop")
+        .update({ metrics: nextCounts })
+        .eq("id", recordId);
+    }
   };
 
   const totalTouches = counts.direct + counts.partner + counts.linkedin + counts.proof;

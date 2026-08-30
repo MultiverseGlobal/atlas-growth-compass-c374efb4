@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Video, CheckCircle2, Clock, AlertTriangle, FileVideo, RefreshCw } from "lucide-react";
+import { Video, CheckCircle2, Clock, AlertTriangle, FileVideo, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function HqMediaJobs() {
   const [loading, setLoading] = useState(false);
@@ -9,17 +10,13 @@ export default function HqMediaJobs() {
   const fetchJobs = async () => {
     setLoading(true);
     try {
-      // In a real implementation, we would query the backend for historical jobs.
-      // For now, since Clario currently holds jobs in-memory (JOBS_DB), we can't fetch a list easily
-      // unless we add an endpoint for it. We'll simulate it for the dashboard UI.
-      const clarioUrl = import.meta.env.VITE_CLARIO_URL || "http://192.168.1.100:8000";
-      
-      const res = await fetch(`${clarioUrl}/api/v1/health`);
-      if (res.ok) {
-        setJobs([
-          { id: "job_12345", status: "completed", url: "https://youtube.com/watch?v=mock", insights: "The core idea is...", time: "2 mins ago" }
-        ]);
-      }
+      const { data, error } = await supabase
+        .from('clario_jobs')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      setJobs(data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -29,6 +26,31 @@ export default function HqMediaJobs() {
 
   useEffect(() => {
     fetchJobs();
+
+    const channel = supabase
+      .channel('clario_jobs_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'clario_jobs',
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setJobs((prev) => [payload.new, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setJobs((prev) => prev.map((j) => j.id === payload.new.id ? payload.new : j));
+          } else if (payload.eventType === 'DELETE') {
+            setJobs((prev) => prev.filter((j) => j.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (
@@ -62,17 +84,48 @@ export default function HqMediaJobs() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-mono text-muted-foreground">ID: {job.id}</span>
                     <span className="flex items-center gap-1 text-xs font-mono text-emerald-500">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> {job.status}
+                      {job.status === "completed" ? (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      ) : job.status === "failed" ? (
+                        <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+                      ) : (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[#ec4899]" />
+                      )}
+                      {job.status}
                     </span>
                   </div>
-                  <a href={job.url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline mb-3">
-                    {job.url}
-                  </a>
-                  <div className="p-3 bg-card border border-border/40 rounded text-sm text-muted-foreground leading-relaxed italic">
-                    {job.insights}
-                  </div>
-                  <div className="text-right mt-2">
-                    <span className="text-[10px] text-muted-foreground">{job.time}</span>
+                  
+                  {job.status !== "completed" && job.status !== "failed" && (
+                    <div className="my-2">
+                      <div className="flex items-center justify-between text-[10px] mb-1">
+                        <span className="text-muted-foreground uppercase tracking-widest">{job.status_msg}</span>
+                        <span className="text-[#ec4899] font-mono">{job.progress_pct}%</span>
+                      </div>
+                      <div className="w-full bg-surface-2 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-[#ec4899] h-1.5 rounded-full transition-all duration-300 ease-out" 
+                          style={{ width: `${job.progress_pct || 0}%` }} 
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {job.input_url && (
+                    <div className="text-sm text-primary hover:underline mb-3 truncate">
+                      {job.input_url}
+                    </div>
+                  )}
+
+                  {job.result && (
+                    <div className="p-3 bg-card border border-border/40 rounded text-sm text-muted-foreground leading-relaxed italic line-clamp-3">
+                      {JSON.stringify(job.result)}
+                    </div>
+                  )}
+                  
+                  <div className="text-right mt-2 flex justify-between items-center">
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(job.created_at).toLocaleString()}
+                    </span>
                   </div>
                 </div>
               ))}

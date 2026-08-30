@@ -22,15 +22,39 @@ export default function HqSettings() {
   const { data: integrations = [], connectNotion, updateSettings, disconnect } = useIntegrations();
   const [notionDatabases, setNotionDatabases] = useState<NotionDatabase[]>([]);
   const [notionLoading, setNotionLoading] = useState(false);
-  const [defaultNotionDb, setDefaultNotionDb] = useState(() => localStorage.getItem("atlas.sourcing.default_notion_db") || "");
-  const [autoNotion, setAutoNotion] = useState(() => localStorage.getItem("atlas.sourcing.auto_notion") === "true");
-
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
-  const [prospectsLayout, setProspectsLayout] = useState(() => localStorage.getItem("atlas.hq.prospects_layout") || "table");
-
   const notionIntegration = integrations.find(i => i.provider === "notion" && i.status === "active");
+
+  const [defaultNotionDb, setDefaultNotionDb] = useState("");
+  const [autoNotion, setAutoNotion] = useState(false);
+  const [prospectsLayout, setProspectsLayout] = useState("table");
+
+  // Sync state from Supabase when integration loads
+  useEffect(() => {
+    if (notionIntegration?.settings) {
+      if (notionIntegration.settings.notion_database_id) {
+        setDefaultNotionDb(notionIntegration.settings.notion_database_id);
+      }
+      if (notionIntegration.settings.auto_notion !== undefined) {
+        setAutoNotion(notionIntegration.settings.auto_notion);
+      }
+    }
+  }, [notionIntegration?.settings]);
+  
+  // Sync layout from user metadata
+  useEffect(() => {
+    const fetchMeta = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user?.user_metadata?.prospects_layout) {
+        setProspectsLayout(data.user.user_metadata.prospects_layout);
+      }
+    };
+    fetchMeta();
+  }, []);
+
+
 
   const loadNotionDatabasesList = async (showToast = true) => {
     if (!notionIntegration) return;
@@ -61,11 +85,6 @@ export default function HqSettings() {
 
   useEffect(() => {
     if (notionIntegration) {
-      const dbIdFromDb = notionIntegration.settings?.notion_database_id || "";
-      if (dbIdFromDb && dbIdFromDb !== defaultNotionDb) {
-        setDefaultNotionDb(dbIdFromDb);
-      }
-      
       if (notionDatabases.length === 0 && !notionLoading) {
         loadNotionDatabasesList(false);
       }
@@ -74,7 +93,7 @@ export default function HqSettings() {
 
   const handleSelectDb = (val: string) => {
     setDefaultNotionDb(val);
-    localStorage.setItem("atlas.sourcing.default_notion_db", val);
+
     
     // Save settings back to Supabase
     if (notionIntegration) {
@@ -94,7 +113,7 @@ export default function HqSettings() {
 
   const handleToggleAutoNotion = (checked: boolean) => {
     setAutoNotion(checked);
-    localStorage.setItem("atlas.sourcing.auto_notion", String(checked));
+
     
     if (notionIntegration) {
       updateSettings.mutate({
@@ -108,10 +127,12 @@ export default function HqSettings() {
     toast.success(checked ? "Auto-push to Notion enabled" : "Auto-push to Notion disabled");
   };
 
-  const handleSelectLayout = (layout: string) => {
+  const handleSelectLayout = async (layout: string) => {
     setProspectsLayout(layout);
-    localStorage.setItem("atlas.hq.prospects_layout", layout);
     toast.success(`Prospects view layout set to: ${layout}`);
+    await supabase.auth.updateUser({
+      data: { prospects_layout: layout }
+    });
   };
 
   return (
