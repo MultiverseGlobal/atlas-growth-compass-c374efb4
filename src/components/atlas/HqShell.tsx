@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { 
   Target, Search, MessageSquare, BarChart2,
-  Database, Zap, User as UserIcon, LogOut, Moon, Sun, ChevronRight
+  Database, Zap, User as UserIcon, LogOut, Moon, Sun, ChevronRight, Command
 } from "lucide-react";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,8 +11,116 @@ import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
 import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 import { EcosystemSwitcher } from "@/components/atlas/EcosystemSwitcher";
-import { CommandPalette, useCrossAppBus } from "@pseudonyms/ui";
 import { toast } from "sonner";
+
+// ── Inlined: useCrossAppBus ───────────────────────────────────────────────────
+// Lightweight Supabase Realtime cross-app event bus (replaces @pseudonyms/ui dep)
+function useCrossAppBus(_client: typeof supabase, _userId: string | null) {
+  const handlers = new Map<string, ((payload: any) => void)[]>();
+
+  const useEvent = (eventType: string, handler: (payload: any) => void) => {
+    useEffect(() => {
+      if (!_userId) return;
+      const channel = _client
+        .channel(`cross-app-bus:${_userId}`)
+        .on(
+          "broadcast" as any,
+          { event: eventType },
+          ({ payload }: { payload: any }) => handler(payload)
+        )
+        .subscribe();
+      return () => { _client.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [_userId, eventType]);
+  };
+
+  return { useEvent };
+}
+
+// ── Inlined: CommandPalette ───────────────────────────────────────────────────
+type CmdAction = { id: string; label: string; description?: string; accent?: string; shortcut?: string; action: () => void; };
+type CmdGroup = { id: string; label: string; accent?: string; commands: CmdAction[]; };
+
+function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: string; extraCommands?: CmdGroup[] }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const navigate = useNavigate();
+
+  const NAV_CMDS: CmdAction[] = [
+    { id: "go-flow",     label: "Daily OS",      description: "Run today's 20 prospects",  action: () => navigate("/hq/flow") },
+    { id: "go-recon",   label: "Scout",          description: "Company research",           action: () => navigate("/hq/recon") },
+    { id: "go-leads",   label: "Leads",          description: "Full pipeline view",         action: () => navigate("/hq/leads") },
+    { id: "go-pipeline",label: "Pipeline",       description: "Deal Kanban",               action: () => navigate("/hq/pipeline") },
+    { id: "go-settings",label: "Settings",       description: "Account & integrations",    action: () => navigate("/hq/settings") },
+  ];
+
+  const allCmds: CmdAction[] = [
+    ...NAV_CMDS,
+    ...extraCommands.flatMap(g => g.commands),
+  ];
+
+  const filtered = query
+    ? allCmds.filter(c =>
+        c.label.toLowerCase().includes(query.toLowerCase()) ||
+        (c.description || "").toLowerCase().includes(query.toLowerCase())
+      )
+    : allCmds;
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setOpen(o => !o); }
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
+
+  if (!open) return null;
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "18vh" }}
+      onClick={() => setOpen(false)}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 560, background: "var(--background, #0A0B0F)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", overflow: "hidden" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+          <Command style={{ width: 14, height: 14, opacity: 0.4, flexShrink: 0 }} />
+          <input
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search commands…"
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 14, color: "var(--foreground)", fontFamily: "inherit" }}
+          />
+          <kbd style={{ fontSize: 10, opacity: 0.4, fontFamily: "monospace" }}>ESC</kbd>
+        </div>
+        <div style={{ maxHeight: 360, overflowY: "auto", padding: "6px 0" }}>
+          {filtered.length === 0 && (
+            <p style={{ padding: "12px 16px", fontSize: 12, opacity: 0.4, margin: 0 }}>No results</p>
+          )}
+          {filtered.map(cmd => (
+            <button
+              key={cmd.id}
+              onClick={() => { cmd.action(); setOpen(false); setQuery(""); }}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", transition: "background 100ms" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <div>
+                <span style={{ fontSize: 13, color: "var(--foreground)", fontWeight: 500 }}>{cmd.label}</span>
+                {cmd.description && <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 8 }}>{cmd.description}</span>}
+              </div>
+              {cmd.shortcut && <kbd style={{ fontSize: 10, opacity: 0.4, fontFamily: "monospace" }}>{cmd.shortcut}</kbd>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── 4-Step Daily Acquisition Workflow ──────────────────────────────────────────
 const SEQUENTIAL_STEPS = [
