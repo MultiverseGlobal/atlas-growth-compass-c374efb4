@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Crosshair, Zap, Sparkles, Linkedin, Mail, Check, 
   X, ExternalLink, Loader2, Send, Building2, 
