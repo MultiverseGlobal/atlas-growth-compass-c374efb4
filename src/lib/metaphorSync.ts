@@ -5,11 +5,17 @@
  */
 
 const METAPHOR_API = import.meta.env.VITE_METAPHOR_API_URL || "http://localhost:8000/api/v1";
-const METAPHOR_TOKEN_KEY = "metaphor_access_token";
+import { supabase } from "./../integrations/supabase/client";
 
-function getToken(): string | null {
+async function getToken(): Promise<string | null> {
   try {
-    return localStorage.getItem(METAPHOR_TOKEN_KEY);
+    const { data: { session } } = await supabase.auth.getSession();
+    // In a real app we might store the external Metaphor token in the user metadata or a dedicated integrations table
+    // For now we'll check user_metadata.metaphor_access_token
+    if (session?.user?.user_metadata?.metaphor_access_token) {
+      return session.user.user_metadata.metaphor_access_token;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -23,7 +29,7 @@ interface MetaphorDrop {
 }
 
 async function pushToMetaphor(drop: MetaphorDrop): Promise<void> {
-  const token = getToken();
+  const token = await getToken();
   if (!token) return; // Silently skip if not connected to Metaphor
 
   try {

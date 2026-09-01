@@ -127,16 +127,12 @@ export default function Sourcing() {
   const [notesDraft, setNotesDraft] = useState("");
 
   // Layout preference & split pane selector state
-  const [prospectsLayout, setProspectsLayout] = useState(() => localStorage.getItem("atlas.hq.prospects_layout") || "table");
+  const [prospectsLayout, setProspectsLayout] = useState("table");
   const [selectedSplitLeadId, setSelectedSplitLeadId] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(() => localStorage.getItem("atlas.hq.prospects_sidebar") !== "false");
+  const [showSidebar, setShowSidebar] = useState(true);
 
   const toggleSidebar = () => {
-    setShowSidebar(prev => {
-      const next = !prev;
-      localStorage.setItem("atlas.hq.prospects_sidebar", String(next));
-      return next;
-    });
+    setShowSidebar(prev => !prev);
   };
 
   // Export Notion Modal State
@@ -148,8 +144,8 @@ export default function Sourcing() {
 
   // Integration Default Configs & Display States
   const [showIntegrationsConfig, setShowIntegrationsConfig] = useState(false);
-  const [defaultNotionDb, setDefaultNotionDb] = useState(() => localStorage.getItem("atlas.sourcing.default_notion_db") || "");
-  const [autoNotion, setAutoNotion] = useState(() => localStorage.getItem("atlas.sourcing.auto_notion") === "true");
+  const [defaultNotionDb, setDefaultNotionDb] = useState("");
+  const [autoNotion, setAutoNotion] = useState(false);
 
   // Selection state for Bulk Actions
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
@@ -205,8 +201,8 @@ export default function Sourcing() {
       channel: lead.contact_channel || "LinkedIn",
       timestamp: new Date().toISOString()
     };
-    const existing = JSON.parse(localStorage.getItem("william_focus_queue") || "[]");
-    localStorage.setItem("william_focus_queue", JSON.stringify([task, ...existing.filter((t: any) => t.id !== lead.id)]));
+    // Replaced localStorage william_focus_queue logic with DB or contextual state in future.
+    // For now, it just copies the pitch to clipboard and notifies.
     if (lead.draft_message) {
       navigator.clipboard.writeText(lead.draft_message);
     }
@@ -231,7 +227,7 @@ export default function Sourcing() {
     if (notionIntegration) {
       const dbIdFromDb = notionIntegration.settings?.notion_database_id || "";
       
-      // Self-healing: if the DB has no database selected, but local state/localStorage has one, update the DB
+      // Self-healing: if the DB has no database selected, but local state has one, update the DB
       if (!dbIdFromDb && defaultNotionDb && defaultNotionDb !== "none" && notionDatabases.length > 0) {
         const db = notionDatabases.find(d => d.id === defaultNotionDb);
         const dbTitle = db ? db.title : "Notion Database";

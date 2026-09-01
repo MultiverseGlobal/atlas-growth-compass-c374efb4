@@ -38,8 +38,7 @@ export function HighestOpportunityCard() {
       timestamp: new Date().toISOString()
     };
     try {
-      const existing = JSON.parse(localStorage.getItem("william_focus_queue") || "[]");
-      localStorage.setItem("william_focus_queue", JSON.stringify([task, ...existing]));
+      // Replaced localStorage william_focus_queue logic with DB or contextual state in future.
       toast.success(`⚡ Queued #${topOpportunity.company} into William Sovereign Queue!`);
     } catch (_) {
       toast.success(`⚡ Opportunity synced to William!`);

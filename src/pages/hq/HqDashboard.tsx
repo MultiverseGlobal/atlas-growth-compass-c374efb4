@@ -250,12 +250,12 @@ export default function HqDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground grain overflow-hidden">
       {/* Top bar */}
-      <div className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between">
+      <div className="sticky top-0 z-20 border-b border-border-subtle bg-surface-1/40 backdrop-blur-2xl px-8 py-5 flex items-center justify-between pds-animate-enter" style={{ animationDelay: "50ms" }}>
         <div>
-          <h1 className="text-sm font-semibold text-foreground">14-Day Sprint · Mission Control</h1>
-          <p className="text-xs text-muted-foreground font-mono">{today}</p>
+          <h1 className="text-xl font-display text-foreground tracking-tight">14-Day Sprint · Mission Control</h1>
+          <p className="text-xs text-muted-foreground font-mono mt-1">{today}</p>
         </div>
         <div className="flex items-center gap-4">
           {/* Engine Status */}
@@ -275,12 +275,12 @@ export default function HqDashboard() {
         </div>
       </div>
 
-      <div className="p-6 space-y-6 max-w-6xl mx-auto">
+      <div className="p-8 space-y-8 max-w-7xl mx-auto pds-animate-enter" style={{ animationDelay: "100ms" }}>
         {/* Acquisition Progress */}
-        <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
+        <div className="rounded-2xl border border-border-subtle pds-glass p-6 space-y-5 shadow-card hover:shadow-card-hover transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-foreground font-mono tracking-tight">
+              <div className="text-4xl font-display text-foreground tracking-tight flex items-baseline gap-2">
                 {acquisition?.contacted ?? 0}
                 <span className="text-sm font-normal text-muted-foreground ml-2">/ {acquisition?.target ?? 20} daily target sent</span>
               </div>
@@ -300,18 +300,18 @@ export default function HqDashboard() {
             />
           </div>
           {/* Stats row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
             {[
-              { label: "Contacted today", value: acquisition?.contacted ?? 0, unit: "sent", color: "text-primary" },
+              { label: "Contacted today", value: acquisition?.contacted ?? 0, unit: "sent", color: "text-accent" },
               { label: "Researched today", value: acquisition?.researched ?? 0, unit: "leads", color: "text-foreground" },
               { label: "Qualified today", value: acquisition?.qualified ?? 0, unit: "leads", color: "text-foreground" },
               { label: "Sourced today", value: acquisition?.discovered ?? 0, unit: "leads", color: "text-foreground", raw: true },
             ].map((stat) => (
-              <div key={stat.label} className="rounded-lg bg-muted/20 border border-border/40 p-3">
-                <div className={`text-lg font-bold font-mono ${stat.color}`}>
-                  {stat.raw ? stat.value : stat.value}{!stat.raw && <span className="text-xs text-muted-foreground ml-1">{stat.unit}</span>}
+              <div key={stat.label} className="rounded-xl bg-surface-2/40 border border-border-subtle p-4 hover:bg-surface-2 transition-colors cursor-default">
+                <div className={`text-2xl font-display ${stat.color}`}>
+                  {stat.raw ? stat.value : stat.value}{!stat.raw && <span className="text-xs font-sans text-muted-foreground ml-1">{stat.unit}</span>}
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">{stat.label}</div>
+                <div className="text-xs text-muted-foreground mt-1 uppercase tracking-wider font-semibold">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -319,11 +319,11 @@ export default function HqDashboard() {
 
         {/* ⚡ Next Best Action */}
         {nba ? (
-          <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 p-5 space-y-3">
+          <div className="rounded-2xl border border-accent/20 bg-gradient-to-br from-accent-dim to-transparent p-6 space-y-4 shadow-[var(--pds-shadow-glow)] backdrop-blur-md pds-animate-enter" style={{ animationDelay: "150ms" }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-primary" />
-                <span className="text-xs font-bold text-primary uppercase tracking-wider">Next Best Action</span>
+                <Zap className="h-5 w-5 text-accent" fill="currentColor" />
+                <span className="text-xs font-bold text-accent uppercase tracking-widest font-mono">Next Best Action</span>
               </div>
               <div className="flex items-center gap-1 text-[10px] font-mono text-primary/70">
                 <span>{nba.confidence}% confidence</span>
@@ -358,9 +358,9 @@ export default function HqDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pds-animate-enter" style={{ animationDelay: "200ms" }}>
           {/* Follow-ups Due */}
-          <div className="lg:col-span-2 rounded-xl border border-border/60 bg-card p-5 space-y-4">
+          <div className="lg:col-span-2 rounded-2xl border border-border-subtle pds-glass p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-amber-400" />
@@ -416,12 +416,12 @@ export default function HqDashboard() {
           </div>
 
           {/* Right column */}
-          <div className="space-y-4">
+          <div className="space-y-6">
             {/* Outreach this week */}
-            <div className="rounded-xl border border-border/60 bg-card p-5 space-y-3">
+            <div className="rounded-2xl border border-border-subtle pds-glass p-6 space-y-4">
               <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold">This Week</h2>
+                <MessageSquare className="h-5 w-5 text-accent" />
+                <h2 className="text-sm font-semibold tracking-wide uppercase">This Week</h2>
               </div>
               <div className="space-y-2.5">
                 {[
@@ -455,8 +455,8 @@ export default function HqDashboard() {
             </div>
 
             {/* Quick actions */}
-            <div className="rounded-xl border border-border/60 bg-card p-5 space-y-2">
-              <h2 className="text-sm font-semibold mb-3">Quick Actions</h2>
+            <div className="rounded-2xl border border-border-subtle pds-glass p-6 space-y-3">
+              <h2 className="text-sm font-semibold tracking-wide uppercase mb-4">Quick Actions</h2>
               {[
                 { label: "Add a new lead", icon: Target, path: "/hq/leads?new=1" },
                 { label: "View pipeline", icon: TrendingUp, path: "/hq/pipeline" },

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 const isProd = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
 const METAPHOR_API = isProd ? "https://metaphor-backend.onrender.com/api/v1/pipeline" : "http://localhost:8000/api/v1/pipeline";
@@ -19,7 +20,8 @@ export function useMetaphorPipeline() {
 
   useEffect(() => {
     async function fetchBrief() {
-      const token = localStorage.getItem('metaphor_access_token');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.user?.user_metadata?.metaphor_access_token;
       if (!token) {
         setLoading(false);
         return;
@@ -42,7 +44,8 @@ export function useMetaphorPipeline() {
   }, []);
 
   const pushStrategy = async (strategyData: { title: string, summary: string, content: string, target_id?: string }) => {
-    const token = localStorage.getItem('metaphor_access_token');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.user?.user_metadata?.metaphor_access_token;
     if (!token) return false;
     
     try {

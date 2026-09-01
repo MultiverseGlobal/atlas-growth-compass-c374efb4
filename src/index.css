@@ -1,176 +1,203 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ─── $1M Architectural Identity (Metaphor Light + Orion Typography) ────── */
+/* ── Atlas — PDS-v5 ──────────────────────────────────────────────────────────
+ * Font: Epic Pro (display) + Arial (body)
+ * Personality: The strategist's war room. Dense data. Block caps authority.
+ * Mode: Light by default. Dark via .dark class on <html>.
+ * ────────────────────────────────────────────────────────────────────────── */
 
-:root {
-  /* Foundation — Metaphor Porcelain/Obsidian */
-  --bg-canvas: #F8F7F4;       /* Porcelain */
-  --bg-surface: #FFFFFF;      /* Pure White Surface */
-  --bg-surface-2: #F1F0EC;    /* Slightly recessed */
-  --bg-hover: #EBEBE6;
+@layer base {
 
-  /* Text & Borders */
-  --text-primary: #111318;    /* Obsidian */
-  --text-secondary: #6B7280;  /* Slate */
-  --text-muted: #9CA3AF;
-  
-  --border-subtle: #EBEAE5;
-  --border-strong: #D1D1CB;
+  /* ── @font-face declarations ─────────────────────────────────────────────
+   * Epic Pro — requires licensed font files in /public/fonts/
+   * Fallback: Impact, Arial Black (system fonts)
+   */
+  @font-face {
+    font-family: 'Epic Pro';
+    src: local('Epic Pro'), local('EpicPro');
+    font-weight: 700 900;
+    font-style: normal;
+    font-display: swap;
+  }
 
-  /* Accents */
-  --accent: #4E6CF2;          /* Metaphor Context Blue */
-  --accent-dim: rgba(78, 108, 242, 0.08);
-  --accent-glow: rgba(78, 108, 242, 0.15);
+  /* ── Light Mode (:root default) ─────────────────────────────────────────── */
+  :root {
+    --pds-canvas:    #F8F7F4;
+    --pds-surface-1: #FFFFFF;
+    --pds-surface-2: #F1F0EC;
+    --pds-surface-3: #EBEBE6;
+    --pds-surface-4: #E3E2DC;
 
-  /* Status Colors */
-  --green: #10B981;
-  --amber: #C5A059;
-  --red: #EF4444;
+    --pds-border-subtle: rgba(17, 19, 24, 0.06);
+    --pds-border-mid:    rgba(17, 19, 24, 0.12);
+    --pds-border-strong: rgba(17, 19, 24, 0.20);
 
-  /* Typography Scale - Orion Style */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-serif: 'Cormorant Garamond', serif;
-  --font-mono: 'JetBrains Mono', monospace;
+    --pds-text-primary:   #111318;
+    --pds-text-secondary: #6B7280;
+    --pds-text-muted:     #9CA3AF;
+    --pds-text-disabled:  #D1D5DB;
 
-  /* Architectural Shadows (Apple / Linear) */
-  --shadow-sm: 0 1px 2px rgba(17, 19, 24, 0.04);
-  --shadow-md: 0 4px 12px rgba(17, 19, 24, 0.05), 0 1px 3px rgba(17, 19, 24, 0.03);
-  --shadow-lg: 0 16px 32px rgba(17, 19, 24, 0.06), 0 4px 8px rgba(17, 19, 24, 0.03);
-  --shadow-float: 0 24px 48px rgba(17, 19, 24, 0.08), 0 8px 16px rgba(17, 19, 24, 0.04);
+    --pds-accent:     #111318;
+    --pds-accent-inv: #F8F7F4;
+    --pds-accent-dim: rgba(17, 19, 24, 0.06);
+    --pds-accent-glow: rgba(17, 19, 24, 0.12);
 
-  /* Motion */
-  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.05);
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --fast: 150ms;
-  --base: 300ms;
+    --pds-shadow-sm:    0 1px 2px rgba(17, 19, 24, 0.04);
+    --pds-shadow-md:    0 4px 12px rgba(17, 19, 24, 0.06), 0 1px 3px rgba(17, 19, 24, 0.03);
+    --pds-shadow-lg:    0 16px 32px rgba(17, 19, 24, 0.08), 0 4px 8px rgba(17, 19, 24, 0.04);
+    --pds-shadow-float: 0 24px 48px rgba(17, 19, 24, 0.10), 0 8px 16px rgba(17, 19, 24, 0.05);
+    --pds-shadow-glow:  none;
+
+    --pds-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.05);
+    --pds-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+    --pds-t-fast:  150ms;
+    --pds-t-base:  300ms;
+    --pds-t-slow:  500ms;
+
+    --pds-success: #22c55e;
+    --pds-warning: #f59e0b;
+    --pds-danger:  #ef4444;
+    --pds-info:    #38bdf8;
+  }
+
+  /* ── Dark Mode (.dark on <html>) ─────────────────────────────────────────── */
+  .dark {
+    --pds-canvas:    #07080c;
+    --pds-surface-1: rgba(14, 16, 24, 0.60);
+    --pds-surface-2: rgba(20, 23, 32, 0.75);
+    --pds-surface-3: rgba(27, 31, 44, 0.85);
+    --pds-surface-4: rgba(35, 40, 55, 0.95);
+
+    --pds-border-subtle: rgba(255, 255, 255, 0.055);
+    --pds-border-mid:    rgba(255, 255, 255, 0.10);
+    --pds-border-strong: rgba(255, 255, 255, 0.18);
+
+    --pds-text-primary:   #eef0f8;
+    --pds-text-secondary: rgba(238, 240, 248, 0.60);
+    --pds-text-muted:     rgba(238, 240, 248, 0.40);
+    --pds-text-disabled:  rgba(238, 240, 248, 0.20);
+
+    --pds-accent:     #ffffff;
+    --pds-accent-inv: #07080c;
+    --pds-accent-dim: rgba(255, 255, 255, 0.10);
+    --pds-accent-glow: rgba(255, 255, 255, 0.15);
+
+    --pds-shadow-sm:    0 1px 2px rgba(0, 0, 0, 0.40), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    --pds-shadow-md:    0 4px 12px rgba(0, 0, 0, 0.50), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --pds-shadow-lg:    0 16px 32px rgba(0, 0, 0, 0.60), 0 0 0 1px rgba(255, 255, 255, 0.10);
+    --pds-shadow-float: 0 24px 48px rgba(0, 0, 0, 0.70), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --pds-shadow-glow:  0 0 24px -4px rgba(255, 255, 255, 0.15);
+  }
+
+  /* ── Reset & Base ─────────────────────────────────────────────────────────── */
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background-color: var(--pds-canvas);
+  }
+
+  body {
+    background-color: var(--pds-canvas);
+    color: var(--pds-text-primary);
+    /* Atlas body: Arial — utilitarian, zero ornament */
+    font-family: 'Arial', Helvetica, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    line-height: 1.6;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  /* Atlas display: Epic Pro — block caps war room authority */
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'Epic Pro', Impact, 'Arial Black', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+  }
+
+  ::selection {
+    background: var(--pds-accent-dim);
+    color: var(--pds-text-primary);
+  }
 }
 
-/* ─── Reset & Base ───────────────────────────────────────────────────────── */
+/* ── Utilities ──────────────────────────────────────────────────────────────── */
 
-*, *::before, *::after { box-sizing: border-box; }
+@layer utilities {
+  .pds-glass {
+    background: rgba(255, 255, 255, 0.70);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--pds-border-subtle);
+    box-shadow: var(--pds-shadow-sm);
+  }
 
-html {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  .dark .pds-glass {
+    background: var(--pds-surface-1);
+  }
+
+  .pds-glass-elevated {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border: 1px solid var(--pds-border-mid);
+    box-shadow: var(--pds-shadow-lg);
+  }
+
+  .dark .pds-glass-elevated {
+    background: var(--pds-surface-3);
+  }
+
+  .grain {
+    position: relative;
+  }
+
+  .grain::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  }
 }
 
-body {
-  background-color: var(--bg-canvas);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  min-height: 100vh;
-  overflow-x: hidden;
-  line-height: 1.6;
-  margin: 0;
-}
-
-::selection {
-  background: var(--accent-dim);
-  color: var(--accent);
-}
-
-/* ─── Custom Scrollbar ───────────────────────────────────────────────────── */
+/* ── Custom Scrollbar ────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+::-webkit-scrollbar-thumb { background: var(--pds-border-strong); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--pds-text-muted); }
 
-/* ─── Glass & Surfaces ───────────────────────────────────────────────────── */
+/* ── Animations ──────────────────────────────────────────────────────────────── */
 
-.surface {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-sm);
-  border-radius: 12px;
+@keyframes pds-slide-up-fade {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0); }
 }
 
-.glass-panel {
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-md);
-}
-
-.interactive-card {
-  transition: transform var(--base) var(--ease-out), box-shadow var(--base) var(--ease-out), border-color var(--base) var(--ease-out);
-}
-
-.interactive-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--border-strong);
-}
-
-/* ─── Status Dots & Pings ────────────────────────────────────────────────── */
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  transition: background-color var(--base) var(--ease-out);
-}
-
-.status-dot.active {
-  background: var(--green);
-  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
-  animation: pulse-green 2.5s infinite;
-}
-
-.status-dot.inactive {
-  background: var(--text-muted);
-}
-
-@keyframes pulse-green {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-}
-
-/* ─── Typography Utils (Orion Style) ─────────────────────────────────────── */
-
-.font-serif-title {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  letter-spacing: -0.02em;
-}
-
-.label-mono {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-/* ─── Animations (Clerk / Apple style) ───────────────────────────────────── */
-
-@keyframes slideUpFade {
-  from { opacity: 0; transform: translateY(12px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.animate-enter {
-  animation: slideUpFade 0.5s var(--ease-spring) both;
-}
-
-.delay-1 { animation-delay: 50ms; }
-.delay-2 { animation-delay: 100ms; }
-.delay-3 { animation-delay: 150ms; }
-.delay-4 { animation-delay: 200ms; }
-
-@keyframes blurIn {
+@keyframes pds-blur-in {
   from { opacity: 0; filter: blur(8px); }
-  to { opacity: 1; filter: blur(0); }
+  to   { opacity: 1; filter: blur(0); }
 }
 
-.animate-blur-in {
-  animation: blurIn 0.6s var(--ease-out) both;
+.pds-animate-enter {
+  animation: pds-slide-up-fade var(--pds-t-slow) var(--pds-ease-spring) both;
 }
+
+.pds-animate-blur-in {
+  animation: pds-blur-in var(--pds-t-slow) var(--pds-ease-out) both;
+}
+
+.pds-delay-1 { animation-delay: 50ms; }
+.pds-delay-2 { animation-delay: 100ms; }
+.pds-delay-3 { animation-delay: 150ms; }
+.pds-delay-4 { animation-delay: 200ms; }

@@ -427,7 +427,6 @@ export default function HqICP() {
     }
 
     setLeads(newLeads);
-    // localStorage.setItem("atlas_autonomous_leads", JSON.stringify(newLeads)); // Removed
     setRunning(false);
     setPipelineStep(0);
     toast.success(`Autonomous Sourcing Complete: ${newLeads.length} ${selectedChannel.toUpperCase()} Targets Saved to Database`);
@@ -442,9 +441,7 @@ export default function HqICP() {
 
   const approveLeadLocally = async (lead: TargetLead) => {
     setLeads(prev => {
-      const next = prev.map(l => l.id === lead.id ? { ...l, status: 'approved' as const } : l);
-      // localStorage.setItem("atlas_autonomous_leads", JSON.stringify(next)); // Removed
-      return next;
+      return prev.map(l => l.id === lead.id ? { ...l, status: 'approved' as const } : l);
     });
 
     if (!user) return;
@@ -569,9 +566,7 @@ export default function HqICP() {
   const dismissLead = async (id: string) => {
     const lead = leads.find(l => l.id === id);
     setLeads(prev => {
-      const next = prev.map(l => l.id === id ? { ...l, status: 'dismissed' as const } : l);
-      // localStorage.setItem("atlas_autonomous_leads", JSON.stringify(next)); // Removed
-      return next;
+      return prev.map(l => l.id === id ? { ...l, status: 'dismissed' as const } : l);
     });
 
     if (lead && user) {

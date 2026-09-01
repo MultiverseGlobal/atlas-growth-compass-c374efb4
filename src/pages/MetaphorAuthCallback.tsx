@@ -58,8 +58,10 @@ export default function MetaphorAuthCallback() {
           throw new Error("No access_token in Metaphor response.");
         }
 
-        // Persist the real Bearer token
-        localStorage.setItem("metaphor_access_token", access_token);
+        // Persist the real Bearer token to Supabase user_metadata
+        await supabase.auth.updateUser({
+          data: { metaphor_access_token: access_token }
+        });
 
         // Save to Supabase so the Integrations UI shows it as connected
         const { data: userData } = await supabase.auth.getUser();

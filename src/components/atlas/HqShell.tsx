@@ -11,7 +11,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
 import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 import { EcosystemSwitcher } from "@/components/atlas/EcosystemSwitcher";
-import { CommandPalette } from "@pseudonyms/ui";
+import { CommandPalette, useCrossAppBus } from "@pseudonyms/ui";
+import { toast } from "sonner";
 
 // ── 4-Step Daily Acquisition Workflow ──────────────────────────────────────────
 const SEQUENTIAL_STEPS = [
@@ -45,6 +46,23 @@ export default function HqShell() {
         if (data) setProfile(data);
       });
   }, [user]);
+
+  // ── Cross-App Event Bus (Phase 6) ──────────────────────────────────────────
+  const { useEvent } = useCrossAppBus(supabase, user?.id || null);
+
+  useEvent("clario:job_complete", (payload: any) => {
+    toast.success(`Video analysis complete in Clario!`, {
+      description: `Project ID: ${payload.projectId}`,
+      icon: <Target className="w-4 h-4 text-[#ec4899]" />,
+    });
+  });
+
+  useEvent("orion:voice_captured", (payload: any) => {
+    toast(`Orion just added a new lead from your voice note.`, {
+      description: "Pipeline updated.",
+      icon: <Zap className="w-4 h-4 text-primary" />,
+    });
+  });
 
   // ⌘K now handled by <CommandPalette /> mounted in JSX — removes duplicate handler
 
