@@ -10,17 +10,11 @@
 
 @layer base {
 
-  /* ── @font-face declarations ─────────────────────────────────────────────
-   * Epic Pro — requires licensed font files in /public/fonts/
-   * Fallback: Impact, Arial Black (system fonts)
+  /* ── Fonts ────────────────────────────────────────────────────────────────
+   * Display: Space Grotesk — geometric, authoritative, data-dense war room
+   * Body:    Inter — utilitarian precision, zero ornament
+   * Loaded via Google Fonts in index.html
    */
-  @font-face {
-    font-family: 'Epic Pro';
-    src: local('Epic Pro'), local('EpicPro');
-    font-weight: 700 900;
-    font-style: normal;
-    font-display: swap;
-  }
 
   /* ── Light Mode (:root default) ─────────────────────────────────────────── */
   :root {
@@ -105,8 +99,8 @@
   body {
     background-color: var(--pds-canvas);
     color: var(--pds-text-primary);
-    /* Atlas body: Arial — utilitarian, zero ornament */
-    font-family: 'Arial', Helvetica, sans-serif;
+    /* Atlas body: Inter — crisp, precise, zero ornament */
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
     line-height: 1.6;
@@ -114,11 +108,11 @@
     letter-spacing: -0.01em;
   }
 
-  /* Atlas display: Epic Pro — block caps war room authority */
+  /* Atlas display: Space Grotesk — geometric block authority */
   h1, h2, h3, h4, h5, h6, .font-display {
-    font-family: 'Epic Pro', Impact, 'Arial Black', sans-serif;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
     font-weight: 700;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.03em;
     line-height: 1.1;
   }
 
