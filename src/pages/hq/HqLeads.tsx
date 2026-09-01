@@ -177,6 +177,7 @@ export default function HqLeads() {
             body: {
               action: "export-notion",
               database_id: defaultDbId,
+
               lead: {
                 id: data.id,
                 prospect: data.company,
@@ -194,6 +195,7 @@ export default function HqLeads() {
 
         navigate(`/hq/leads/${data.id}`);
       }
+    }
     } catch (err: any) {
       toast.error("Failed to add lead: " + err.message);
     } finally {
