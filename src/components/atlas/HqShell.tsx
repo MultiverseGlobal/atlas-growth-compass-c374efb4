@@ -79,41 +79,40 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "18vh" }}
+      className="fixed inset-0 z-[9999] flex items-start justify-center pt-[18vh]"
+      style={{ background: "rgba(7,8,12,0.55)", backdropFilter: "blur(12px)" }}
       onClick={() => setOpen(false)}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 560, background: "var(--background, #0A0B0F)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", overflow: "hidden" }}
+        className="pds-animate-enter w-full max-w-[560px] pds-card overflow-hidden"
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
-          <Command style={{ width: 14, height: 14, opacity: 0.4, flexShrink: 0 }} />
+        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[var(--pds-border-subtle)]">
+          <Command className="w-3.5 h-3.5 text-[var(--pds-text-muted)] shrink-0" />
           <input
             autoFocus
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search commands…"
-            style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 14, color: "var(--foreground)", fontFamily: "inherit" }}
+            className="flex-1 bg-transparent border-none outline-none text-[13px] text-[var(--pds-text-primary)] font-sans placeholder:text-[var(--pds-text-muted)]"
           />
-          <kbd style={{ fontSize: 10, opacity: 0.4, fontFamily: "monospace" }}>ESC</kbd>
+          <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-[var(--pds-surface-2)] border border-[var(--pds-border-subtle)] rounded text-[var(--pds-text-muted)]">ESC</kbd>
         </div>
-        <div style={{ maxHeight: 360, overflowY: "auto", padding: "6px 0" }}>
+        <div className="max-h-[360px] overflow-y-auto p-1.5">
           {filtered.length === 0 && (
-            <p style={{ padding: "12px 16px", fontSize: 12, opacity: 0.4, margin: 0 }}>No results</p>
+            <p className="px-4 py-8 text-[12px] text-center text-[var(--pds-text-muted)]">No results</p>
           )}
           {filtered.map(cmd => (
             <button
               key={cmd.id}
               onClick={() => { cmd.action(); setOpen(false); setQuery(""); }}
-              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", transition: "background 100ms" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              className="w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg text-left cursor-pointer transition-colors hover:bg-[var(--pds-surface-2)]"
             >
               <div>
-                <span style={{ fontSize: 13, color: "var(--foreground)", fontWeight: 500 }}>{cmd.label}</span>
-                {cmd.description && <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 8 }}>{cmd.description}</span>}
+                <span className="block text-[13px] font-medium text-[var(--pds-text-primary)]">{cmd.label}</span>
+                {cmd.description && <span className="text-[11px] text-[var(--pds-text-muted)]">{cmd.description}</span>}
               </div>
-              {cmd.shortcut && <kbd style={{ fontSize: 10, opacity: 0.4, fontFamily: "monospace" }}>{cmd.shortcut}</kbd>}
+              {cmd.shortcut && <kbd className="text-[10px] font-mono text-[var(--pds-text-muted)]">{cmd.shortcut}</kbd>}
             </button>
           ))}
         </div>
@@ -177,10 +176,10 @@ export default function HqShell() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center grain">
-        <div className="flex flex-col items-center gap-2">
-          <LogoMark size={32} className="animate-pulse text-primary" />
-          <span className="text-xs text-muted-foreground font-mono mt-2 animate-pulse">Initializing Atlas Sovereign Command...</span>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="pds-animate-enter flex flex-col items-center gap-3">
+          <LogoMark size={28} className="text-[var(--pds-text-muted)]" />
+          <span className="text-[11px] text-[var(--pds-text-muted)] font-mono tracking-widest uppercase">Initializing…</span>
         </div>
       </div>
     );
@@ -191,20 +190,21 @@ export default function HqShell() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col grain overflow-x-hidden">
-      {/* ── Top Sovereign Process Header (No Sidebar) ────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full h-16 border-b border-border bg-background/85 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-background text-foreground flex flex-col overflow-x-hidden">
+      {/* ── Top Sovereign Process Header ──────────────────────────────────────── */}
+      <header className="nav-glass sticky top-0 z-40 w-full h-14 px-4 md:px-6 flex items-center justify-between gap-4">
+
         {/* Left: Brand Identity */}
         <div className="flex items-center gap-3 shrink-0">
-          <NavLink to="/hq/flow" className="flex items-center gap-2.5 group">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
-              <LogoMark size={20} className="text-primary" />
+          <NavLink to="/hq/flow" className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center justify-center">
+              <LogoMark size={16} className="text-[var(--pds-text-primary)]" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-xs tracking-tight text-foreground group-hover:text-primary transition-colors">
+              <span className="font-bold text-[11px] tracking-[0.12em] uppercase text-[var(--pds-text-primary)] font-display">
                 ATLAS
               </span>
-              <span className="text-[9px] text-muted-foreground font-mono">
+              <span className="text-[9px] text-[var(--pds-text-muted)] font-mono">
                 Sovereign Strategist
               </span>
             </div>
@@ -212,32 +212,28 @@ export default function HqShell() {
         </div>
 
         {/* Center: The 4-Step Sequential Acquisition Stream */}
-        <nav className="hidden lg:flex items-center gap-1 p-1 rounded-xl bg-surface-2 border border-border backdrop-blur-md shadow-inner">
+        <nav className="hidden lg:flex items-center gap-0.5">
           {SEQUENTIAL_STEPS.map((s, idx) => {
             const isActive = location.pathname.startsWith(s.to);
             return (
               <div key={s.to} className="flex items-center">
                 {idx > 0 && (
-                  <div className="mx-1 text-muted-foreground/30">
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </div>
+                  <ChevronRight className="h-3 w-3 text-[var(--pds-text-muted)] mx-0.5" />
                 )}
                 <NavLink
                   to={s.to}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background/80"
-                  }`}
                   title={s.desc}
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                    isActive
+                      ? "bg-[var(--pds-accent-dim)] text-[var(--pds-text-primary)] border border-[var(--pds-border-mid)]"
+                      : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-secondary)] hover:bg-[var(--pds-surface-2)]"
+                  }`}
                 >
-                  <span className={`text-[10px] font-mono ${isActive ? "opacity-90 font-bold" : "opacity-50"}`}>
-                    {s.step}
-                  </span>
-                  <s.icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="text-[9px] font-mono opacity-60">{s.step}</span>
+                  <s.icon className="h-3 w-3 shrink-0" />
                   <span>{s.label}</span>
                   {s.badge != null && (
-                    <span className="ml-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-primary/20 text-primary text-[9px] font-mono">
+                    <span className="ml-0.5 min-w-[14px] h-3.5 px-1 flex items-center justify-center rounded-full bg-[var(--pds-accent-dim)] text-[var(--pds-text-primary)] text-[9px] font-mono border border-[var(--pds-border-mid)]">
                       {s.badge}
                     </span>
                   )}
@@ -247,25 +243,23 @@ export default function HqShell() {
           })}
         </nav>
 
-        {/* Right: The Vault & Tools */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* The Vault Button (Trigger) */}
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* The Vault Button */}
           <button
             onClick={() => setVaultOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card/80 hover:bg-card border border-border/70 hover:border-primary/40 text-foreground text-xs font-semibold transition-all shadow-sm group"
+            className="pds-btn-ghost"
             title="Open strategic maps, leads archive, integrations and settings (Cmd+K)"
           >
-            <Database className="h-3.5 w-3.5 text-primary group-hover:scale-110 transition-transform" />
+            <Database className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">The Vault</span>
-            <kbd className="hidden md:inline-block text-[9px] font-mono px-1.5 py-0.2 bg-muted/60 border border-border rounded text-muted-foreground">
-              ⌘K
-            </kbd>
+            <kbd className="hidden md:inline text-[9px] font-mono px-1 py-0.5 bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] rounded text-[var(--pds-text-muted)]">⌘K</kbd>
           </button>
 
-          {/* Ask Atlas AI Assistant */}
+          {/* Ask Atlas AI */}
           <button
             onClick={() => setChatOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-semibold transition-all shadow-sm"
+            className="pds-btn-ghost"
           >
             <Zap className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Ask Atlas</span>
@@ -274,45 +268,47 @@ export default function HqShell() {
           {/* Theme Toggle */}
           <button
             onClick={cycleTheme}
-            className="h-8 w-8 rounded-lg bg-card/50 hover:bg-card border border-border/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            className="h-8 w-8 rounded-lg bg-[var(--pds-surface-2)] hover:bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors"
             aria-label="Toggle theme"
           >
             {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </button>
 
-          {/* Google-Style 9-Dot Ecosystem Waffle Switcher */}
+          {/* Ecosystem Switcher */}
           <EcosystemSwitcher />
 
-          {/* User Profile */}
-          <div className="flex items-center gap-2 pl-1 border-l border-border/50">
+          {/* User / Sign-out */}
+          <div className="flex items-center gap-1.5 pl-2 border-l border-[var(--pds-border-subtle)]">
             <button
               onClick={() => navigate("/hq/settings")}
-              className="h-7 w-7 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center text-primary hover:bg-primary/20 transition-all"
+              className="h-7 w-7 rounded-full bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center justify-center text-[var(--pds-text-secondary)] hover:text-[var(--pds-text-primary)] hover:bg-[var(--pds-surface-3)] transition-colors"
               title={user.user_metadata?.username || profile?.display_name || user.email || "Profile"}
             >
-              <UserIcon className="h-3.5 w-3.5" />
+              <UserIcon className="h-3 w-3" />
             </button>
             <button
               onClick={() => signOut().then(() => navigate("/"))}
-              className="text-muted-foreground hover:text-foreground p-1 transition-colors"
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors"
               title="Sign out"
             >
-              <LogOut className="h-3.5 w-3.5" />
+              <LogOut className="h-3 w-3" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile Sequential Step Tracker Strip (visible only on small screens) */}
-      <div className="lg:hidden w-full overflow-x-auto border-b border-border/50 bg-[#0A0B0F] px-4 py-2 flex items-center gap-2">
+      {/* Mobile Sequential Step Tracker Strip */}
+      <div className="lg:hidden w-full overflow-x-auto border-b border-[var(--pds-border-subtle)] bg-[var(--pds-canvas)] px-4 py-2 flex items-center gap-1.5">
         {SEQUENTIAL_STEPS.map((s) => {
           const isActive = location.pathname.startsWith(s.to);
           return (
             <NavLink
               key={s.to}
               to={s.to}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap ${
-                isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground bg-muted/30"
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                isActive
+                  ? "bg-[var(--pds-accent-dim)] text-[var(--pds-text-primary)] border border-[var(--pds-border-mid)]"
+                  : "text-[var(--pds-text-muted)] bg-[var(--pds-surface-2)]"
               }`}
             >
               <span className="text-[9px] font-mono">{s.step}</span>

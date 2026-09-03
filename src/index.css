@@ -183,6 +183,11 @@
   to   { opacity: 1; filter: blur(0); }
 }
 
+@keyframes pds-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
 .pds-animate-enter {
   animation: pds-slide-up-fade var(--pds-t-slow) var(--pds-ease-spring) both;
 }
@@ -195,3 +200,179 @@
 .pds-delay-2 { animation-delay: 100ms; }
 .pds-delay-3 { animation-delay: 150ms; }
 .pds-delay-4 { animation-delay: 200ms; }
+
+/* ── Reduced Motion ──────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pds-animate-enter,
+  .pds-animate-blur-in {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+/* ── Component Layer ─────────────────────────────────────────────────────────── */
+
+@layer components {
+
+  /* Navigation glass bar */
+  .nav-glass {
+    background: rgba(248, 247, 244, 0.88);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--pds-border-subtle);
+  }
+  .dark .nav-glass {
+    background: rgba(7, 8, 12, 0.82);
+  }
+
+  /* Card surface */
+  .pds-card {
+    background: var(--pds-surface-1);
+    border: 1px solid var(--pds-border-subtle);
+    border-radius: 16px;
+    box-shadow: var(--pds-shadow-sm);
+  }
+
+  /* Data card with left-border accent signature */
+  .pds-data-card {
+    background: var(--pds-surface-1);
+    border: 1px solid var(--pds-border-subtle);
+    border-left: 2px solid var(--pds-accent);
+    border-radius: 12px;
+    box-shadow: var(--pds-shadow-sm);
+    transition: box-shadow var(--pds-t-fast) var(--pds-ease-out);
+  }
+  .pds-data-card:hover {
+    box-shadow: var(--pds-shadow-md);
+  }
+
+  /* Primary CTA button */
+  .pds-btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 20px;
+    background: var(--pds-accent);
+    color: var(--pds-accent-inv);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity var(--pds-t-fast) var(--pds-ease-out),
+                background var(--pds-t-fast) var(--pds-ease-out);
+  }
+  .pds-btn-primary:hover:not(:disabled) { opacity: 0.88; }
+  .pds-btn-primary:active:not(:disabled) { opacity: 0.75; }
+  .pds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pds-btn-primary:focus-visible {
+    outline: 2px solid var(--pds-border-strong);
+    outline-offset: 2px;
+  }
+
+  /* Ghost / secondary button */
+  .pds-btn-ghost {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 14px;
+    background: var(--pds-surface-2);
+    color: var(--pds-text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--pds-border-subtle);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background var(--pds-t-fast) var(--pds-ease-out),
+                border-color var(--pds-t-fast) var(--pds-ease-out);
+  }
+  .pds-btn-ghost:hover:not(:disabled) {
+    background: var(--pds-surface-3);
+    border-color: var(--pds-border-mid);
+  }
+  .pds-btn-ghost:focus-visible {
+    outline: 2px solid var(--pds-border-strong);
+    outline-offset: 2px;
+  }
+
+  /* Text / tertiary button */
+  .pds-btn-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    color: var(--pds-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 0;
+    transition: color var(--pds-t-fast) var(--pds-ease-out);
+  }
+  .pds-btn-text:hover { color: var(--pds-text-primary); }
+
+  /* Data label (eyebrow) */
+  .pds-label {
+    display: block;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--pds-text-muted);
+    margin-bottom: 6px;
+  }
+
+  /* Status badge */
+  .pds-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pds-text-muted);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--pds-border-subtle);
+    background: var(--pds-surface-2);
+  }
+  .pds-status-badge.active {
+    color: var(--pds-success);
+    border-color: rgba(34, 197, 94, 0.25);
+    background: rgba(34, 197, 94, 0.06);
+  }
+
+  /* Status dot */
+  .pds-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--pds-text-muted);
+    flex-shrink: 0;
+  }
+  .pds-status-dot.active {
+    background: var(--pds-success);
+    animation: pds-pulse-dot 2.5s ease-in-out infinite;
+  }
+
+  /* Inline score chip */
+  .pds-score-chip {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 8px;
+    background: var(--pds-surface-2);
+    border: 1px solid var(--pds-border-subtle);
+    border-radius: 8px;
+  }
+}
