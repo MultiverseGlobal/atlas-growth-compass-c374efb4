@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   Shield, 
   ExternalLink, 
@@ -100,7 +100,7 @@ export function EcosystemSwitcher() {
 
       {/* Waffle Popover Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 rounded-2xl bg-card border border-border p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3">
+        <div className="absolute right-0 mt-3 w-80 rounded-2xl bg-[var(--pds-surface-1)] border border-[var(--pds-border-mid)] p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-border">
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
@@ -132,17 +132,12 @@ export function EcosystemSwitcher() {
                   onClick={() => setIsOpen(false)}
                   className={`flex flex-col items-center text-center p-2.5 rounded-xl border transition-all group ${
                     isCurrent
-                      ? "bg-primary/10 border-primary/40 shadow-sm"
-                      : "hover:bg-muted/50 border-transparent hover:border-border"
+                      ? "bg-[var(--pds-surface-2)] border-[var(--pds-border-mid)] shadow-sm"
+                      : "border-transparent hover:border-[var(--pds-border-subtle)]"
                   }`}
                 >
                   <div 
-                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-1.5 shadow-sm transition-transform group-hover:scale-105"
-                    style={{
-                      backgroundColor: `${app.accentColor}18`,
-                      color: app.accentColor,
-                      border: `1px solid ${app.accentColor}35`
-                    }}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-1.5 shadow-sm transition-transform bg-[var(--pds-surface-1)] border border-[var(--pds-border-subtle)] group-hover:bg-[var(--pds-surface-2)]"
                   >
                     <Icon className="w-4 h-4" />
                   </div>
