@@ -266,8 +266,21 @@ export default function Onboarding() {
   const [saving, setSaving] = useState(false);
 
   // Guided context states — pre-filled from wizard if available
-  const starterMap = loadStarterMap();
-  const [goal, setGoal] = useState(wizardSetup?.goal ?? starterMap?.goalStatement ?? "");
+  const [starterMap, setStarterMap] = useState<any>(null);
+  const [goal, setGoal] = useState(wizardSetup?.goal ?? "");
+
+  useEffect(() => {
+    let mounted = true;
+    loadStarterMap().then(map => {
+      if (mounted && map) {
+        setStarterMap(map);
+        if (!wizardSetup?.goal) {
+          setGoal(map.goalStatement);
+        }
+      }
+    });
+    return () => { mounted = false };
+  }, [wizardSetup]);
   const [operatingArea, setOperatingArea] = useState(
     wizardSetup?.goalCategory === "growth" ? "marketing" :
     wizardSetup?.goalCategory === "fundraising" ? "operations" :
@@ -518,7 +531,7 @@ export default function Onboarding() {
       }
 
       try {
-        localStorage.removeItem("atlas.starter");
+        await import('@/lib/starterMap').then(m => m.clearStarterMap());
         sessionStorage.removeItem("atlas.setup");
       } catch { /* non-critical */ }
 

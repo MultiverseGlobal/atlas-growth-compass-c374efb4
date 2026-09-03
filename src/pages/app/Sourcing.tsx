@@ -192,21 +192,37 @@ export default function Sourcing() {
     toast.success(`🎬 Opened in Clario Studio: ${lead.company}`);
   };
 
-  const handleExecuteInWilliam = (lead: Lead) => {
+  const handleExecuteInWilliam = async (lead: Lead) => {
+    if (!user) {
+      toast.error("You must be logged in to queue tasks.");
+      return;
+    }
     const task = {
-      id: lead.id,
       title: `Outreach to ${lead.prospect} (${lead.company})`,
       action: `Send $500 AI Ops Sprint pitch via LinkedIn/Email. Pitch: ${lead.draft_message}`,
       priority: lead.priority || "P1",
       channel: lead.contact_channel || "LinkedIn",
-      timestamp: new Date().toISOString()
     };
-    // Replaced localStorage william_focus_queue logic with DB or contextual state in future.
-    // For now, it just copies the pitch to clipboard and notifies.
-    if (lead.draft_message) {
-      navigator.clipboard.writeText(lead.draft_message);
+    try {
+      const { error } = await supabase.from('task_handoffs').insert({
+        id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        project_id: user.id,
+        payload: JSON.stringify(task),
+        source_ai: 'atlas',
+        target_ai: 'william',
+        status: 'pending',
+        instructions: task.action,
+      });
+      if (error) throw error;
+      
+      if (lead.draft_message) {
+        navigator.clipboard.writeText(lead.draft_message);
+      }
+      toast.success(`⚡ Queued in William Focus Tasks & Copied Pitch!`);
+    } catch (err: any) {
+      toast.error(`Failed to sync to William: ${err.message}`);
     }
-    toast.success(`⚡ Queued in William Focus Tasks & Copied Pitch!`);
   };
 
   // Preview & Organize Staging Flow state
@@ -1190,24 +1206,24 @@ export default function Sourcing() {
   };
 
   const STAGE_COLORS: Record<string, string> = {
-    identified: "text-muted-foreground border-border/50 bg-muted/20",
-    researched: "text-sky-500 border-sky-500/20 bg-sky-500/5",
-    approved: "text-blue-500 border-blue-500/20 bg-blue-500/5",
-    contacted: "text-amber-500 border-amber-500/20 bg-amber-500/5",
-    replied: "text-yellow-500 border-yellow-500/20 bg-yellow-500/5",
-    qualified: "text-orange-500 border-orange-500/20 bg-orange-500/5",
-    call_booked: "text-violet-500 border-violet-500/20 bg-violet-500/5",
-    call_completed: "text-purple-500 border-purple-500/20 bg-purple-500/5",
-    pain_confirmed: "text-primary border-primary/20 bg-primary/5",
-    proposal_sent: "text-emerald-400 border-emerald-400/20 bg-emerald-400/5",
-    negotiating: "text-emerald-500 border-emerald-500/20 bg-emerald-500/5",
-    won: "text-emerald-600 border-emerald-600/20 bg-emerald-600/10",
-    paid: "text-emerald-700 border-emerald-700/20 bg-emerald-700/10",
-    lost: "text-destructive border-destructive/20 bg-destructive/5",
-    onboarding: "text-teal-500 border-teal-500/20 bg-teal-500/5",
-    delivering: "text-teal-600 border-teal-600/20 bg-teal-600/5",
-    complete: "text-success border-success/20 bg-success/5",
-    Sourced: "text-muted-foreground border-border/50 bg-muted/20",
+    identified: "text-muted-foreground border-border-subtle bg-surface-2",
+    researched: "text-status-info border-status-info/20 bg-status-info/10",
+    approved: "text-status-info border-status-info/20 bg-status-info/10",
+    contacted: "text-status-warning border-status-warning/20 bg-status-warning/10",
+    replied: "text-accent border-accent/20 bg-accent/10",
+    qualified: "text-accent border-accent/20 bg-accent/10",
+    call_booked: "text-accent border-accent/20 bg-accent/10",
+    call_completed: "text-accent border-accent/20 bg-accent/10",
+    pain_confirmed: "text-accent border-accent/20 bg-accent/10",
+    proposal_sent: "text-accent border-accent/20 bg-accent/10",
+    negotiating: "text-status-warning border-status-warning/20 bg-status-warning/10",
+    won: "text-status-success border-status-success/20 bg-status-success/10",
+    paid: "text-status-success border-status-success/20 bg-status-success/10",
+    lost: "text-status-danger border-status-danger/20 bg-status-danger/10",
+    onboarding: "text-status-success border-status-success/20 bg-status-success/10",
+    delivering: "text-status-success border-status-success/20 bg-status-success/10",
+    complete: "text-status-success border-status-success/20 bg-status-success/10",
+    Sourced: "text-muted-foreground border-border-subtle bg-surface-2",
   };
 
   const updateStage = async (leadId: string, newStage: string) => {
@@ -1530,9 +1546,9 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
   // Get ICP badge color classes
   const getIcpBadgeClass = (score: number | null) => {
     if (score === null) return "bg-muted text-muted-foreground border-transparent";
-    if (score >= 9) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/25";
-    if (score >= 7) return "bg-amber-500/15 text-amber-600 border-amber-500/25";
-    return "bg-rose-500/15 text-rose-600 border-rose-500/25";
+    if (score >= 9) return "bg-status-success/15 text-status-success border-status-success/25";
+    if (score >= 7) return "bg-status-warning/15 text-status-warning border-status-warning/25";
+    return "bg-status-danger/15 text-status-danger border-status-danger/25";
   };
 
   // Filters logic
@@ -3150,7 +3166,7 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                         const isSelected = bulkSelectedIndices.includes(index);
                         const isBelowThreshold = lead.is_below_threshold || (lead.icp_score !== undefined && lead.icp_score < 10);
                         return (
-                          <TableRow key={index} className={`hover:bg-muted/10 transition-colors ${isBelowThreshold ? 'bg-amber-500/[0.02]' : ''}`}>
+                          <TableRow key={index} className={`hover:bg-muted/10 transition-colors ${isBelowThreshold ? 'bg-status-warning/[0.02]' : ''}`}>
                             <TableCell className="text-center align-top pt-4">
                               <Checkbox 
                                 checked={isSelected} 
@@ -3191,7 +3207,7 @@ ${isDisqualified ? `[DISQUALIFIED: ${disqualificationReason}]\n\n` : ""}${rawLea
                             </TableCell>
                             <TableCell className="align-top pt-4 text-center">
                               <div className="inline-flex flex-col items-center gap-1">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isBelowThreshold ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isBelowThreshold ? 'bg-status-warning/10 text-status-warning border border-status-warning/30' : 'bg-status-success/10 text-status-success border border-status-success/30'}`}>
                                   {lead.icp_score}/15
                                 </span>
                                 <span className="text-[9px] text-muted-foreground text-center">

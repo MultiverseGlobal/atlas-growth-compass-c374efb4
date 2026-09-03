@@ -259,9 +259,9 @@ export default function HqDashboard() {
         </div>
         <div className="flex items-center gap-4">
           {/* Engine Status */}
-          <div className="hidden sm:flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
-            <Zap className="h-3 w-3 text-primary" />
-            <span className="text-primary font-semibold uppercase">{acquisition?.status || "IDLE"}</span>
+          <div className="hidden sm:flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20">
+            <Zap className="h-3 w-3 text-accent" />
+            <span className="text-accent font-semibold uppercase">{acquisition?.status || "IDLE"}</span>
           </div>
           <Button
             variant="outline"
@@ -325,7 +325,7 @@ export default function HqDashboard() {
                 <Zap className="h-5 w-5 text-accent" fill="currentColor" />
                 <span className="text-xs font-bold text-accent uppercase tracking-widest font-mono">Next Best Action</span>
               </div>
-              <div className="flex items-center gap-1 text-[10px] font-mono text-primary/70">
+              <div className="flex items-center gap-1 text-xs font-mono text-accent/70">
                 <span>{nba.confidence}% confidence</span>
               </div>
             </div>
@@ -334,7 +334,7 @@ export default function HqDashboard() {
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{nba.reason}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-mono text-emerald-400 border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 rounded">Deal value: {nba.value}</span>
+              <span className="text-xs font-mono text-status-success border border-status-success/20 bg-status-success/10 px-2 py-0.5 rounded">Deal value: {nba.value}</span>
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => navigate(`/hq/leads/${nba.companyId}?tab=outreach`)} className="h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5">
@@ -349,10 +349,10 @@ export default function HqDashboard() {
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
-            <Zap className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex items-start gap-3">
+            <Zap className="h-4 w-4 text-accent shrink-0 mt-0.5" />
             <div>
-              <div className="text-xs font-semibold text-primary mb-0.5 uppercase tracking-wider">Atlas Chief of Staff</div>
+              <div className="text-xs font-semibold text-accent mb-0.5 uppercase tracking-wider">Atlas Chief of Staff</div>
               <p className="text-sm text-foreground">Add leads and deals to activate your Next Best Action engine.</p>
             </div>
           </div>
@@ -363,10 +363,10 @@ export default function HqDashboard() {
           <div className="lg:col-span-2 rounded-2xl border border-border-subtle pds-glass p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-amber-400" />
+                <Clock className="h-4 w-4 text-status-warning" />
                 <h2 className="text-sm font-semibold">Follow-ups Due</h2>
                 {followUps.length > 0 && (
-                  <span className="text-xs font-mono bg-amber-500/15 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full">
+                  <span className="text-xs font-mono bg-status-warning/15 text-status-warning border border-status-warning/20 px-1.5 py-0.5 rounded-full">
                     {followUps.length}
                   </span>
                 )}
@@ -395,16 +395,16 @@ export default function HqDashboard() {
                     <div
                       key={fu.id}
                       onClick={() => navigate(`/hq/leads/${fu.company_id}`)}
-                      className="flex items-center gap-3 p-3 rounded-lg border border-border/40 bg-muted/10 hover:bg-muted/30 cursor-pointer transition-colors group"
+                      className="flex items-center gap-3 p-3 rounded-lg border border-border-subtle bg-surface-2/40 hover:bg-surface-2 cursor-pointer transition-colors group"
                     >
-                      <div className={`h-2 w-2 rounded-full shrink-0 ${overdue ? "bg-red-400" : "bg-amber-400"}`} />
+                      <div className={`h-2 w-2 rounded-full shrink-0 ${overdue ? "bg-status-danger" : "bg-status-warning"}`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{fu.company_name}</div>
                         <div className="text-xs text-muted-foreground truncate">
                           {typeLabel(fu.type)}{fu.subject ? ` · ${fu.subject}` : ""}
                         </div>
                       </div>
-                      <div className={`text-xs font-mono shrink-0 ${overdue ? "text-red-400" : "text-amber-400"}`}>
+                      <div className={`text-xs font-mono shrink-0 ${overdue ? "text-status-danger" : "text-status-warning"}`}>
                         {overdue ? formatDistanceToNow(due, { addSuffix: true }) : "Today"}
                       </div>
                       <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0" />
@@ -429,14 +429,14 @@ export default function HqDashboard() {
                   {
                     label: "Replies received",
                     value: outreachStats.repliesThisWeek,
-                    color: outreachStats.repliesThisWeek > 0 ? "text-emerald-400" : "text-muted-foreground"
+                    color: outreachStats.repliesThisWeek > 0 ? "text-status-success" : "text-muted-foreground"
                   },
                   {
                     label: "Reply rate",
                     value: outreachStats.sentThisWeek > 0
                       ? `${Math.round((outreachStats.repliesThisWeek / outreachStats.sentThisWeek) * 100)}%`
                       : "—",
-                    color: "text-primary"
+                    color: "text-accent"
                   },
                 ].map((row) => (
                   <div key={row.label} className="flex justify-between items-center text-xs">
@@ -478,11 +478,11 @@ export default function HqDashboard() {
 
         {/* Stalled Deals */}
         {stalled.length > 0 && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5 space-y-4">
+          <div className="rounded-xl border border-status-danger/20 bg-status-danger/5 p-5 space-y-4">
             <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-red-400" />
-              <h2 className="text-sm font-semibold text-red-400">Stalled Deals</h2>
-              <span className="text-xs font-mono bg-red-500/15 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded-full">
+              <AlertCircle className="h-4 w-4 text-status-danger" />
+              <h2 className="text-sm font-semibold text-status-danger">Stalled Deals</h2>
+              <span className="text-xs font-mono bg-status-danger/15 text-status-danger border border-status-danger/20 px-1.5 py-0.5 rounded-full">
                 {stalled.length} need attention
               </span>
             </div>
@@ -491,7 +491,7 @@ export default function HqDashboard() {
                 <div
                   key={deal.id}
                   onClick={() => navigate(`/hq/leads/${deal.company_id || deal.id}`)}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-red-500/15 bg-red-500/5 hover:bg-red-500/10 cursor-pointer transition-colors group"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-status-danger/15 bg-status-danger/5 hover:bg-status-danger/10 cursor-pointer transition-colors group"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">{deal.company_name}</div>
@@ -500,8 +500,8 @@ export default function HqDashboard() {
                       {deal.next_action ? ` · Next: ${deal.next_action}` : ""}
                     </div>
                   </div>
-                  <div className="text-xs font-mono text-red-400 shrink-0">{deal.daysSince}d stalled</div>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-red-400 shrink-0" />
+                  <div className="text-xs font-mono text-status-danger shrink-0">{deal.daysSince}d stalled</div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-status-danger shrink-0" />
                 </div>
               ))}
             </div>

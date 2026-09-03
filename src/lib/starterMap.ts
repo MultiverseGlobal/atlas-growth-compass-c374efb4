@@ -2,6 +2,8 @@
 // Turns a stated goal into Goal → Constraint → Evidence → Move waypoints
 // at Emerging confidence.
 
+import { supabase } from "@/integrations/supabase/client";
+
 export type WaypointType = "goal" | "constraint" | "evidence" | "move";
 export type Confidence = "emerging" | "building" | "established";
 
@@ -163,27 +165,68 @@ export function generateStarterMap(goalStatement: string): StarterMap {
   };
 }
 
-export function saveStarterMap(map: StarterMap) {
+export async function saveStarterMap(map: StarterMap) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    await supabase.from('maps').upsert({
+      id: map.id,
+      name: "Starter Map",
+      goal_statement: map.goalStatement,
+      user_id: userData.user.id,
+      metadata: { waypoints: map.waypoints }
+    });
   } catch {
-    /* ignore quota / private mode */
+    /* fallback to local storage if totally failed to connect */
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
   }
 }
 
-export function loadStarterMap(): StarterMap | null {
+export async function loadStarterMap(): Promise<StarterMap | null> {
   try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return null;
+
+    const { data, error } = await supabase
+      .from('maps')
+      .select('*')
+      .eq('id', 'starter')
+      .eq('user_id', userData.user.id)
+      .maybeSingle();
+
+    if (data) {
+      return {
+        id: "starter",
+        goalStatement: data.goal_statement,
+        createdAt: data.created_at,
+        waypoints: (data.metadata as any)?.waypoints || []
+      };
+    }
+    
+    // Check if there's a legacy map in localStorage and migrate it
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as StarterMap) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw) as StarterMap;
+      await saveStarterMap(parsed); // migrate it
+      localStorage.removeItem(STORAGE_KEY);
+      return parsed;
+    }
+
+    return null;
   } catch {
     return null;
   }
 }
 
-export function clearStarterMap() {
+export async function clearStarterMap() {
   try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData.user) {
+      await supabase.from('maps').delete().eq('id', 'starter').eq('user_id', userData.user.id);
+    }
     localStorage.removeItem(STORAGE_KEY);
   } catch {
-    /* ignore */
+    localStorage.removeItem(STORAGE_KEY);
   }
 }

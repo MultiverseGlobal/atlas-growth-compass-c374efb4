@@ -5,8 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ProofEngineModal } from "./ProofEngineModal";
 import { PartnerEngineModal } from "./PartnerEngineModal";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export function HighestOpportunityCard() {
+  const { user } = useAuth();
   const [showProofModal, setShowProofModal] = useState(false);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
 
@@ -28,34 +31,46 @@ export function HighestOpportunityCard() {
     recommendedPath: "Send 3-minute asynchronous Loom teardown showing the exact intake-to-workspace webhook blueprint."
   };
 
-  const handleSendToWilliam = () => {
+  const handleSendToWilliam = async () => {
+    if (!user) {
+      toast.error("You must be logged in to queue tasks.");
+      return;
+    }
     const task = {
-      id: `top_opp_${Date.now()}`,
       title: `Execute High-Probability Opportunity: ${topOpportunity.company}`,
       action: `Send custom diagnostic teardown to ${topOpportunity.contact}. Recommended path: ${topOpportunity.recommendedPath}`,
       priority: "P0",
-      channel: "LinkedIn Direct / Loom",
-      timestamp: new Date().toISOString()
+      channel: "LinkedIn Direct / Loom"
     };
     try {
-      // Replaced localStorage william_focus_queue logic with DB or contextual state in future.
+      const { error } = await supabase.from('task_handoffs').insert({
+        id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        project_id: user.id,
+        payload: JSON.stringify(task),
+        source_ai: 'atlas',
+        target_ai: 'william',
+        status: 'pending',
+        instructions: task.action,
+      });
+      if (error) throw error;
       toast.success(`⚡ Queued #${topOpportunity.company} into William Sovereign Queue!`);
-    } catch (_) {
-      toast.success(`⚡ Opportunity synced to William!`);
+    } catch (err: any) {
+      toast.error(`⚡ Failed to sync to William: ${err.message}`);
     }
   };
 
   return (
     <>
-      <div className="rounded-xl border border-primary/40 bg-gradient-to-br from-primary/[0.08] via-card to-background p-5 space-y-4 shadow-md">
+      <div className="rounded-xl border border-accent/40 bg-gradient-to-br from-accent/[0.08] via-card to-background p-5 space-y-4 shadow-md">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/40 pb-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center text-primary">
+            <div className="h-8 w-8 rounded-lg bg-accent/20 border border-accent/30 flex items-center justify-center text-accent">
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <span className="text-[10px] font-mono tracking-widest text-primary uppercase font-bold">
+              <span className="text-xs font-mono tracking-widest text-accent uppercase font-bold">
                 Founder Brief · Priority Vector
               </span>
               <h2 className="text-sm font-semibold text-white">
@@ -65,10 +80,10 @@ export function HighestOpportunityCard() {
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-center">
-            <Badge variant="outline" className="text-xs font-mono font-bold text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+            <Badge variant="outline" className="text-xs font-mono font-bold text-status-success border-status-success/30 bg-status-success/10">
               ★ {topOpportunity.proximityScore} / 10 Proximity
             </Badge>
-            <Badge variant="outline" className="text-[11px] text-sky-400 border-sky-500/30 bg-sky-500/10">
+            <Badge variant="outline" className="text-xs text-status-info border-status-info/30 bg-status-info/10">
               {topOpportunity.opportunityType}
             </Badge>
           </div>
@@ -83,44 +98,44 @@ export function HighestOpportunityCard() {
             </div>
           </div>
 
-          <div className="p-3 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 text-amber-200/90 text-xs">
-            <span className="font-semibold text-amber-400">Buying Signal: </span>
+          <div className="p-3 rounded-lg bg-status-warning/10 border border-status-warning/20 text-status-warning text-xs">
+            <span className="font-semibold">Buying Signal: </span>
             "{topOpportunity.signal}"
           </div>
         </div>
 
         {/* 5-Factor Proximity Formula Breakdown */}
-        <div className="p-2.5 rounded-lg bg-black/40 border border-border/50">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">
+        <div className="p-2.5 rounded-lg bg-surface-2/40 border border-border-subtle">
+          <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">
             Atlas Proximity Score Breakdown (ICP Fit × Pain × Timing × Proximity × Accessibility)
           </div>
           <div className="grid grid-cols-5 gap-2 text-center text-xs">
-            <div className="p-1.5 rounded bg-white/5">
-              <span className="block text-[9px] text-muted-foreground uppercase">ICP Fit</span>
+            <div className="p-1.5 rounded bg-surface-1">
+              <span className="block text-[10px] text-muted-foreground uppercase">ICP Fit</span>
               <span className="font-mono font-semibold text-foreground">{topOpportunity.rubric.icpFit}</span>
             </div>
-            <div className="p-1.5 rounded bg-white/5">
-              <span className="block text-[9px] text-muted-foreground uppercase">Pain Signal</span>
-              <span className="font-mono font-semibold text-emerald-400">{topOpportunity.rubric.painSignal}</span>
+            <div className="p-1.5 rounded bg-surface-1">
+              <span className="block text-[10px] text-muted-foreground uppercase">Pain Signal</span>
+              <span className="font-mono font-semibold text-status-success">{topOpportunity.rubric.painSignal}</span>
             </div>
-            <div className="p-1.5 rounded bg-white/5">
-              <span className="block text-[9px] text-muted-foreground uppercase">Timing</span>
-              <span className="font-mono font-semibold text-sky-400">{topOpportunity.rubric.timing}</span>
+            <div className="p-1.5 rounded bg-surface-1">
+              <span className="block text-[10px] text-muted-foreground uppercase">Timing</span>
+              <span className="font-mono font-semibold text-status-info">{topOpportunity.rubric.timing}</span>
             </div>
-            <div className="p-1.5 rounded bg-white/5">
-              <span className="block text-[9px] text-muted-foreground uppercase">Proximity</span>
-              <span className="font-mono font-semibold text-purple-400">{topOpportunity.rubric.proximity}</span>
+            <div className="p-1.5 rounded bg-surface-1">
+              <span className="block text-[10px] text-muted-foreground uppercase">Proximity</span>
+              <span className="font-mono font-semibold text-accent">{topOpportunity.rubric.proximity}</span>
             </div>
-            <div className="p-1.5 rounded bg-white/5">
-              <span className="block text-[9px] text-muted-foreground uppercase">Access</span>
-              <span className="font-mono font-semibold text-amber-400">{topOpportunity.rubric.accessibility}</span>
+            <div className="p-1.5 rounded bg-surface-1">
+              <span className="block text-[10px] text-muted-foreground uppercase">Access</span>
+              <span className="font-mono font-semibold text-status-warning">{topOpportunity.rubric.accessibility}</span>
             </div>
           </div>
         </div>
 
         {/* Recommended Entry Path */}
         <div className="p-3 rounded-lg bg-primary/[0.05] border border-primary/20 text-xs space-y-1">
-          <div className="font-semibold text-primary text-[11px] uppercase tracking-wide">
+          <div className="font-semibold text-primary text-xs uppercase tracking-wide">
             Recommended Entry Move
           </div>
           <p className="text-foreground/90 leading-relaxed">
@@ -134,7 +149,7 @@ export function HighestOpportunityCard() {
             <Button
               size="sm"
               onClick={() => setShowProofModal(true)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5 h-8 font-medium"
+              className="bg-status-success hover:bg-status-success/90 text-white text-xs gap-1.5 h-8 font-medium"
             >
               <Video className="h-3.5 w-3.5" />
               Generate 3-Min Loom Teardown
@@ -143,7 +158,7 @@ export function HighestOpportunityCard() {
               size="sm"
               variant="outline"
               onClick={() => setShowPartnerModal(true)}
-              className="text-xs gap-1.5 h-8 border-border/70 hover:border-sky-500/40 text-sky-300"
+              className="text-xs gap-1.5 h-8 border-border-subtle hover:border-status-info/40 text-status-info"
             >
               <Handshake className="h-3.5 w-3.5" />
               Partner Discovery

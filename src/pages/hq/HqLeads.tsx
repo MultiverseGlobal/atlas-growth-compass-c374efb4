@@ -32,12 +32,12 @@ const STAGES = ["all", "new", "researched", "contacted", "interested", "proposal
 function stageBadge(stage: string) {
   const map: Record<string, string> = {
     new: "bg-muted/60 text-muted-foreground border-border/40",
-    researched: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    contacted: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    researched: "bg-status-info/10 text-status-info border-status-info/20",
+    contacted: "bg-status-warning/10 text-status-warning border-status-warning/20",
     interested: "bg-primary/10 text-primary border-primary/20",
-    proposal_sent: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    won: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    lost: "bg-red-500/10 text-red-400 border-red-500/20",
+    proposal_sent: "bg-accent-dim text-accent border-accent/20",
+    won: "bg-status-success/10 text-status-success border-status-success/20",
+    lost: "bg-status-danger/10 text-status-danger border-status-danger/20",
   };
   return map[stage] ?? "bg-muted/60 text-muted-foreground border-border/40";
 }
@@ -56,7 +56,7 @@ function stageLabel(s: string) {
 }
 
 function IcpDot({ score }: { score: number }) {
-  const color = score >= 8 ? "bg-emerald-400" : score >= 6 ? "bg-amber-400" : "bg-muted-foreground/50";
+  const color = score >= 8 ? "bg-status-success" : score >= 6 ? "bg-status-warning" : "bg-muted-foreground/50";
   return (
     <div className="flex items-center gap-1.5">
       <div className={`h-2 w-2 rounded-full ${color}`} />
@@ -399,18 +399,18 @@ export default function HqLeads() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 mb-4 relative z-10">
-                    <div className="bg-secondary/40 rounded-lg p-3">
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground">ICP FIT</span>
+                    <div className="bg-surface-2/40 rounded-lg p-3">
+                      <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground">ICP FIT</span>
                       <div className="text-lg font-mono font-bold mt-0.5">{lead.icp_score ?? "--"}</div>
                     </div>
-                    <div className="bg-secondary/40 rounded-lg p-3">
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground">OPP. SCORE</span>
+                    <div className="bg-surface-2/40 rounded-lg p-3">
+                      <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground">OPP. SCORE</span>
                       <div className="text-lg font-mono font-bold mt-0.5">{(lead as any).opportunity_score ?? "--"}</div>
                     </div>
                   </div>
 
                   <div className="flex-1 relative z-10">
-                    <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Pain Hypothesis</span>
+                    <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Pain Hypothesis</span>
                     <p className="text-sm mt-1.5 text-foreground/80 line-clamp-3">
                       {hypothesis}
                     </p>
@@ -418,12 +418,12 @@ export default function HqLeads() {
 
                   <div className="mt-5 pt-4 border-t border-border/40 flex items-center justify-between relative z-10">
                     <div className="flex flex-col">
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground mb-1">STATUS</span>
+                      <span className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1">STATUS</span>
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${stageBadge(lead.stage)} w-fit uppercase tracking-wider`}>
                           {stageLabel(lead.stage)}
                         </span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 uppercase">
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-accent/30 bg-accent/10 text-accent uppercase">
                           {lead.acquisition_channel || "Outbound"}
                         </span>
                       </div>

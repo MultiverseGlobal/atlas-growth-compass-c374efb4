@@ -349,14 +349,14 @@ export default function HqLeadDetail() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-sm font-bold truncate">{lead.company}</h1>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono uppercase border shrink-0 ${
-                  lead.stage === "won" ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" :
-                  lead.stage === "lost" ? "text-red-400 border-red-500/30 bg-red-500/10" :
-                  "text-primary border-primary/30 bg-primary/10"
+                <span className={`text-xs px-1.5 py-0.5 rounded font-mono uppercase border shrink-0 ${
+                  lead.stage === "won" ? "text-status-success border-status-success/30 bg-status-success/10" :
+                  lead.stage === "lost" ? "text-status-danger border-status-danger/30 bg-status-danger/10" :
+                  "text-accent border-accent/30 bg-accent/10"
                 }`}>{stageLabel(lead.stage)}</span>
                 
                 <Select value={lead.acquisition_channel || "Outbound"} onValueChange={handleUpdateChannel}>
-                  <SelectTrigger className="h-6 text-[10px] px-2 py-0.5 w-auto rounded font-mono uppercase border-indigo-500/30 bg-indigo-500/10 text-indigo-400">
+                  <SelectTrigger className="h-6 text-xs px-2 py-0.5 w-auto rounded font-mono uppercase border-accent/30 bg-accent/10 text-accent">
                     <SelectValue placeholder="Channel" />
                   </SelectTrigger>
                   <SelectContent>
@@ -369,7 +369,7 @@ export default function HqLeadDetail() {
               </div>
               {lead.website && (
                 <a href={lead.website} target="_blank" rel="noreferrer"
-                  className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
+                  className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
                   {lead.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>
@@ -379,8 +379,8 @@ export default function HqLeadDetail() {
 
           {/* ICP Score */}
           <div className="hidden sm:flex items-center gap-1 shrink-0">
-            <Star className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-xs font-mono text-amber-400 font-bold">{lead.icp_score}/10</span>
+            <Star className="h-3.5 w-3.5 text-status-warning" />
+            <span className="text-xs font-mono text-status-warning font-bold">{lead.icp_score}/10</span>
           </div>
 
           {/* Quick actions */}
@@ -411,7 +411,7 @@ export default function HqLeadDetail() {
             <div key={s} className="flex items-center gap-1 flex-1">
               <div className={`h-1 flex-1 rounded-full transition-all ${i <= stageIdx ? "bg-primary" : "bg-border/40"}`} />
               {i === stageIdx && (
-                <span className="text-[9px] text-primary font-mono uppercase tracking-wider whitespace-nowrap shrink-0">{stageLabel(s)}</span>
+                <span className="text-[10px] text-primary font-mono uppercase tracking-wider whitespace-nowrap shrink-0">{stageLabel(s)}</span>
               )}
             </div>
           ))}
@@ -444,17 +444,17 @@ export default function HqLeadDetail() {
           <div className="space-y-4">
             {/* Deal card */}
             {deal && (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <div className="rounded-xl border border-status-success/20 bg-status-success/5 p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Active Deal</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono border text-emerald-400 border-emerald-500/30 bg-emerald-500/10`}>
+                  <span className="text-xs font-semibold text-status-success uppercase tracking-wider">Active Deal</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-mono border text-status-success border-status-success/30 bg-status-success/10`}>
                     {stageLabel(deal.stage)}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                  <div><div className="text-[10px] text-muted-foreground font-mono">VALUE</div><div className="text-lg font-bold text-emerald-400">£{deal.value?.toLocaleString()}</div></div>
-                  <div><div className="text-[10px] text-muted-foreground font-mono">PROBABILITY</div><div className="text-lg font-bold">{deal.probability}%</div></div>
-                  <div><div className="text-[10px] text-muted-foreground font-mono">NEXT ACTION</div><div className="text-sm font-medium truncate">{deal.next_action ?? "—"}</div></div>
+                  <div><div className="text-xs text-muted-foreground font-mono">VALUE</div><div className="text-lg font-bold text-status-success">£{deal.value?.toLocaleString()}</div></div>
+                  <div><div className="text-xs text-muted-foreground font-mono">PROBABILITY</div><div className="text-lg font-bold">{deal.probability}%</div></div>
+                  <div><div className="text-xs text-muted-foreground font-mono">NEXT ACTION</div><div className="text-sm font-medium truncate">{deal.next_action ?? "—"}</div></div>
                 </div>
               </div>
             )}
@@ -462,15 +462,15 @@ export default function HqLeadDetail() {
             {/* Quick stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "ICP Score", value: `${lead.icp_score}/10`, icon: Star, color: "text-amber-400" },
+                { label: "ICP Score", value: `${lead.icp_score}/10`, icon: Star, color: "text-status-warning" },
                 { label: "Interactions", value: String(interactions.length), icon: MessageSquare, color: "text-primary" },
-                { label: "Contacts", value: String(contacts.length), icon: User2, color: "text-blue-400" },
+                { label: "Contacts", value: String(contacts.length), icon: User2, color: "text-accent" },
                 { label: "Events", value: String(events.length), icon: Activity, color: "text-purple-400" },
               ].map(({ label, value, icon: Icon, color }) => (
                 <div key={label} className="rounded-xl border border-border/60 bg-card p-3 space-y-1">
                   <div className="flex items-center gap-1.5">
                     <Icon className={`h-3.5 w-3.5 ${color}`} />
-                    <span className="text-[10px] text-muted-foreground font-mono uppercase">{label}</span>
+                    <span className="text-xs text-muted-foreground font-mono uppercase">{label}</span>
                   </div>
                   <div className={`text-xl font-bold font-mono ${color}`}>{value}</div>
                 </div>
@@ -531,7 +531,7 @@ export default function HqLeadDetail() {
                           {i.subject && <div className="text-xs font-medium truncate">{i.subject}</div>}
                           <div className="text-xs text-muted-foreground truncate">{i.content.slice(0, 80)}</div>
                         </div>
-                        <div className="text-[10px] text-muted-foreground font-mono shrink-0">{formatDistanceToNow(new Date(i.occurred_at), { addSuffix: true })}</div>
+                        <div className="text-xs text-muted-foreground font-mono shrink-0">{formatDistanceToNow(new Date(i.occurred_at), { addSuffix: true })}</div>
                       </div>
                     );
                   })}
@@ -591,11 +591,11 @@ export default function HqLeadDetail() {
 
                 {/* Signals */}
                 {research.recent_signals?.length > 0 && (
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
-                    <div className="text-xs font-semibold text-amber-400 uppercase tracking-wider">📡 Signals</div>
+                  <div className="rounded-xl border border-status-warning/20 bg-status-warning/5 p-4 space-y-2">
+                    <div className="text-xs font-semibold text-status-warning uppercase tracking-wider">📡 Signals</div>
                     <ul className="space-y-1">
                       {research.recent_signals.map((s: string, i: number) => (
-                        <li key={i} className="text-sm flex items-start gap-2"><span className="text-amber-400 text-xs mt-0.5">→</span>{s}</li>
+                        <li key={i} className="text-sm flex items-start gap-2"><span className="text-status-warning text-xs mt-0.5">→</span>{s}</li>
                       ))}
                     </ul>
                   </div>
@@ -603,7 +603,7 @@ export default function HqLeadDetail() {
 
                 {/* Pain hypotheses from research (v1) */}
                 {research.pain_hypotheses?.length > 0 && (
-                  <div className="rounded-xl border border-red-500/10 bg-red-500/5 p-4 space-y-2">
+                  <div className="rounded-xl border border-status-danger/10 bg-status-danger/5 p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">💢 Research Pain Hints</div>
                       <button onClick={() => setTab("pain")} className="text-xs text-primary flex items-center gap-1 hover:text-primary/80">
@@ -612,7 +612,7 @@ export default function HqLeadDetail() {
                     </div>
                     <ul className="space-y-1">
                       {research.pain_hypotheses.map((p: string, i: number) => (
-                        <li key={i} className="text-sm flex items-start gap-2"><span className="text-red-400 text-xs mt-0.5">!</span>{p}</li>
+                        <li key={i} className="text-sm flex items-start gap-2"><span className="text-status-danger text-xs mt-0.5">!</span>{p}</li>
                       ))}
                     </ul>
                   </div>
@@ -642,7 +642,7 @@ export default function HqLeadDetail() {
                   </div>
                 )}
 
-                <div className="text-[10px] text-muted-foreground/40 font-mono text-center">
+                <div className="text-xs text-muted-foreground/40 font-mono text-center">
                   Last researched · {format(new Date(lead.created_at), "d MMM yyyy")}
                   {" · "}<button onClick={handleResearch} disabled={researching} className="hover:text-primary transition-colors">Re-research</button>
                 </div>
@@ -723,7 +723,7 @@ export default function HqLeadDetail() {
                       <div className="flex items-center gap-2">
                         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-xs font-semibold capitalize">{i.type}</span>
-                        <span className="text-[10px] text-muted-foreground font-mono ml-auto">{format(new Date(i.occurred_at), "d MMM, HH:mm")}</span>
+                        <span className="text-xs text-muted-foreground font-mono ml-auto">{format(new Date(i.occurred_at), "d MMM, HH:mm")}</span>
                       </div>
                       {i.subject && <p className="text-xs font-medium text-foreground/80">{i.subject}</p>}
                       <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{i.content}</p>
@@ -761,12 +761,12 @@ export default function HqLeadDetail() {
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-mono text-primary font-semibold">{ev.event_type.replace(/_/g, " ")}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-mono text-muted-foreground/60 px-1.5 py-0.5 rounded bg-muted/20 border border-border/30">{ev.source}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{formatDistanceToNow(new Date(ev.occurred_at), { addSuffix: true })}</span>
+                            <span className="text-xs font-mono text-muted-foreground/60 px-1.5 py-0.5 rounded bg-muted/20 border border-border/30">{ev.source}</span>
+                            <span className="text-xs text-muted-foreground font-mono">{formatDistanceToNow(new Date(ev.occurred_at), { addSuffix: true })}</span>
                           </div>
                         </div>
                         {ev.metadata && Object.keys(ev.metadata).length > 0 && (
-                          <div className="text-[11px] text-muted-foreground/70 font-mono">
+                          <div className="text-xs text-muted-foreground/70 font-mono">
                             {Object.entries(ev.metadata).filter(([k]) => k !== "offer").slice(0, 3).map(([k, v]) => (
                               <span key={k} className="mr-3">{k}: {String(v).slice(0, 60)}</span>
                             ))}
@@ -830,7 +830,7 @@ export default function HqLeadDetail() {
                         <div className="font-semibold text-sm">{r.referred_company_name}</div>
                         <div className="text-xs text-muted-foreground">{r.referred_contact_name || "Unknown contact"} {r.referred_contact_email && `(${r.referred_contact_email})`}</div>
                       </div>
-                      <div className="text-[10px] font-mono px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 uppercase">
+                      <div className="text-xs font-mono px-2 py-0.5 rounded border border-status-warning/30 bg-status-warning/10 text-status-warning uppercase">
                         {r.status}
                       </div>
                     </div>
@@ -840,8 +840,8 @@ export default function HqLeadDetail() {
             </div>
             
             {lead.stage === "won" && (
-              <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2 mt-4">
-                <div className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 space-y-2 mt-4">
+                <div className="text-xs font-semibold text-accent uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5" /> Post-Delivery Growth Loop
                 </div>
                 <p className="text-sm text-foreground/80">
@@ -853,7 +853,7 @@ export default function HqLeadDetail() {
                 <Button size="sm" variant="outline" onClick={() => {
                    navigator.clipboard.writeText(`Hey ${lead.prospect || 'there'} - stoked we were able to knock out the ${lead.research_data?.bottleneck?.area || 'operational'} bottleneck. If you know any other founders who are stuck with a similar issue, I'd love an intro. No worries if not!`);
                    toast.success("Copied referral prompt!");
-                }} className="h-7 text-[10px] mt-2 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300">
+                }} className="h-7 text-xs mt-2 border-accent/30 text-accent hover:bg-accent/10 hover:text-accent-glow">
                   Copy Prompt
                 </Button>
               </div>
