@@ -40,10 +40,11 @@ const App = () => (
         <SovereignSyncWrapper>
           <AuthProvider>
           <Routes>
-            {/* ── Home: Inbound Capture Surface ─────────────────────────── */}
-            <Route path="/" element={<Landing />} />
+            {/* ── Home: Autonomous Command Center ──────────────────────── */}
+            <Route path="/" element={<Index />} />
             <Route path="/workspace" element={<Index />} />
             <Route path="/command" element={<Index />} />
+            <Route path="/landing" element={<Landing />} />
 
             {/* ── Auth ─────────────────────────────────────────────────── */}
             <Route path="/auth" element={<Auth />} />

@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { CommandEngine } from "../components/CommandEngine";
 import { InterventionDrawer } from "../components/InterventionDrawer";
 import { AtlasCommandPalette } from "../components/AtlasCommandPalette";
+import { SpatialCanvas } from "../components/SpatialCanvas";
 import { EcosystemSwitcher } from "../components/atlas/EcosystemSwitcher";
-import { Search, Sparkles, Zap, Shield, ArrowUpRight } from "lucide-react";
+import { Search, Sparkles, Zap, Shield, ArrowUpRight, Radio, Compass } from "lucide-react";
 import { 
   type CampaignState, 
   type DiscoveredLead, 
@@ -34,6 +35,9 @@ export default function Index() {
     currentDraft: null,
     contactedCount: 0,
   });
+
+  const isProcessing = campaignState.status !== "idle" && campaignState.status !== "completed";
+  const requiresIntervention = campaignState.status === "awaiting_approval";
 
   // Force dark mode for the premium Apple-tier Atlas experience
   useEffect(() => {
@@ -156,19 +160,26 @@ export default function Index() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07080c] text-white selection:bg-accent/20 flex flex-col relative overflow-hidden font-sans">
-      {/* Global Navigation Glass Bar */}
-      <header className="fixed top-0 z-30 flex w-full items-center justify-between px-6 py-4 nav-glass border-b border-white/[0.08]">
+    <div className="min-h-screen bg-[#07080c] text-white selection:bg-white/20 flex flex-col relative overflow-hidden font-sans">
+      {/* 3D Spatial Parallax & Volumetric Lighting Canvas */}
+      <SpatialCanvas
+        isProcessing={isProcessing}
+        requiresIntervention={requiresIntervention}
+      />
+
+      {/* Futuristic Floating Glass Header */}
+      <header className="fixed top-0 z-30 flex w-full items-center justify-between px-6 py-4 backdrop-blur-2xl bg-[#07080c]/60 border-b border-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
         <div className="flex items-center gap-4">
           <EcosystemSwitcher />
           <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2">
-            <span className="font-display text-sm tracking-widest text-white/90 uppercase font-bold">
+          <div className="flex items-center gap-2.5">
+            <span className="font-display text-sm tracking-widest text-white uppercase font-bold">
               Atlas
             </span>
-            <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-accent">
-              Autonomous Command
-            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px] uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>Spatial Engine Live</span>
+            </div>
           </div>
         </div>
 
@@ -176,7 +187,7 @@ export default function Index() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="group flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 transition-all hover:bg-white/[0.08] hover:border-white/20 active:scale-[0.98]"
+            className="group flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 transition-all hover:bg-white/[0.08] hover:border-white/20 active:scale-[0.98] cursor-pointer shadow-inner"
           >
             <Search className="h-4 w-4 text-white/40 group-hover:text-white/80 transition-colors" />
             <span className="text-xs text-white/50 group-hover:text-white/80 transition-colors font-medium">
@@ -189,21 +200,18 @@ export default function Index() {
 
           <button
             onClick={() => navigate("/hq/engine")}
-            className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-white/50 hover:text-white px-3 py-2 rounded-xl border border-white/5 hover:border-white/10 transition-colors"
+            className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-white/60 hover:text-white px-3.5 py-2 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] transition-all cursor-pointer"
           >
-            <span>Revenue Engine</span>
+            <span>Revenue OS</span>
             <ArrowUpRight className="h-3 w-3" />
           </button>
         </div>
       </header>
 
       {/* Main Spatial Stage */}
-      <main className="relative flex-1 flex flex-col items-center justify-center px-4 sm:px-6 pt-28 pb-16">
-        {/* Subtle Background Texture Overlay */}
-        <div className="grain absolute inset-0 pointer-events-none opacity-40 mix-blend-overlay" />
-
-        {/* Subtle Spatial Depth Radial Glow */}
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-accent/5 blur-[120px] rounded-full pointer-events-none" />
+      <main className="relative flex-1 flex flex-col items-center justify-center px-4 sm:px-6 pt-24 pb-16 z-10">
+        {/* Subtle Depth Grain Overlay */}
+        <div className="grain absolute inset-0 pointer-events-none opacity-30 mix-blend-overlay" />
 
         {/* The Master Prompt & Autonomous Nodes */}
         <CommandEngine
@@ -230,8 +238,7 @@ export default function Index() {
         open={commandPaletteOpen}
         onOpenChange={setCommandPaletteOpen}
         onSelectPrompt={(prompt) => {
-          // Trigger prompt directly in engine
-          const inputEl = document.querySelector("input[placeholder*='campaign intent']") as HTMLInputElement;
+          const inputEl = document.querySelector("input[placeholder*='target intent']") as HTMLInputElement;
           if (inputEl) {
             inputEl.value = prompt;
             inputEl.dispatchEvent(new Event("input", { bubbles: true }));
