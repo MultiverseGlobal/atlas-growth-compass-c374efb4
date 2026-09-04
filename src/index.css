@@ -99,8 +99,8 @@
   body {
     background-color: var(--pds-canvas);
     color: var(--pds-text-primary);
-    /* Atlas body: Inter — crisp, precise, zero ornament */
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    /* Atlas body: Arial — clean, high-density, zero ornament */
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
     line-height: 1.6;
@@ -108,11 +108,11 @@
     letter-spacing: -0.01em;
   }
 
-  /* Atlas display: Space Grotesk — geometric block authority */
+  /* Atlas display: Epic Pro — block caps authority */
   h1, h2, h3, h4, h5, h6, .font-display {
-    font-family: 'Space Grotesk', system-ui, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.03em;
+    font-family: "Epic Pro", "Syncopate", Impact, "Arial Black", sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
     line-height: 1.1;
   }
 
