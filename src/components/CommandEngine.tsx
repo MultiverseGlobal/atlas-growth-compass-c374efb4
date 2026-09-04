@@ -206,8 +206,8 @@ export function CommandEngine({
                   ? `Campaign: "${campaignState.prompt}"`
                   : "State your target intent (e.g. 'Target Series-A B2B SaaS founders for outbound pipeline')..."
               }
-              className={`w-full bg-transparent px-5 py-6 font-display text-lg sm:text-2xl focus:outline-none disabled:opacity-85 tracking-tight ${
-                isDark ? "placeholder:text-white/25 text-white" : "placeholder:text-neutral-400 text-neutral-900"
+              className={`w-full bg-transparent px-5 py-5 font-sans font-normal text-base sm:text-xl focus:outline-none disabled:opacity-85 tracking-tight ${
+                isDark ? "placeholder:text-white/35 text-white" : "placeholder:text-neutral-400 text-neutral-900"
               }`}
             />
 

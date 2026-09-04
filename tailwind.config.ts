@@ -37,9 +37,9 @@ const config: Config = {
         }
       },
       fontFamily: {
-        sans: ["Arial", "Helvetica", "sans-serif"],
-        display: ["Epic Pro", "Syncopate", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: ["Inter", "Arial", "Helvetica", "sans-serif"],
+        display: ["Space Grotesk", "Impact", "Arial Black", "sans-serif"],
+        mono: ["JetBrains Mono", "IBM Plex Mono", "monospace"],
       },
       boxShadow: {
         glow: "var(--pds-shadow-glow)",

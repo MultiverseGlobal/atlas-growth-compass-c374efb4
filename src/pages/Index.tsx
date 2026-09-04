@@ -272,21 +272,18 @@ export default function Index() {
             : "bg-[#F8F7F4]/80 border-b border-black/[0.06] shadow-sm"
         }`}
       >
-        <div className="flex items-center gap-4">
-          <EcosystemSwitcher />
-          <div className={`h-4 w-px ${isDark ? "bg-white/10" : "bg-neutral-300"}`} />
-          <div className="flex items-center gap-2.5">
-            <span className="font-display text-sm tracking-widest uppercase font-bold">
-              Atlas
-            </span>
-            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-mono text-[10px] uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-              <span>Spatial Engine</span>
-            </div>
+        {/* Left: Brand & Engine status */}
+        <div className="flex items-center gap-3">
+          <span className="font-display text-base tracking-wider uppercase font-bold">
+            Atlas
+          </span>
+          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-mono text-[10px] uppercase tracking-wider">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+            <span>Spatial Engine</span>
           </div>
         </div>
 
-        {/* Ambient AI Command Bar & Hardware Toggles */}
+        {/* Right: Controls, ⌘K Command Palette, and Ecosystem Waffle Switcher */}
         <div className="flex items-center gap-2.5">
           {/* Autonomous Execution Mode Switch */}
           <button
@@ -364,6 +361,12 @@ export default function Index() {
             <span>Revenue OS</span>
             <ArrowUpRight className="h-3 w-3" />
           </button>
+
+          {/* Ecosystem Waffle Switcher Divider */}
+          <div className={`h-5 w-px mx-0.5 ${isDark ? "bg-white/10" : "bg-neutral-200"}`} />
+
+          {/* 9-Dot Waffle Switcher */}
+          <EcosystemSwitcher align="right" isDark={isDark} />
         </div>
       </header>
 
