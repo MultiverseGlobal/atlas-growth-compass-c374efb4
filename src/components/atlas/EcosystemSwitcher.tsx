@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   Shield, 
   ExternalLink, 
@@ -100,7 +100,7 @@ export function EcosystemSwitcher() {
 
       {/* Waffle Popover Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 rounded-2xl bg-card border border-border p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3">
+        <div className="absolute left-0 mt-3 w-80 rounded-2xl bg-card border border-border p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-border">
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">

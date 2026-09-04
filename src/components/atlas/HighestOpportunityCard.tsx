@@ -52,9 +52,9 @@ export function HighestOpportunityCard() {
         instructions: task.action,
       });
       if (error) throw error;
-      toast.success(`⚡ Queued #${topOpportunity.company} into William Sovereign Queue!`);
+      toast.success(`Queued #${topOpportunity.company} into William Sovereign Queue.`);
     } catch (err: any) {
-      toast.error(`⚡ Failed to sync to William: ${err.message}`);
+      toast.error(`Failed to sync to William: ${err.message}`);
     }
   };
 

@@ -25,10 +25,10 @@ interface CommandEngineProps {
 }
 
 const PRESET_CAMPAIGNS = [
-  { label: "Seed AI Startups (YC)", query: "Target YC seed AI startups scaling SDR pipeline", icon: Sparkles },
-  { label: "B2B Design Agencies (Clutch)", query: "Cold outreach to creative design agency founders 10-50 headcount", icon: Target },
-  { label: "Engineering Teams (Hacker News)", query: "Find B2B SaaS teams hiring engineers on Hacker News", icon: Users },
-  { label: "Operational Bottlenecks", query: "Target founders with manual client onboarding friction", icon: Zap },
+  { label: "Seed AI Startups (YC)", query: "Target YC seed AI startups scaling SDR pipeline" },
+  { label: "B2B Design Agencies (Clutch)", query: "Cold outreach to creative design agency founders 10-50 headcount" },
+  { label: "Engineering Teams (Hacker News)", query: "Find B2B SaaS teams hiring engineers on Hacker News" },
+  { label: "Operational Bottlenecks", query: "Target founders with manual client onboarding friction" },
 ];
 
 export function CommandEngine({
@@ -183,9 +183,9 @@ export function CommandEngine({
                     : "bg-neutral-100 border-neutral-200 text-neutral-600"
                 }`}
               >
-                <Sparkles
-                  className={`h-5 w-5 transition-all duration-500 ${
-                    isRunning ? "text-emerald-500 animate-pulse" : ""
+                <ChevronRight
+                  className={`h-5 w-5 transition-all duration-300 ${
+                    isRunning ? "text-emerald-500 animate-pulse" : "text-neutral-400"
                   }`}
                 />
               </div>
@@ -254,26 +254,22 @@ export function CommandEngine({
             transition={{ delay: 0.15 }}
             className="mt-4 flex flex-wrap items-center justify-center gap-2"
           >
-            {PRESET_CAMPAIGNS.map((preset, idx) => {
-              const Icon = preset.icon;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setInputPrompt(preset.query);
-                    executePrompt(preset.query);
-                  }}
-                  className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-mono transition-all cursor-pointer backdrop-blur-md ${
-                    isDark
-                      ? "border-white/[0.08] bg-white/[0.03] text-white/70 hover:bg-white/[0.08] hover:border-white/20 hover:text-white"
-                      : "border-neutral-200 bg-white/70 text-neutral-700 hover:bg-white hover:border-neutral-300 hover:text-neutral-950 shadow-sm"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5 text-emerald-500 transition-transform group-hover:scale-110" />
-                  <span>{preset.label}</span>
-                </button>
-              );
-            })}
+            {PRESET_CAMPAIGNS.map((preset, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setInputPrompt(preset.query);
+                  executePrompt(preset.query);
+                }}
+                className={`px-3.5 py-1.5 rounded-full border text-xs font-mono tracking-tight transition-all cursor-pointer backdrop-blur-md ${
+                  isDark
+                    ? "border-white/[0.08] bg-white/[0.03] text-white/60 hover:bg-white/[0.08] hover:border-white/20 hover:text-white"
+                    : "border-neutral-200 bg-white/70 text-neutral-600 hover:bg-white hover:border-neutral-300 hover:text-neutral-900 shadow-sm"
+                }`}
+              >
+                <span>{preset.label}</span>
+              </button>
+            ))}
           </motion.div>
         )}
       </motion.div>
