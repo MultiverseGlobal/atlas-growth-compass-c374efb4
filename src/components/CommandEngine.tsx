@@ -22,6 +22,8 @@ interface CommandEngineProps {
   onStateChange: (updater: (prev: CampaignState) => CampaignState) => void;
   onRequireIntervention: (lead: DiscoveredLead, draft: OutreachDraft) => void;
   isDark?: boolean;
+  isAutoPilot?: boolean;
+  onToggleAutoPilot?: () => void;
 }
 
 const PRESET_CAMPAIGNS = [
@@ -36,6 +38,8 @@ export function CommandEngine({
   onStateChange,
   onRequireIntervention,
   isDark = true,
+  isAutoPilot = false,
+  onToggleAutoPilot,
 }: CommandEngineProps) {
   const [inputPrompt, setInputPrompt] = useState("");
   const [selectedLeadModal, setSelectedLeadModal] = useState<DiscoveredLead | null>(null);
@@ -501,9 +505,20 @@ export function CommandEngine({
                 <div className={`flex items-center justify-between text-[10px] border-t pt-2 ${
                   isDark ? "text-white/40 border-white/5" : "text-neutral-400 border-neutral-200"
                 }`}>
-                  <span>Mode: One-Way Autonomous</span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Mode:</span>
+                    <button
+                      type="button"
+                      onClick={onToggleAutoPilot}
+                      className={`font-semibold cursor-pointer underline hover:text-emerald-400 transition-colors ${
+                        isAutoPilot ? "text-emerald-400" : isDark ? "text-white/70" : "text-neutral-700"
+                      }`}
+                    >
+                      {isAutoPilot ? "Auto-Pilot" : "Supervised"}
+                    </button>
+                  </div>
                   <span className="text-emerald-500 flex items-center gap-1 font-semibold">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Active
                   </span>
                 </div>

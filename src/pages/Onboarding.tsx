@@ -26,8 +26,7 @@ import {
   GitPullRequest,
   Sparkles,
   MapPin,
-  ArrowUpRight,
-  Plug
+  ArrowUpRight
 } from "lucide-react";
 import { loadStarterMap } from "@/lib/starterMap";
 import { useIntegrations } from "@/hooks/useIntegrations";

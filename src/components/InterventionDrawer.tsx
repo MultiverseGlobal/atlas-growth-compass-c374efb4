@@ -35,16 +35,42 @@ export function InterventionDrawer({
   const [body, setBody] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [isCopied, setIsCopied] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
 
   useEffect(() => {
-    if (draft) {
+    if (draft && isOpen) {
       setSubject(draft.subject || "");
-      setBody(channel === "email" ? draft.body : (draft.linkedin_dm || draft.body));
+      const fullText = channel === "email" ? draft.body : (draft.linkedin_dm || draft.body);
+      
+      // Fast high-tech token streaming perception effect
+      setIsStreaming(true);
+      let currentIndex = 0;
+      setBody("");
+      
+      const interval = setInterval(() => {
+        currentIndex += 4;
+        if (currentIndex >= fullText.length) {
+          setBody(fullText);
+          setIsStreaming(false);
+          clearInterval(interval);
+        } else {
+          setBody(fullText.slice(0, currentIndex));
+        }
+      }, 14);
+
+      return () => clearInterval(interval);
     }
     if (lead?.founder?.email) {
       setRecipientEmail(lead.founder.email);
     }
-  }, [draft, lead, channel]);
+  }, [draft, lead, channel, isOpen]);
+
+  const completeStreamingImmediately = () => {
+    if (isStreaming && draft) {
+      setIsStreaming(false);
+      setBody(channel === "email" ? draft.body : (draft.linkedin_dm || draft.body));
+    }
+  };
 
   // Keyboard shortcut: Cmd/Ctrl + Enter to approve
   useEffect(() => {
@@ -285,32 +311,73 @@ export function InterventionDrawer({
               {/* Message Body */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className={`text-xs font-mono uppercase tracking-wider font-medium flex items-center gap-1.5 ${
-                    isDark ? "text-white/40" : "text-neutral-400"
-                  }`}>
-                    <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-                    Personalized Pitch Copy
-                  </label>
-                  <button
-                    onClick={handleCopy}
-                    className={`text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                      isDark ? "text-white/50 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
-                    }`}
-                  >
-                    {isCopied ? <Check className="h-3 w-3 text-emerald-500" /> : null}
-                    {isCopied ? "Copied" : "Copy text"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <label className={`text-xs font-mono uppercase tracking-wider font-medium flex items-center gap-1.5 ${
+                      isDark ? "text-white/40" : "text-neutral-400"
+                    }`}>
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                      Personalized Pitch Copy
+                    </label>
+                    {isStreaming && (
+                      <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+                        Synthesizing
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isStreaming && (
+                      <button
+                        onClick={completeStreamingImmediately}
+                        className={`text-[11px] font-mono transition-colors cursor-pointer ${
+                          isDark ? "text-white/50 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
+                        }`}
+                      >
+                        Instant
+                      </button>
+                    )}
+                    <button
+                      onClick={handleCopy}
+                      className={`text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                        isDark ? "text-white/50 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
+                      }`}
+                    >
+                      {isCopied ? <Check className="h-3 w-3 text-emerald-500" /> : null}
+                      {isCopied ? "Copied" : "Copy text"}
+                    </button>
+                  </div>
                 </div>
-                <textarea
-                  rows={8}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  className={`w-full rounded-xl border p-4 text-sm leading-relaxed font-sans focus:outline-none transition-colors resize-none ${
-                    isDark
-                      ? "border-white/10 bg-white/[0.04] text-white/90 focus:border-white/30"
-                      : "border-neutral-200 bg-neutral-50 text-neutral-900 focus:border-neutral-400"
-                  }`}
-                />
+
+                <div className="relative">
+                  <textarea
+                    rows={8}
+                    value={body}
+                    onFocus={completeStreamingImmediately}
+                    onChange={(e) => setBody(e.target.value)}
+                    className={`w-full rounded-xl border p-4 text-sm leading-relaxed font-sans focus:outline-none transition-colors resize-none ${
+                      isDark
+                        ? "border-white/10 bg-white/[0.04] text-white/90 focus:border-white/30"
+                        : "border-neutral-200 bg-neutral-50 text-neutral-900 focus:border-neutral-400"
+                    }`}
+                  />
+                  {isStreaming && (
+                    <span className="absolute bottom-3 right-3 flex items-center gap-1 font-mono text-[10px] text-emerald-500/80">
+                      <span className="inline-block w-1.5 h-3 bg-emerald-500 animate-pulse" />
+                    </span>
+                  )}
+                </div>
+
+                {/* Synthesis Telemetry Bar */}
+                <div className={`flex items-center justify-between text-[10px] font-mono px-1 ${
+                  isDark ? "text-white/35" : "text-neutral-400"
+                }`}>
+                  <span>Atlas Cognitive Engine</span>
+                  <span className="flex items-center gap-2">
+                    <span>{Math.round(body.length / 4)} tokens</span>
+                    <span>•</span>
+                    <span className="text-emerald-500">Resend Relay Ready</span>
+                  </span>
+                </div>
               </div>
 
               {/* Secondary Options */}
@@ -332,11 +399,12 @@ export function InterventionDrawer({
                     soundManager.playClick();
                     onSkip();
                   }}
-                  className={`text-xs font-mono transition-colors cursor-pointer ${
+                  className={`text-xs font-mono flex items-center gap-1 transition-colors cursor-pointer ${
                     isDark ? "text-white/40 hover:text-white/70" : "text-neutral-400 hover:text-neutral-700"
                   }`}
                 >
-                  Skip this Target →
+                  <span>Skip Target</span>
+                  <ChevronRight className="h-3 w-3" />
                 </button>
               </div>
             </div>

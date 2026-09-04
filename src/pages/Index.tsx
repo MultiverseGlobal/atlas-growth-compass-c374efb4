@@ -35,6 +35,10 @@ export default function Index() {
   // Sound state
   const [isMuted, setIsMuted] = useState<boolean>(soundManager.isMuted);
 
+  // Auto-Pilot state (Autonomous dispatch for >=88% ICP vs Supervised human pause)
+  const [isAutoPilot, setIsAutoPilot] = useState<boolean>(false);
+  const [autoCountdown, setAutoCountdown] = useState<number | null>(null);
+
   // ── Central Campaign State ─────────────────────────────────────────────────
   const [campaignState, setCampaignState] = useState<CampaignState>({
     prompt: "",
@@ -80,6 +84,35 @@ export default function Index() {
     });
   };
 
+  const toggleAutoPilot = () => {
+    soundManager.playClick();
+    setIsAutoPilot((prev) => {
+      const next = !prev;
+      toast(next ? "Auto-Pilot Activated: Verified leads (>=88% Fit) will auto-dispatch" : "Supervised Mode: Pipeline pauses at every envelope for review", {
+        icon: <Zap className="h-4 w-4 text-emerald-500" />,
+      });
+      return next;
+    });
+  };
+
+  // ── Auto-Pilot Countdown Effect ───────────────────────────────────────────
+  useEffect(() => {
+    if (autoCountdown === null) return;
+    if (autoCountdown <= 0) {
+      setAutoCountdown(null);
+      if (campaignState.currentLead && campaignState.currentDraft) {
+        handleApprove(campaignState.currentDraft, campaignState.currentLead.founder?.email || "");
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setAutoCountdown((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [autoCountdown, campaignState.currentLead, campaignState.currentDraft]);
+
   // ── Intervention Handlers ──────────────────────────────────────────────────
   const handleRequireIntervention = (lead: DiscoveredLead, draft: OutreachDraft) => {
     setCampaignState((prev) => ({
@@ -88,6 +121,19 @@ export default function Index() {
       currentLead: lead,
       currentDraft: draft,
     }));
+
+    if (isAutoPilot && (lead.icp_score ?? 90) >= 88) {
+      // Auto-pilot countdown window
+      soundManager.playChime();
+      setAutoCountdown(2);
+    } else {
+      setAutoCountdown(null);
+      setIsInterventionOpen(true);
+    }
+  };
+
+  const cancelAutoPilotCountdown = () => {
+    setAutoCountdown(null);
     setIsInterventionOpen(true);
   };
 
@@ -95,6 +141,7 @@ export default function Index() {
     if (!campaignState.currentLead) return;
 
     setIsDispatching(true);
+    setAutoCountdown(null);
     try {
       const result = await dispatchOutreach(
         campaignState.currentLead,
@@ -241,6 +288,22 @@ export default function Index() {
 
         {/* Ambient AI Command Bar & Hardware Toggles */}
         <div className="flex items-center gap-2.5">
+          {/* Autonomous Execution Mode Switch */}
+          <button
+            onClick={toggleAutoPilot}
+            title={isAutoPilot ? "Switch to Supervised Mode (pause at each draft)" : "Switch to Autonomous Auto-Pilot"}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-mono transition-all cursor-pointer ${
+              isAutoPilot
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                : isDark
+                ? "border-white/10 bg-white/[0.03] text-white/50 hover:text-white hover:border-white/20"
+                : "border-neutral-200 bg-white text-neutral-500 hover:text-neutral-900 shadow-sm"
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${isAutoPilot ? "bg-emerald-400 animate-ping" : "bg-neutral-400"}`} />
+            <span className="font-semibold">{isAutoPilot ? "Auto-Pilot" : "Supervised"}</span>
+          </button>
+
           {/* Audio Acoustic Feedback Switch */}
           <button
             onClick={toggleSound}
@@ -313,8 +376,43 @@ export default function Index() {
           onStateChange={setCampaignState}
           onRequireIntervention={handleRequireIntervention}
           isDark={isDark}
+          isAutoPilot={isAutoPilot}
+          onToggleAutoPilot={toggleAutoPilot}
         />
       </main>
+
+      {/* Auto-Pilot Floating Countdown Radar */}
+      {autoCountdown !== null && campaignState.currentLead && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 rounded-2xl border px-5 py-3 shadow-2xl backdrop-blur-2xl animate-enter">
+          <div className="relative flex h-8 w-8 items-center justify-center">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-black font-mono text-xs font-bold">
+              {autoCountdown}s
+            </span>
+          </div>
+          <div className="text-xs">
+            <p className="font-semibold flex items-center gap-1.5">
+              <span>Auto-Pilot Dispatching</span>
+              <span className="font-mono text-[10px] text-emerald-500 px-1.5 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/20 font-bold">
+                {campaignState.currentLead.icp_score}% FIT
+              </span>
+            </p>
+            <p className={`font-mono text-[11px] truncate max-w-[220px] ${isDark ? "text-white/60" : "text-neutral-500"}`}>
+              Target: {campaignState.currentLead.company} ({campaignState.currentLead.founder?.name})
+            </p>
+          </div>
+          <div className="flex items-center gap-2 pl-2">
+            <button
+              onClick={cancelAutoPilotCountdown}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-mono font-semibold cursor-pointer transition-colors ${
+                isDark ? "border-white/20 bg-white/10 text-white hover:bg-white/20" : "border-neutral-300 bg-neutral-100 text-neutral-800 hover:bg-neutral-200"
+              }`}
+            >
+              Inspect Envelope
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Interactive Liquid Glass Intervention Drawer */}
       <InterventionDrawer
