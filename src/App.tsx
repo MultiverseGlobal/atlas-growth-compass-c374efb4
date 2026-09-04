@@ -11,12 +11,7 @@ import AuthCallback from "./pages/AuthCallback";
 import MetaphorAuthCallback from "./pages/MetaphorAuthCallback";
 import Onboarding from "./pages/Onboarding";
 import HqShell from "./components/atlas/HqShell";
-import HqFlow from "./pages/hq/HqFlow";
-import HqICP from "./pages/hq/HqICP";
-import HqRecon from "./pages/hq/HqRecon";
-import HqPipeline from "./pages/hq/HqPipeline";
-import HqOutreach from "./pages/hq/HqOutreach";
-import HqLeads from "./pages/hq/HqLeads";
+import HqRevenueEngine from "./pages/hq/HqRevenueEngine";
 import HqLeadDetail from "./pages/hq/HqLeadDetail";
 import HqProposal from "./pages/hq/HqProposal";
 import HqReport from "./pages/hq/HqReport";
@@ -55,20 +50,11 @@ const App = () => (
 
             {/* ── Sovereign Acquisition Flow (Single Shell) ────────────── */}
             <Route path="/hq" element={<HqShell />}>
-              <Route index element={<Navigate to="/hq/flow" replace />} />
-              {/* Step 1: Acquisition Engine */}
-              <Route path="flow" element={<HqFlow />} />
-              <Route path="acquire" element={<Navigate to="/hq/flow" replace />} />
-              {/* Step 2: ICP & Offer Definition */}
-              <Route path="icp" element={<HqICP />} />
-              {/* Step 3: Sourcing Machine */}
-              <Route path="recon" element={<HqRecon />} />
-              {/* Step 3: Pipeline Flow */}
-              <Route path="pipeline" element={<HqPipeline />} />
-              {/* Step 4: Outreach Studio */}
-              <Route path="outreach" element={<HqOutreach />} />
+              <Route index element={<Navigate to="/hq/engine" replace />} />
+              {/* Unified Revenue Engine */}
+              <Route path="engine" element={<HqRevenueEngine />} />
+              
               {/* Vault-accessible pages */}
-              <Route path="leads" element={<HqLeads />} />
               <Route path="leads/:id" element={<HqLeadDetail />} />
               <Route path="leads/:id/proposal" element={<HqProposal />} />
               <Route path="report" element={<HqReport />} />
@@ -78,11 +64,17 @@ const App = () => (
             </Route>
 
             {/* ── Legacy redirects (don't break bookmarks) ─────────────── */}
-            <Route path="/flow" element={<Navigate to="/hq/flow" replace />} />
-            <Route path="/hq/dashboard" element={<Navigate to="/hq/flow" replace />} />
-            <Route path="/hq/discover" element={<Navigate to="/hq/recon" replace />} />
+            <Route path="/flow" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/flow" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/dashboard" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/recon" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/discover" element={<Navigate to="/hq/engine" replace />} />
             <Route path="/hq/team" element={<Navigate to="/hq/settings" replace />} />
-            <Route path="/hq/prospects" element={<Navigate to="/hq/leads" replace />} />
+            <Route path="/hq/prospects" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/leads" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/pipeline" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/outreach" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/icp" element={<Navigate to="/hq/engine" replace />} />
             <Route path="/hq/proposal" element={<Navigate to="/hq/leads" replace />} />
             <Route path="/landing" element={<Navigate to="/hq/icp" replace />} />
             <Route path="/start" element={<Navigate to="/hq/icp" replace />} />

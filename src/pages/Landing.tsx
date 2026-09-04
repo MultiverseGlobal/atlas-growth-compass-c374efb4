@@ -72,11 +72,12 @@ export default function Landing() {
             
             {/* Left: Video / Proof */}
             <div className="space-y-6">
-              <div className="aspect-video pds-data-card flex flex-col items-center justify-center relative overflow-hidden group">
-                <div className="h-16 w-16 rounded-full bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center justify-center cursor-pointer z-10 transition-colors group-hover:bg-[var(--pds-surface-3)]">
-                  <Video className="h-6 w-6 text-[var(--pds-text-primary)] ml-1" />
+              <div className="aspect-video bg-card border border-border/50 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group shadow-xl">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+                <div className="h-16 w-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform cursor-pointer shadow-lg backdrop-blur-md z-10">
+                  <Video className="h-6 w-6 text-primary ml-1" />
                 </div>
-                <p className="absolute bottom-4 text-xs font-mono text-[var(--pds-text-muted)] z-10">Watch a sample 3-minute teardown</p>
+                <p className="absolute bottom-4 text-xs font-mono text-muted-foreground z-10">Watch a sample 3-minute teardown</p>
               </div>
 
               <div className="space-y-4 pt-2">
@@ -90,7 +91,8 @@ export default function Landing() {
             </div>
 
             {/* Right: Form */}
-            <div className="pds-data-card p-6 md:p-8 relative overflow-hidden">
+            <div className="bg-card border border-border/50 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-32 bg-primary/5 blur-3xl rounded-full" />
               
               {submitted ? (
                 <div className="h-full flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in zoom-in duration-500 min-h-[350px]">

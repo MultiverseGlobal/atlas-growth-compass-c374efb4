@@ -121,12 +121,9 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
   );
 }
 
-// ── 4-Step Daily Acquisition Workflow ──────────────────────────────────────────
+// ── Single Pane Pipeline ──────────────────────────────────────────
 const SEQUENTIAL_STEPS = [
-  { step: "01", to: "/hq/flow",     label: "Today",    icon: Target,         desc: "Daily acquisition engine — run 20 prospects", badge: null },
-  { step: "02", to: "/hq/recon",    label: "Scout",    icon: Search,         desc: "Research a company — AI pain signal extraction", badge: null },
-  { step: "03", to: "/hq/outreach", label: "Outreach",  icon: MessageSquare,  desc: "Active sequences — Email, LinkedIn DM, Loom", badge: 3 },
-  { step: "04", to: "/hq/pipeline", label: "Pipeline",  icon: BarChart2,      desc: "Deal Kanban — stage velocity and revenue", badge: 2 },
+  { step: "01", to: "/hq/engine", label: "Revenue Engine", icon: Target, desc: "Execute SOP" },
 ];
 
 export default function HqShell() {
@@ -211,36 +208,14 @@ export default function HqShell() {
           </NavLink>
         </div>
 
-        {/* Center: The 4-Step Sequential Acquisition Stream */}
+        {/* Center: The Revenue Engine Label */}
         <nav className="hidden lg:flex items-center gap-0.5">
-          {SEQUENTIAL_STEPS.map((s, idx) => {
-            const isActive = location.pathname.startsWith(s.to);
-            return (
-              <div key={s.to} className="flex items-center">
-                {idx > 0 && (
-                  <ChevronRight className="h-3 w-3 text-[var(--pds-text-muted)] mx-0.5" />
-                )}
-                <NavLink
-                  to={s.to}
-                  title={s.desc}
-                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
-                    isActive
-                      ? "bg-[var(--pds-accent-dim)] text-[var(--pds-text-primary)] border border-[var(--pds-border-mid)]"
-                      : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-secondary)] hover:bg-[var(--pds-surface-2)]"
-                  }`}
-                >
-                  <span className="text-[9px] font-mono opacity-60">{s.step}</span>
-                  <s.icon className="h-3 w-3 shrink-0" />
-                  <span>{s.label}</span>
-                  {s.badge != null && (
-                    <span className="ml-0.5 min-w-[14px] h-3.5 px-1 flex items-center justify-center rounded-full bg-[var(--pds-accent-dim)] text-[var(--pds-text-primary)] text-[9px] font-mono border border-[var(--pds-border-mid)]">
-                      {s.badge}
-                    </span>
-                  )}
-                </NavLink>
-              </div>
-            );
-          })}
+          <div className="flex items-center">
+            <div className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors bg-[var(--pds-accent-dim)] text-[var(--pds-text-primary)] border border-[var(--pds-border-mid)]">
+              <Target className="h-3 w-3 shrink-0" />
+              <span>Revenue Engine</span>
+            </div>
+          </div>
         </nav>
 
         {/* Right: Actions */}
@@ -265,9 +240,9 @@ export default function HqShell() {
             <span className="hidden sm:inline">Ask Atlas</span>
           </button>
 
-          {/* Theme Toggle */}
+          {/* Theme Toggle (Default to Light Mode) */}
           <button
-            onClick={cycleTheme}
+            onClick={() => cycleTheme()}
             className="h-8 w-8 rounded-lg bg-[var(--pds-surface-2)] hover:bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors"
             aria-label="Toggle theme"
           >
@@ -297,26 +272,7 @@ export default function HqShell() {
         </div>
       </header>
 
-      {/* Mobile Sequential Step Tracker Strip */}
-      <div className="lg:hidden w-full overflow-x-auto border-b border-[var(--pds-border-subtle)] bg-[var(--pds-canvas)] px-4 py-2 flex items-center gap-1.5">
-        {SEQUENTIAL_STEPS.map((s) => {
-          const isActive = location.pathname.startsWith(s.to);
-          return (
-            <NavLink
-              key={s.to}
-              to={s.to}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
-                isActive
-                  ? "bg-[var(--pds-accent-dim)] text-[var(--pds-text-primary)] border border-[var(--pds-border-mid)]"
-                  : "text-[var(--pds-text-muted)] bg-[var(--pds-surface-2)]"
-              }`}
-            >
-              <span className="text-[9px] font-mono">{s.step}</span>
-              <span>{s.label}</span>
-            </NavLink>
-          );
-        })}
-      </div>
+      {/* Removed Mobile Nav */}
 
       {/* ── Main Full-Width Process Workspace ───────────────────────────────── */}
       <main className="flex-1 min-w-0 w-full">
@@ -342,8 +298,7 @@ export default function HqShell() {
             label: "Atlas",
             accent: "#10b981",
             commands: [
-              { id: "today",    label: "Daily OS",       description: "Run today\'s 20 prospects", accent: "#10b981", action: () => { window.location.hash = "/hq/flow"; } },
-              { id: "pipeline", label: "Open Pipeline",  description: "Deal Kanban",              accent: "#10b981", action: () => { window.location.hash = "/hq/pipeline"; } },
+              { id: "today",    label: "Revenue Engine", description: "Run today\'s prospects", accent: "#10b981", action: () => { window.location.hash = "/hq/engine"; } },
               { id: "newlead",  label: "New Lead",       description: "Add to pipeline",          accent: "#10b981", shortcut: "⌘N", action: () => {} },
             ],
           },
