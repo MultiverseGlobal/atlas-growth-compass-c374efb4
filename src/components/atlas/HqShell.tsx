@@ -47,6 +47,7 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
   const navigate = useNavigate();
 
   const NAV_CMDS: CmdAction[] = [
+    { id: "go-workspace",label: "Autonomous Command", description: "Prompt-driven campaign engine", action: () => navigate("/workspace") },
     { id: "go-flow",     label: "Daily OS",      description: "Run today's 20 prospects",  action: () => navigate("/hq/flow") },
     { id: "go-recon",   label: "Scout",          description: "Company research",           action: () => navigate("/hq/recon") },
     { id: "go-leads",   label: "Leads",          description: "Full pipeline view",         action: () => navigate("/hq/leads") },
@@ -123,6 +124,7 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
 
 // ── Single Pane Pipeline ──────────────────────────────────────────
 const SEQUENTIAL_STEPS = [
+  { step: "00", to: "/workspace", label: "Autonomous Command", icon: Zap, desc: "Prompt-driven campaign" },
   { step: "01", to: "/hq/engine", label: "Revenue Engine", icon: Target, desc: "Execute SOP" },
 ];
 

@@ -20,6 +20,7 @@ import HqPartnerships from "./pages/hq/HqPartnerships";
 import HqMediaJobs from "./pages/hq/HqMediaJobs";
 import PublicProfile from "./pages/PublicProfile";
 import Landing from "./pages/Landing";
+import Index from "./pages/Index";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +42,8 @@ const App = () => (
           <Routes>
             {/* ── Home: Inbound Capture Surface ─────────────────────────── */}
             <Route path="/" element={<Landing />} />
+            <Route path="/workspace" element={<Index />} />
+            <Route path="/command" element={<Index />} />
 
             {/* ── Auth ─────────────────────────────────────────────────── */}
             <Route path="/auth" element={<Auth />} />
