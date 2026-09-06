@@ -47,12 +47,9 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
   const navigate = useNavigate();
 
   const NAV_CMDS: CmdAction[] = [
-    { id: "go-workspace",label: "Autonomous Command", description: "Prompt-driven campaign engine", action: () => navigate("/workspace") },
-    { id: "go-flow",     label: "Daily OS",      description: "Run today's 20 prospects",  action: () => navigate("/hq/flow") },
-    { id: "go-recon",   label: "Scout",          description: "Company research",           action: () => navigate("/hq/recon") },
-    { id: "go-leads",   label: "Leads",          description: "Full pipeline view",         action: () => navigate("/hq/leads") },
-    { id: "go-pipeline",label: "Pipeline",       description: "Deal Kanban",               action: () => navigate("/hq/pipeline") },
-    { id: "go-settings",label: "Settings",       description: "Account & integrations",    action: () => navigate("/hq/settings") },
+    { id: "go-workspace",label: "Command Studio", description: "Autonomous prompt-driven campaign engine", action: () => navigate("/") },
+    { id: "go-engine",   label: "Pipeline & Deals", description: "Active engagements and revenue radar", action: () => navigate("/hq/engine") },
+    { id: "go-settings", label: "Settings & Integrations", description: "Account, Notion database, and keys", action: () => navigate("/hq/settings") },
   ];
 
   const allCmds: CmdAction[] = [
@@ -194,9 +191,9 @@ export default function HqShell() {
       <header className="nav-glass sticky top-0 z-40 w-full h-14 px-4 md:px-6 flex items-center justify-between gap-4">
 
         {/* Left: Brand Identity */}
-        <div className="flex items-center gap-3 shrink-0">
-          <NavLink to="/hq/flow" className="flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-lg bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center justify-center">
+        <div className="flex items-center gap-6 shrink-0">
+          <NavLink to="/" className="flex items-center gap-2.5 group">
+            <div className="h-7 w-7 rounded-lg bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center justify-center transition-colors group-hover:bg-[var(--pds-surface-3)]">
               <LogoMark size={16} className="text-[var(--pds-text-primary)]" />
             </div>
             <div className="flex flex-col">
@@ -204,20 +201,50 @@ export default function HqShell() {
                 ATLAS
               </span>
               <span className="text-[9px] text-[var(--pds-text-muted)] font-mono">
-                Sovereign Strategist
+                Sovereign Intelligence
               </span>
             </div>
           </NavLink>
         </div>
 
-        {/* Center: The Revenue Engine Label */}
-        <nav className="hidden lg:flex items-center gap-0.5">
-          <div className="flex items-center">
-            <div className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors bg-[var(--pds-accent-dim)] text-[var(--pds-text-primary)] border border-[var(--pds-border-mid)]">
-              <Target className="h-3 w-3 shrink-0" />
-              <span>Revenue Engine</span>
-            </div>
-          </div>
+        {/* Center: Unified Workspace Navigation Tabs */}
+        <nav className="hidden md:flex items-center gap-1 p-1 rounded-xl border bg-[var(--pds-surface-1)] border-[var(--pds-border-subtle)]">
+          <NavLink
+            to="/"
+            className={({ isActive }) =>
+              `px-3 py-1 rounded-lg text-xs font-mono transition-all ${
+                isActive
+                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold"
+                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)]"
+              }`
+            }
+          >
+            Command Studio
+          </NavLink>
+          <NavLink
+            to="/hq/engine"
+            className={({ isActive }) =>
+              `px-3 py-1 rounded-lg text-xs font-mono transition-all ${
+                isActive
+                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold"
+                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)]"
+              }`
+            }
+          >
+            Pipeline & Deals
+          </NavLink>
+          <NavLink
+            to="/hq/settings"
+            className={({ isActive }) =>
+              `px-3 py-1 rounded-lg text-xs font-mono transition-all ${
+                isActive
+                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold"
+                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)]"
+              }`
+            }
+          >
+            Settings
+          </NavLink>
         </nav>
 
         {/* Right: Actions */}

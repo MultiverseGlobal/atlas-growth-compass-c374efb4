@@ -245,12 +245,28 @@ export default function HqRevenueEngine() {
                       </div>
                     </div>
                     {activeLead?.research_data && (
-                      <div className="mt-4">
-                        <span className="block text-[10px] font-mono text-[var(--pds-text-muted)] uppercase mb-2">Hypothesis Raw Data</span>
-                        <div className="p-4 rounded-lg bg-[var(--pds-surface-4)] border border-[var(--pds-border-strong)] overflow-x-auto">
-                          <pre className="text-[11px] font-mono text-[var(--pds-text-secondary)] whitespace-pre-wrap">
-                            {JSON.stringify(activeLead.research_data, null, 2)}
-                          </pre>
+                      <div className="mt-4 space-y-2">
+                        <span className="block text-[10px] font-mono text-[var(--pds-text-muted)] uppercase">Strategic Intelligence</span>
+                        <div className="p-4 rounded-xl bg-[var(--pds-surface-2)] border border-[var(--pds-border-subtle)] space-y-3">
+                          {activeLead.research_data.summary && (
+                            <p className="text-[12px] text-[var(--pds-text-secondary)] leading-relaxed">
+                              {activeLead.research_data.summary}
+                            </p>
+                          )}
+                          <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
+                            {activeLead.research_data.what_they_sell && (
+                              <div className="p-2.5 rounded-lg bg-[var(--pds-surface-1)] border border-[var(--pds-border-subtle)]">
+                                <span className="text-[9px] text-[var(--pds-text-muted)] block uppercase font-semibold">Focus</span>
+                                <span className="text-[var(--pds-text-primary)] truncate block mt-0.5">{activeLead.research_data.what_they_sell}</span>
+                              </div>
+                            )}
+                            {activeLead.research_data.suggested_offer && (
+                              <div className="p-2.5 rounded-lg bg-[var(--pds-surface-1)] border border-[var(--pds-border-subtle)]">
+                                <span className="text-[9px] text-[var(--pds-text-muted)] block uppercase font-semibold">Value Angle</span>
+                                <span className="text-emerald-500 font-medium truncate block mt-0.5">{activeLead.research_data.suggested_offer}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}

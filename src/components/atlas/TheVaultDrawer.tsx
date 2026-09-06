@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Users2, Compass, FileText, Plug, Settings, 
-  Map, Shield, ArrowUpRight, Zap, Database
+  Shield, ArrowUpRight, Zap, Database
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -14,20 +14,18 @@ interface TheVaultDrawerProps {
 
 const VAULT_SECTIONS = [
   {
-    title: "Sovereign Intelligence & Memory",
+    title: "Pipeline & Acquisition",
     items: [
-      { to: "/app", icon: Map, label: "Strategic Maps & Roadmaps", desc: "Long-range master maps, execution milestones & dependencies" },
-      { to: "/hq/leads", icon: Users2, label: "Leads Archive & Intelligence", desc: "Qualified founder directory, ICP matrices, pain profiles" },
-      { to: "/hq/dashboard", icon: Compass, label: "Mission Control", desc: "High-altitude revenue telemetry, pipeline velocity & win rates" },
-      { to: "/hq/partnerships", icon: Users2, label: "Partnership CRM", desc: "Manage agency partners, track referrals and commissions" },
+      { to: "/hq/engine", icon: Compass, label: "Revenue Engine", desc: "Live pipeline, deal Kanban, and outreach telemetry" },
+      { to: "/hq/leads", icon: Users2, label: "Leads Archive", desc: "Qualified founder directory, ICP matrices, pain profiles" },
+      { to: "/hq/settings", icon: Settings, label: "Workspace & API Config", desc: "Custom LLM keys, team access, domain & security rules" },
     ],
   },
   {
-    title: "System Connectors & Telemetry",
+    title: "System & Integrations",
     items: [
-      { to: "/app/integrations", icon: Plug, label: "Integrations Hub", desc: "Sync 2-way with Notion, Attio, Stripe, GitHub & Slack" },
-      { to: "/hq/report", icon: FileText, label: "Diagnostic Reports", desc: "Automated audit logs, pitch proposals & weekly founder syncs" },
-      { to: "/hq/settings", icon: Settings, label: "Workspace & API Config", desc: "Custom LLM keys, team access, domain & security rules" },
+      { to: "/hq/settings", icon: Plug, label: "Integrations Hub", desc: "Connect Resend, Supabase, and external data sources" },
+      { to: "/hq/settings", icon: FileText, label: "Billing & Plan", desc: "Usage, limits, and subscription management" },
     ],
   },
 ];

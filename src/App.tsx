@@ -14,10 +14,8 @@ import HqShell from "./components/atlas/HqShell";
 import HqRevenueEngine from "./pages/hq/HqRevenueEngine";
 import HqLeadDetail from "./pages/hq/HqLeadDetail";
 import HqProposal from "./pages/hq/HqProposal";
-import HqReport from "./pages/hq/HqReport";
 import HqSettings from "./pages/hq/HqSettings";
-import HqPartnerships from "./pages/hq/HqPartnerships";
-import HqMediaJobs from "./pages/hq/HqMediaJobs";
+import Objectives from "./pages/Objectives";
 import PublicProfile from "./pages/PublicProfile";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
@@ -40,8 +38,9 @@ const App = () => (
         <SovereignSyncWrapper>
           <AuthProvider>
           <Routes>
-            {/* ── Home: Autonomous Command Center ──────────────────────── */}
+            {/* ── Atlas V1 Core Surfaces ───────────────────────────────── */}
             <Route path="/" element={<Index />} />
+            <Route path="/objectives" element={<Objectives />} />
             <Route path="/workspace" element={<Index />} />
             <Route path="/command" element={<Index />} />
             <Route path="/landing" element={<Landing />} />
@@ -55,19 +54,13 @@ const App = () => (
             {/* ── Sovereign Acquisition Flow (Single Shell) ────────────── */}
             <Route path="/hq" element={<HqShell />}>
               <Route index element={<Navigate to="/hq/engine" replace />} />
-              {/* Unified Revenue Engine */}
               <Route path="engine" element={<HqRevenueEngine />} />
-              
-              {/* Vault-accessible pages */}
               <Route path="leads/:id" element={<HqLeadDetail />} />
               <Route path="leads/:id/proposal" element={<HqProposal />} />
-              <Route path="report" element={<HqReport />} />
-              <Route path="partnerships" element={<HqPartnerships />} />
-              <Route path="media-jobs" element={<HqMediaJobs />} />
               <Route path="settings" element={<HqSettings />} />
             </Route>
 
-            {/* ── Legacy redirects (don't break bookmarks) ─────────────── */}
+            {/* ── Legacy redirects ──────────────────────────────────────── */}
             <Route path="/flow" element={<Navigate to="/hq/engine" replace />} />
             <Route path="/hq/flow" element={<Navigate to="/hq/engine" replace />} />
             <Route path="/hq/dashboard" element={<Navigate to="/hq/engine" replace />} />
@@ -79,12 +72,14 @@ const App = () => (
             <Route path="/hq/pipeline" element={<Navigate to="/hq/engine" replace />} />
             <Route path="/hq/outreach" element={<Navigate to="/hq/engine" replace />} />
             <Route path="/hq/icp" element={<Navigate to="/hq/engine" replace />} />
-            <Route path="/hq/proposal" element={<Navigate to="/hq/leads" replace />} />
-            <Route path="/landing" element={<Navigate to="/hq/icp" replace />} />
-            <Route path="/start" element={<Navigate to="/hq/icp" replace />} />
-            <Route path="/map/starter" element={<Navigate to="/hq/icp" replace />} />
-            <Route path="/app" element={<Navigate to="/hq/icp" replace />} />
-            <Route path="/app/*" element={<Navigate to="/hq/icp" replace />} />
+            <Route path="/hq/report" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/partnerships" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/media-jobs" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/hq/proposal" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/start" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/map/starter" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/app" element={<Navigate to="/hq/engine" replace />} />
+            <Route path="/app/*" element={<Navigate to="/hq/engine" replace />} />
 
             {/* ── Public ───────────────────────────────────────────────── */}
             <Route path="/:handle" element={<PublicProfile />} />

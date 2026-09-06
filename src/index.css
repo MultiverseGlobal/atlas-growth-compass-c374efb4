@@ -54,6 +54,27 @@
     --pds-warning: #f59e0b;
     --pds-danger:  #ef4444;
     --pds-info:    #38bdf8;
+
+    /* Compatibility mapping for UI components */
+    --background: var(--pds-canvas);
+    --foreground: var(--pds-text-primary);
+    --card: var(--pds-surface-1);
+    --card-foreground: var(--pds-text-primary);
+    --popover: var(--pds-surface-1);
+    --popover-foreground: var(--pds-text-primary);
+    --primary: var(--pds-accent);
+    --primary-foreground: var(--pds-accent-inv);
+    --secondary: var(--pds-surface-2);
+    --secondary-foreground: var(--pds-text-primary);
+    --muted: var(--pds-surface-2);
+    --muted-foreground: var(--pds-text-secondary);
+    --accent: var(--pds-surface-2);
+    --accent-foreground: var(--pds-text-primary);
+    --destructive: var(--pds-danger);
+    --destructive-foreground: #ffffff;
+    --border: var(--pds-border-mid);
+    --input: var(--pds-border-mid);
+    --ring: var(--pds-accent);
   }
 
   /* ── Dark Mode (.dark on <html>) ─────────────────────────────────────────── */
@@ -83,6 +104,27 @@
     --pds-shadow-lg:    0 16px 32px rgba(0, 0, 0, 0.60), 0 0 0 1px rgba(255, 255, 255, 0.10);
     --pds-shadow-float: 0 24px 48px rgba(0, 0, 0, 0.70), 0 0 0 1px rgba(255, 255, 255, 0.08);
     --pds-shadow-glow:  0 0 24px -4px rgba(255, 255, 255, 0.15);
+
+    /* Compatibility mapping for UI components */
+    --background: var(--pds-canvas);
+    --foreground: var(--pds-text-primary);
+    --card: var(--pds-surface-1);
+    --card-foreground: var(--pds-text-primary);
+    --popover: var(--pds-surface-1);
+    --popover-foreground: var(--pds-text-primary);
+    --primary: var(--pds-accent);
+    --primary-foreground: var(--pds-accent-inv);
+    --secondary: var(--pds-surface-2);
+    --secondary-foreground: var(--pds-text-primary);
+    --muted: var(--pds-surface-2);
+    --muted-foreground: var(--pds-text-secondary);
+    --accent: var(--pds-surface-2);
+    --accent-foreground: var(--pds-text-primary);
+    --destructive: var(--pds-danger);
+    --destructive-foreground: #ffffff;
+    --border: var(--pds-border-mid);
+    --input: var(--pds-border-mid);
+    --ring: var(--pds-accent);
   }
 
   /* ── Reset & Base ─────────────────────────────────────────────────────────── */
@@ -99,21 +141,26 @@
   body {
     background-color: var(--pds-canvas);
     color: var(--pds-text-primary);
-    /* Atlas body: Arial — clean, high-density, zero ornament */
-    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+    /* Atlas body: Inter — utilitarian precision, zero ornament */
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
-    line-height: 1.6;
+    line-height: 1.5;
     margin: 0;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
   }
 
-  /* Atlas display: Epic Pro — block caps authority */
+  /* Atlas display: Space Grotesk — geometric, authoritative, architectural */
   h1, h2, h3, h4, h5, h6, .font-display {
-    font-family: "Epic Pro", "Syncopate", Impact, "Arial Black", sans-serif;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+    font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+
+  code, pre, kbd, .font-mono {
+    font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    letter-spacing: -0.01em;
   }
 
   ::selection {

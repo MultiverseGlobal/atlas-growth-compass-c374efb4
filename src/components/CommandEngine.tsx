@@ -278,33 +278,35 @@ export function CommandEngine({
         )}
       </motion.div>
 
-      {/* 3D Animated Laser Data Beams connecting Prompt to Nodes */}
+      {/* Strategic Waypoint Breadcrumb Track */}
       <AnimatePresence>
         {isRunning && (
           <motion.div
-            initial={{ opacity: 0, scaleY: 0 }}
-            animate={{ opacity: 1, scaleY: 1 }}
-            exit={{ opacity: 0, scaleY: 0 }}
-            transition={{ duration: 0.4 }}
-            className="w-full flex justify-center -mt-2 -mb-2 pointer-events-none"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.3 }}
+            className="w-full max-w-2xl mx-auto flex items-center justify-between px-6 py-2 my-2 text-xs font-mono"
           >
-            <div className="w-[85%] h-12 flex justify-between relative">
-              <svg className="w-full h-full overflow-visible" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="beamGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor={isDark ? "rgba(255, 255, 255, 0.7)" : "rgba(17, 19, 24, 0.6)"} />
-                    <stop offset="100%" stopColor="rgba(16, 185, 129, 0.4)" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M 50% 0 L 50% 12 L 18% 28 L 18% 48 M 50% 12 L 50% 48 M 50% 12 L 82% 28 L 82% 48"
-                  stroke="url(#beamGradient)"
-                  strokeWidth="1.5"
-                  fill="none"
-                  strokeDasharray="4 4"
-                  className="animate-pulse"
-                />
-              </svg>
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${campaignState.leads.length > 0 ? "bg-emerald-500" : "bg-emerald-500 animate-ping"}`} />
+              <span className={campaignState.leads.length > 0 ? "text-[var(--pds-text-primary)] font-semibold" : "text-[var(--pds-text-secondary)]"}>
+                01 Reconnaissance
+              </span>
+            </div>
+            <div className="h-px flex-1 mx-4 bg-[var(--pds-border-mid)]" />
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${campaignState.currentDraft ? "bg-emerald-500" : campaignState.status === "drafting" ? "bg-amber-500 animate-ping" : "bg-[var(--pds-border-strong)]"}`} />
+              <span className={campaignState.currentDraft ? "text-[var(--pds-text-primary)] font-semibold" : "text-[var(--pds-text-muted)]"}>
+                02 Tactical Angle
+              </span>
+            </div>
+            <div className="h-px flex-1 mx-4 bg-[var(--pds-border-mid)]" />
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${campaignState.contactedCount > 0 ? "bg-emerald-500" : "bg-[var(--pds-border-strong)]"}`} />
+              <span className={campaignState.contactedCount > 0 ? "text-[var(--pds-text-primary)] font-semibold" : "text-[var(--pds-text-muted)]"}>
+                03 Dispatch
+              </span>
             </div>
           </motion.div>
         )}
@@ -320,11 +322,11 @@ export function CommandEngine({
             transition={{ delay: 0.1, type: "spring", stiffness: 140, damping: 20 }}
             className="w-full mt-2 grid grid-cols-1 md:grid-cols-3 gap-6"
           >
-            {/* Node 01: Audience Radar */}
+            {/* Node 01: Audience Reconnaissance */}
             <TiltCard
               icon={Radar}
               step="01"
-              title="Audience Radar"
+              title="Audience Reconnaissance"
               isDark={isDark}
               stage={
                 campaignState.status === "decomposing"
@@ -337,23 +339,19 @@ export function CommandEngine({
               isComplete={campaignState.leads.length > 0}
             >
               <div className="mt-4 space-y-3">
-                {/* Visual Radar Animation */}
+                {/* Visual Telemetry Badge */}
                 <div
-                  className={`relative h-20 w-full rounded-xl overflow-hidden flex items-center justify-center border ${
-                    isDark ? "bg-black/40 border-white/5" : "bg-neutral-100 border-neutral-200"
+                  className={`relative h-12 w-full rounded-xl flex items-center justify-between px-4 border ${
+                    isDark ? "bg-black/30 border-white/5" : "bg-[var(--pds-surface-2)] border-[var(--pds-border-subtle)]"
                   }`}
                 >
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-12 h-12 rounded-full border border-emerald-500/20" />
-                    <div className="w-24 h-24 rounded-full border border-emerald-500/10" />
-                    <div className="w-36 h-36 rounded-full border border-emerald-500/5" />
+                  <div className="flex items-center gap-2.5 font-mono text-[11px] text-emerald-500">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-semibold uppercase tracking-wider">{campaignState.channel?.toUpperCase() || "YC / DIRECT"}</span>
                   </div>
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/15 to-transparent w-full animate-[spin_4s_linear_infinite]" />
-                  
-                  <div className="relative z-10 flex items-center gap-2 font-mono text-[11px] text-emerald-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-                    <span>Channel: {campaignState.channel?.toUpperCase()}</span>
-                  </div>
+                  <span className="text-[10px] font-mono text-[var(--pds-text-muted)] uppercase truncate max-w-[140px]">
+                    {campaignState.keyword || "Active Channel"}
+                  </span>
                 </div>
 
                 {/* Discovered Leads List with Click-to-Inspect */}
@@ -382,11 +380,11 @@ export function CommandEngine({
               </div>
             </TiltCard>
 
-            {/* Node 02: Outreach Synthesis (Intervention Spotlight) */}
+            {/* Node 02: Tactical Synthesis (Intervention Spotlight) */}
             <TiltCard
               icon={Send}
               step="02"
-              title="Outreach Synthesis"
+              title="Tactical Synthesis"
               isDark={isDark}
               stage={
                 campaignState.status === "drafting"

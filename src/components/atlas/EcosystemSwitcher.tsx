@@ -7,7 +7,6 @@ import {
   MetaphorIcon,
   ClarioIcon,
   OrionIcon,
-  WeaveIcon,
 } from "./EcosystemIcons";
 
 export const ECOSYSTEM_APPS = [
@@ -50,14 +49,6 @@ export const ECOSYSTEM_APPS = [
     url: "exp://localhost:8081",
     status: "building",
     Icon: OrionIcon,
-  },
-  {
-    id: "weave",
-    name: "Weave",
-    tagline: "Context Graph & Knowledge Weave",
-    url: "http://localhost:3000/weave",
-    status: "live",
-    Icon: WeaveIcon,
   },
 ];
 

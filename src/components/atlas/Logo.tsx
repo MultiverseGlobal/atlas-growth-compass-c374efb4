@@ -9,17 +9,18 @@ export function LogoMark({ size = 24, className = "" }: { size?: number; classNa
       className={className}
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="9" stroke="hsl(var(--foreground))" strokeWidth="1.75" fill="none" />
-      <circle cx="12" cy="12" r="3" fill="hsl(var(--primary))" />
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" fill="none" opacity="0.85" />
+      <circle cx="12" cy="12" r="3" fill="currentColor" />
       <line
         x1="12"
         y1="22"
         x2="12"
         y2="30"
-        stroke="hsl(var(--primary))"
+        stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
         strokeDasharray="1.5 3"
+        opacity="0.6"
       />
     </svg>
   );

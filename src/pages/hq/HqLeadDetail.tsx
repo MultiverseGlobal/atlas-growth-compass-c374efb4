@@ -465,7 +465,7 @@ export default function HqLeadDetail() {
                 { label: "ICP Score", value: `${lead.icp_score}/10`, icon: Star, color: "text-status-warning" },
                 { label: "Interactions", value: String(interactions.length), icon: MessageSquare, color: "text-primary" },
                 { label: "Contacts", value: String(contacts.length), icon: User2, color: "text-accent" },
-                { label: "Events", value: String(events.length), icon: Activity, color: "text-purple-400" },
+                { label: "Events", value: String(events.length), icon: Activity, color: "text-sky-500" },
               ].map(({ label, value, icon: Icon, color }) => (
                 <div key={label} className="rounded-xl border border-border/60 bg-card p-3 space-y-1">
                   <div className="flex items-center gap-1.5">

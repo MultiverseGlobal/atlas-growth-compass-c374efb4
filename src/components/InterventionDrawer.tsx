@@ -42,23 +42,8 @@ export function InterventionDrawer({
       setSubject(draft.subject || "");
       const fullText = channel === "email" ? draft.body : (draft.linkedin_dm || draft.body);
       
-      // Fast high-tech token streaming perception effect
-      setIsStreaming(true);
-      let currentIndex = 0;
-      setBody("");
-      
-      const interval = setInterval(() => {
-        currentIndex += 4;
-        if (currentIndex >= fullText.length) {
-          setBody(fullText);
-          setIsStreaming(false);
-          clearInterval(interval);
-        } else {
-          setBody(fullText.slice(0, currentIndex));
-        }
-      }, 14);
-
-      return () => clearInterval(interval);
+      setBody(fullText);
+      setIsStreaming(false);
     }
     if (lead?.founder?.email) {
       setRecipientEmail(lead.founder.email);

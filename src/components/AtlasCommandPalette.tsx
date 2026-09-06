@@ -55,91 +55,91 @@ export function AtlasCommandPalette({
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <div className="bg-[#0e1018] text-white border border-white/10 pds-glass-elevated">
+      <div className="bg-[var(--pds-surface-1)] text-[var(--pds-text-primary)] border border-[var(--pds-border-mid)] shadow-2xl rounded-2xl overflow-hidden backdrop-blur-2xl">
         <CommandInput 
           placeholder="Type an action, prompt, or navigate..." 
-          className="text-white placeholder:text-white/30"
+          className="text-[var(--pds-text-primary)] placeholder:text-[var(--pds-text-muted)] border-b border-[var(--pds-border-subtle)]"
         />
-        <CommandList className="py-2 text-white/80">
-          <CommandEmpty className="py-6 text-center text-xs text-white/40 font-mono">
+        <CommandList className="py-2 text-[var(--pds-text-secondary)] max-h-[380px]">
+          <CommandEmpty className="py-8 text-center text-xs text-[var(--pds-text-muted)] font-mono">
             No matching commands found.
           </CommandEmpty>
 
-          <CommandGroup heading="Starter Campaign Intents" className="text-white/40 font-mono text-[11px] uppercase">
+          <CommandGroup heading="Starter Campaign Intents" className="text-[var(--pds-text-muted)] font-mono text-[10px] uppercase tracking-wider px-2">
             <CommandItem
               onSelect={() => runCommand(() => onSelectPrompt?.("Target high-growth AI startups for outbound client acquisition"))}
-              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/10 rounded-lg text-sm text-white"
+              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-[var(--pds-surface-2)] rounded-xl text-xs text-[var(--pds-text-primary)] transition-colors"
             >
-              <Zap className="h-4 w-4 text-accent" />
+              <Zap className="h-3.5 w-3.5 text-emerald-500" />
               <span>Target high-growth AI startups for outbound acquisition</span>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => onSelectPrompt?.("Cold outreach to B2B design agency founders scaling past 10 employees"))}
-              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/10 rounded-lg text-sm text-white"
+              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-[var(--pds-surface-2)] rounded-xl text-xs text-[var(--pds-text-primary)] transition-colors"
             >
-              <Sparkles className="h-4 w-4 text-emerald-400" />
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               <span>Cold outreach to B2B design agency founders</span>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => onSelectPrompt?.("Find B2B SaaS teams hiring engineers on Hacker News"))}
-              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/10 rounded-lg text-sm text-white"
+              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-[var(--pds-surface-2)] rounded-xl text-xs text-[var(--pds-text-primary)] transition-colors"
             >
-              <Users className="h-4 w-4 text-sky-400" />
+              <Users className="h-3.5 w-3.5 text-sky-500" />
               <span>Find B2B SaaS teams hiring on Hacker News</span>
             </CommandItem>
           </CommandGroup>
 
-          <CommandSeparator className="bg-white/10 my-1" />
+          <CommandSeparator className="bg-[var(--pds-border-subtle)] my-1" />
 
-          <CommandGroup heading="Workspace Navigation" className="text-white/40 font-mono text-[11px] uppercase">
+          <CommandGroup heading="Workspace Navigation" className="text-[var(--pds-text-muted)] font-mono text-[10px] uppercase tracking-wider px-2">
             <CommandItem
               onSelect={() => runCommand(() => navigate("/hq/engine"))}
-              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/10 rounded-lg text-sm text-white"
+              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-[var(--pds-surface-2)] rounded-xl text-xs text-[var(--pds-text-primary)] transition-colors"
             >
-              <TrendingUp className="h-4 w-4 text-white/60" />
+              <TrendingUp className="h-3.5 w-3.5 text-[var(--pds-text-secondary)]" />
               <span>Revenue Engine Dashboard</span>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => onResetWorkspace?.())}
-              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/10 rounded-lg text-sm text-rose-400"
+              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-rose-500/10 rounded-xl text-xs text-rose-500 transition-colors"
             >
-              <RotateCcw className="h-4 w-4 text-rose-400" />
+              <RotateCcw className="h-3.5 w-3.5 text-rose-500" />
               <span>Reset Current Workspace</span>
             </CommandItem>
           </CommandGroup>
 
-          <CommandSeparator className="bg-white/10 my-1" />
+          <CommandSeparator className="bg-[var(--pds-border-subtle)] my-1" />
 
-          <CommandGroup heading="Switch Pseudonyms Apps" className="text-white/40 font-mono text-[11px] uppercase">
+          <CommandGroup heading="Switch Pseudonyms Apps" className="text-[var(--pds-text-muted)] font-mono text-[10px] uppercase tracking-wider px-2">
             <CommandItem
               onSelect={() => runCommand(() => window.open("http://localhost:3000", "_blank"))}
-              className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-white/10 rounded-lg text-sm text-white"
+              className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--pds-surface-2)] rounded-xl text-xs text-[var(--pds-text-primary)] transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <Network className="h-4 w-4 text-[#8b5cf6]" />
+                <Network className="h-3.5 w-3.5 text-[var(--pds-text-secondary)]" />
                 <span>Metaphor OS</span>
               </div>
-              <ExternalLink className="h-3 w-3 text-white/40" />
+              <ExternalLink className="h-3 w-3 text-[var(--pds-text-muted)]" />
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => window.open("http://localhost:49843", "_blank"))}
-              className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-white/10 rounded-lg text-sm text-white"
+              className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--pds-surface-2)] rounded-xl text-xs text-[var(--pds-text-primary)] transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <Sparkles className="h-4 w-4 text-[#ec4899]" />
+                <Sparkles className="h-3.5 w-3.5 text-[var(--pds-text-secondary)]" />
                 <span>Clario Video Studio</span>
               </div>
-              <ExternalLink className="h-3 w-3 text-white/40" />
+              <ExternalLink className="h-3 w-3 text-[var(--pds-text-muted)]" />
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => window.open("http://localhost:3005", "_blank"))}
-              className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-white/10 rounded-lg text-sm text-white"
+              className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--pds-surface-2)] rounded-xl text-xs text-[var(--pds-text-primary)] transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <Shield className="h-4 w-4 text-[#8b5cf6]" />
+                <Shield className="h-3.5 w-3.5 text-[var(--pds-text-secondary)]" />
                 <span>Pseudonyms Master ID</span>
               </div>
-              <ExternalLink className="h-3 w-3 text-white/40" />
+              <ExternalLink className="h-3 w-3 text-[var(--pds-text-muted)]" />
             </CommandItem>
           </CommandGroup>
         </CommandList>
