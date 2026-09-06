@@ -47,9 +47,10 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
   const navigate = useNavigate();
 
   const NAV_CMDS: CmdAction[] = [
-    { id: "go-workspace",label: "Command Studio", description: "Autonomous prompt-driven campaign engine", action: () => navigate("/") },
-    { id: "go-engine",   label: "Pipeline & Deals", description: "Active engagements and revenue radar", action: () => navigate("/hq/engine") },
-    { id: "go-settings", label: "Settings & Integrations", description: "Account, Notion database, and keys", action: () => navigate("/hq/settings") },
+    { id: "go-morning-focus", label: "Morning Focus", description: "Review today's top 3 qualified opportunities", shortcut: "G F", action: () => navigate("/") },
+    { id: "go-objectives",    label: "Define Hunt", description: "Declare commercial intent & lock search thesis", shortcut: "G O", action: () => navigate("/objectives") },
+    { id: "go-engine",        label: "Pipeline & Deals", description: "Active engagements and revenue radar", action: () => navigate("/hq/engine") },
+    { id: "go-settings",      label: "Settings & Keys", description: "Account, database, and system status", action: () => navigate("/hq/settings") },
   ];
 
   const allCmds: CmdAction[] = [
@@ -136,8 +137,8 @@ export default function HqShell() {
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) navigate("/auth");
-  }, [user, loading, navigate]);
+    if (!loading && !user && location.pathname.startsWith("/hq")) navigate("/auth");
+  }, [user, loading, navigate, location.pathname]);
 
   useEffect(() => {
     if (!user) return;
@@ -181,7 +182,7 @@ export default function HqShell() {
     );
   }
 
-  if (!loading && !user) {
+  if (!loading && !user && location.pathname.startsWith("/hq")) {
     return <Navigate to="/auth" replace />;
   }
 
@@ -197,106 +198,104 @@ export default function HqShell() {
               <LogoMark size={16} className="text-[var(--pds-text-primary)]" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-[11px] tracking-[0.12em] uppercase text-[var(--pds-text-primary)] font-display">
+              <span className="font-bold text-[11px] tracking-[0.14em] uppercase text-[var(--pds-text-primary)] font-display">
                 ATLAS
               </span>
-              <span className="text-[9px] text-[var(--pds-text-muted)] font-mono">
-                Sovereign Intelligence
+              <span className="text-[9px] text-[var(--pds-text-muted)] font-mono tracking-tight">
+                Economic Engine
               </span>
             </div>
           </NavLink>
         </div>
 
         {/* Center: Unified Workspace Navigation Tabs */}
-        <nav className="hidden md:flex items-center gap-1 p-1 rounded-xl border bg-[var(--pds-surface-1)] border-[var(--pds-border-subtle)]">
+        <nav className="flex items-center gap-1 p-1 rounded-xl border bg-[var(--pds-surface-1)] border-[var(--pds-border-subtle)] shadow-sm">
           <NavLink
             to="/"
+            end
             className={({ isActive }) =>
-              `px-3 py-1 rounded-lg text-xs font-mono transition-all ${
+              `px-3.5 py-1.5 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 ${
                 isActive
-                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold"
-                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)]"
+                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold shadow-xs"
+                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] hover:bg-[var(--pds-surface-2)]/60"
               }`
             }
           >
-            Command Studio
+            <span>Morning Focus</span>
+            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 font-bold">
+              3
+            </span>
           </NavLink>
           <NavLink
-            to="/hq/engine"
+            to="/objectives"
             className={({ isActive }) =>
-              `px-3 py-1 rounded-lg text-xs font-mono transition-all ${
+              `px-3.5 py-1.5 rounded-lg text-xs font-mono transition-all ${
                 isActive
-                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold"
-                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)]"
+                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold shadow-xs"
+                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] hover:bg-[var(--pds-surface-2)]/60"
               }`
             }
           >
-            Pipeline & Deals
-          </NavLink>
-          <NavLink
-            to="/hq/settings"
-            className={({ isActive }) =>
-              `px-3 py-1 rounded-lg text-xs font-mono transition-all ${
-                isActive
-                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold"
-                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)]"
-              }`
-            }
-          >
-            Settings
+            Define Hunt
           </NavLink>
         </nav>
 
-        {/* Right: Actions */}
+        {/* Right: Actions & Ecosystem Tools */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* The Vault Button */}
+          {/* Quick Search / Command Palette Button */}
           <button
-            onClick={() => setVaultOpen(true)}
-            className="pds-btn-ghost"
-            title="Open strategic maps, leads archive, integrations and settings (Cmd+K)"
+            onClick={() => {
+              const event = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
+              document.dispatchEvent(event);
+            }}
+            className="pds-btn-ghost flex items-center gap-1.5 text-xs text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] px-2.5 py-1.5 rounded-lg border border-[var(--pds-border-subtle)] bg-[var(--pds-surface-2)]/40 hover:bg-[var(--pds-surface-2)] transition-colors cursor-pointer"
+            title="Search commands (Cmd+K)"
           >
-            <Database className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">The Vault</span>
+            <Command className="h-3.5 w-3.5 text-[var(--pds-text-muted)]" />
+            <span className="hidden sm:inline font-mono text-[11px]">Search</span>
             <kbd className="hidden md:inline text-[9px] font-mono px-1 py-0.5 bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] rounded text-[var(--pds-text-muted)]">⌘K</kbd>
           </button>
 
-          {/* Ask Atlas AI */}
+          {/* Acoustic Sound Toggle */}
           <button
-            onClick={() => setChatOpen(true)}
-            className="pds-btn-ghost"
+            onClick={() => soundManager.toggleMute()}
+            className="h-8 w-8 rounded-lg bg-[var(--pds-surface-2)] hover:bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors cursor-pointer"
+            title="Toggle tactile sound feedback"
           >
-            <Zap className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Ask Atlas</span>
+            <Volume2 className="h-3.5 w-3.5" />
           </button>
 
-          {/* Theme Toggle (Default to Light Mode) */}
+          {/* Theme Toggle (Default to Dark Mode in Atlas) */}
           <button
             onClick={() => cycleTheme()}
-            className="h-8 w-8 rounded-lg bg-[var(--pds-surface-2)] hover:bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors"
+            className="h-8 w-8 rounded-lg bg-[var(--pds-surface-2)] hover:bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors cursor-pointer"
             aria-label="Toggle theme"
+            title="Toggle light / dark mode"
           >
-            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            {theme === "dark" ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-neutral-600" />}
           </button>
 
-          {/* Ecosystem Switcher */}
-          <EcosystemSwitcher />
+          {/* Sovereign Ecosystem Switcher */}
+          <EcosystemSwitcher currentApp="atlas" isDark={theme === "dark"} />
 
-          {/* User / Sign-out */}
+          {/* Founder Identity Pill */}
           <div className="flex items-center gap-1.5 pl-2 border-l border-[var(--pds-border-subtle)]">
-            <button
-              onClick={() => navigate("/hq/settings")}
-              className="h-7 w-7 rounded-full bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center justify-center text-[var(--pds-text-secondary)] hover:text-[var(--pds-text-primary)] hover:bg-[var(--pds-surface-3)] transition-colors"
-              title={user.user_metadata?.username || profile?.display_name || user.email || "Profile"}
+            <div
+              className="h-7 px-2.5 rounded-lg bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center gap-1.5 text-[11px] font-mono text-[var(--pds-text-secondary)]"
+              title={user?.email || "Founder Mode"}
             >
-              <UserIcon className="h-3 w-3" />
-            </button>
-            <button
-              onClick={() => signOut().then(() => navigate("/"))}
-              className="h-7 w-7 rounded-lg flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors"
-              title="Sign out"
-            >
-              <LogOut className="h-3 w-3" />
-            </button>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{profile?.display_name || user?.email?.split("@")[0] || "Founder"}</span>
+            </div>
+            {user && (
+              <button
+                onClick={() => signOut().then(() => navigate("/"))}
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors cursor-pointer"
+                title="Sign out"
+              >
+                <LogOut className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
       </header>

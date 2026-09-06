@@ -38,27 +38,29 @@ const App = () => (
         <SovereignSyncWrapper>
           <AuthProvider>
           <Routes>
-            {/* ── Atlas V1 Core Surfaces ───────────────────────────────── */}
-            <Route path="/" element={<Index />} />
-            <Route path="/objectives" element={<Objectives />} />
-            <Route path="/workspace" element={<Index />} />
-            <Route path="/command" element={<Index />} />
-            <Route path="/landing" element={<Landing />} />
+            {/* ── Sovereign App Shell (Atlas V1 Core Surfaces & Extended) ─ */}
+            <Route element={<HqShell />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/objectives" element={<Objectives />} />
+              <Route path="/workspace" element={<Index />} />
+              <Route path="/command" element={<Index />} />
 
-            {/* ── Auth ─────────────────────────────────────────────────── */}
+              {/* ── Sovereign Pipeline Flow ────────────────────────────── */}
+              <Route path="/hq">
+                <Route index element={<Navigate to="/hq/engine" replace />} />
+                <Route path="engine" element={<HqRevenueEngine />} />
+                <Route path="leads/:id" element={<HqLeadDetail />} />
+                <Route path="leads/:id/proposal" element={<HqProposal />} />
+                <Route path="settings" element={<HqSettings />} />
+              </Route>
+            </Route>
+
+            {/* ── Standalone / Public Surfaces ─────────────────────────── */}
+            <Route path="/landing" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/metaphor/callback" element={<MetaphorAuthCallback />} />
             <Route path="/onboarding" element={<Onboarding />} />
-
-            {/* ── Sovereign Acquisition Flow (Single Shell) ────────────── */}
-            <Route path="/hq" element={<HqShell />}>
-              <Route index element={<Navigate to="/hq/engine" replace />} />
-              <Route path="engine" element={<HqRevenueEngine />} />
-              <Route path="leads/:id" element={<HqLeadDetail />} />
-              <Route path="leads/:id/proposal" element={<HqProposal />} />
-              <Route path="settings" element={<HqSettings />} />
-            </Route>
 
             {/* ── Legacy redirects ──────────────────────────────────────── */}
             <Route path="/flow" element={<Navigate to="/hq/engine" replace />} />
