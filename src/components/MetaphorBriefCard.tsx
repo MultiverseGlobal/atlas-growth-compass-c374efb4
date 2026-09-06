@@ -25,7 +25,7 @@ export function MetaphorBriefCard() {
             <Target className="w-4 h-4 text-emerald-500" /> Active Goals
           </h3>
           <ul className="space-y-2">
-            {brief.active_goals.length > 0 ? brief.active_goals.map((g, i) => (
+            {(brief.active_goals || []).length > 0 ? (brief.active_goals || []).map((g, i) => (
               <li key={i} className="text-sm text-muted bg-surface-2 px-3 py-2 rounded-md">{g}</li>
             )) : <li className="text-sm text-muted/50 italic">No active goals.</li>}
           </ul>
@@ -36,7 +36,7 @@ export function MetaphorBriefCard() {
             <ShieldAlert className="w-4 h-4 text-amber-500" /> Key Constraints
           </h3>
           <ul className="space-y-2">
-            {brief.active_constraints.length > 0 ? brief.active_constraints.map((c, i) => (
+            {(brief.active_constraints || []).length > 0 ? (brief.active_constraints || []).map((c, i) => (
               <li key={i} className="text-sm text-muted bg-surface-2 px-3 py-2 rounded-md">{c}</li>
             )) : <li className="text-sm text-muted/50 italic">No active constraints.</li>}
           </ul>

@@ -66,6 +66,7 @@ export interface AtlasIcpProfile {
   industry_keywords: string[];
   pain_signals: string[];
   buying_signals: string[];
+  disqualification_criteria?: string[];
   status: AtlasIcpStatus;
   approved_at: string | null;
   created_at: string;

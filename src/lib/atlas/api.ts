@@ -93,6 +93,12 @@ export async function proposeIcp(input: {
       "migrating creative pipelines to AI",
       "adopting modern stack",
     ],
+    disqualification_criteria: [
+      "Less than 5 employees (solopreneurs / micro-consultancies)",
+      "Enterprise organizations (>50 employees)",
+      "Pure consumer / B2C focus",
+      "No observable digital footprint or active domain",
+    ],
     status: "draft",
     approved_at: null,
     created_at: now,
@@ -307,6 +313,7 @@ export async function confirmManualSend(
 ): Promise<{
   outreach: AtlasOutreach;
   followup: AtlasFollowup;
+  opportunity: AtlasOpportunity;
   nextActionDueAt: string;
 }> {
   const outreach = memoryStore.outreach.get(opportunityId);
@@ -353,7 +360,7 @@ export async function confirmManualSend(
   existingFollowups.push(followup);
   memoryStore.followups.set(opportunityId, existingFollowups);
 
-  return { outreach, followup, nextActionDueAt };
+  return { outreach, followup, opportunity, nextActionDueAt };
 }
 
 // ==============================================================================

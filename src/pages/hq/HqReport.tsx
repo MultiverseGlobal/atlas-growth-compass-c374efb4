@@ -331,14 +331,14 @@ export default function HqReport() {
             </div>
 
             {/* Stalled deals */}
-            {report.content.stalled.length > 0 && (
+            {(report.content?.stalled || []).length > 0 && (
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-amber-400" />
                   <h3 className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Stalled Deals</h3>
                 </div>
                 <div className="space-y-1.5">
-                  {report.content.stalled.map((d, i) => (
+                  {(report.content?.stalled || []).map((d, i) => (
                     <div key={i} className="flex items-center justify-between text-sm">
                       <span>{d.company}</span>
                       <span className="text-xs font-mono text-amber-400">{d.days} days no movement</span>
@@ -370,7 +370,7 @@ export default function HqReport() {
             <div className="rounded-xl border border-border/60 bg-card p-5 space-y-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Next Week Priorities</h3>
               <ol className="space-y-2">
-                {report.content.next_week_priorities.map((p, i) => (
+                {(report.content?.next_week_priorities || []).map((p, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-sm">
                     <span className="text-primary font-mono font-bold text-xs mt-0.5 shrink-0">{i + 1}.</span>
                     <span>{p}</span>

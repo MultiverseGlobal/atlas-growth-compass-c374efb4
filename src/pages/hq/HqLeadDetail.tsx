@@ -489,11 +489,11 @@ export default function HqLeadDetail() {
             )}
 
             {/* Contacts */}
-            {contacts.length > 0 && (
+            {(contacts || []).length > 0 && (
               <div className="rounded-xl border border-border/60 bg-card p-4 space-y-3">
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Decision Makers</div>
                 <div className="space-y-2">
-                  {contacts.map((c) => (
+                  {(contacts || []).map((c) => (
                     <div key={c.id} className="flex items-center gap-3">
                       <div className="h-7 w-7 rounded-full bg-muted/30 flex items-center justify-center shrink-0">
                         <User2 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -578,11 +578,11 @@ export default function HqLeadDetail() {
                 </div>
 
                 {/* Tech Stack */}
-                {research.tech_stack?.length > 0 && (
+                {(research.tech_stack || []).length > 0 && (
                   <div className="rounded-xl border border-border/60 bg-card p-4 space-y-2">
                     <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🔧 Tech Stack</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {research.tech_stack.map((t: string) => (
+                      {(research.tech_stack || []).map((t: string) => (
                         <span key={t} className="text-xs px-2 py-0.5 rounded bg-muted/30 border border-border/40 font-mono">{t}</span>
                       ))}
                     </div>
@@ -590,11 +590,11 @@ export default function HqLeadDetail() {
                 )}
 
                 {/* Signals */}
-                {research.recent_signals?.length > 0 && (
+                {(research.recent_signals || []).length > 0 && (
                   <div className="rounded-xl border border-status-warning/20 bg-status-warning/5 p-4 space-y-2">
                     <div className="text-xs font-semibold text-status-warning uppercase tracking-wider">📡 Signals</div>
                     <ul className="space-y-1">
-                      {research.recent_signals.map((s: string, i: number) => (
+                      {(research.recent_signals || []).map((s: string, i: number) => (
                         <li key={i} className="text-sm flex items-start gap-2"><span className="text-status-warning text-xs mt-0.5">→</span>{s}</li>
                       ))}
                     </ul>
@@ -602,7 +602,7 @@ export default function HqLeadDetail() {
                 )}
 
                 {/* Pain hypotheses from research (v1) */}
-                {research.pain_hypotheses?.length > 0 && (
+                {(research.pain_hypotheses || []).length > 0 && (
                   <div className="rounded-xl border border-status-danger/10 bg-status-danger/5 p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">💢 Research Pain Hints</div>
@@ -611,7 +611,7 @@ export default function HqLeadDetail() {
                       </button>
                     </div>
                     <ul className="space-y-1">
-                      {research.pain_hypotheses.map((p: string, i: number) => (
+                      {(research.pain_hypotheses || []).map((p: string, i: number) => (
                         <li key={i} className="text-sm flex items-start gap-2"><span className="text-status-danger text-xs mt-0.5">!</span>{p}</li>
                       ))}
                     </ul>
@@ -619,11 +619,11 @@ export default function HqLeadDetail() {
                 )}
 
                 {/* Decision makers from research */}
-                {research.decision_makers?.length > 0 && (
+                {(research.decision_makers || []).length > 0 && (
                   <div className="rounded-xl border border-border/60 bg-card p-4 space-y-2">
                     <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">👤 Decision Makers</div>
                     <ul className="space-y-1">
-                      {research.decision_makers.map((d: string, i: number) => (
+                      {(research.decision_makers || []).map((d: string, i: number) => (
                         <li key={i} className="text-sm flex items-start gap-2"><span className="text-primary text-xs mt-0.5">→</span>{d}</li>
                       ))}
                     </ul>
@@ -631,11 +631,11 @@ export default function HqLeadDetail() {
                 )}
 
                 {/* Outreach angles */}
-                {research.outreach_angles?.length > 0 && (
+                {(research.outreach_angles || []).length > 0 && (
                   <div className="rounded-xl border border-primary/10 bg-primary/5 p-4 space-y-2">
                     <div className="text-xs font-semibold text-primary uppercase tracking-wider">📨 Outreach Angles</div>
                     <ul className="space-y-1">
-                      {research.outreach_angles.map((a: string, i: number) => (
+                      {(research.outreach_angles || []).map((a: string, i: number) => (
                         <li key={i} className="text-sm flex items-start gap-2"><span className="text-primary text-xs mt-0.5">→</span>{a}</li>
                       ))}
                     </ul>

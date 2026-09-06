@@ -344,11 +344,11 @@ export default function HqProposal() {
 
             {/* Scope + Deliverables side by side */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {proposal.scope?.length > 0 && (
+              {(proposal.scope || []).length > 0 && (
                 <div className="rounded-xl border border-border/60 bg-card p-5 space-y-3">
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Scope of Work</h3>
                   <ol className="space-y-2">
-                    {proposal.scope.map((s, i) => (
+                    {(proposal.scope || []).map((s, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
                         <span className="text-primary font-mono font-bold text-xs mt-0.5 shrink-0">{i + 1}.</span>
                         <span>{s}</span>
@@ -357,11 +357,11 @@ export default function HqProposal() {
                   </ol>
                 </div>
               )}
-              {proposal.deliverables?.length > 0 && (
+              {(proposal.deliverables || []).length > 0 && (
                 <div className="rounded-xl border border-border/60 bg-card p-5 space-y-3">
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Deliverables</h3>
                   <ol className="space-y-2">
-                    {proposal.deliverables.map((d, i) => (
+                    {(proposal.deliverables || []).map((d, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
                         <span className="text-emerald-400 font-mono text-xs mt-0.5 shrink-0">✓</span>
                         <span>{d}</span>

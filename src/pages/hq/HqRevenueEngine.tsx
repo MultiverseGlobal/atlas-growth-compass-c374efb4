@@ -177,7 +177,7 @@ export default function HqRevenueEngine() {
               >
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[14px] font-bold tracking-tight truncate pr-2">{deal.company_name}</span>
-                  <span className="text-[12px] font-mono text-[var(--pds-text-secondary)]">£{deal.value.toLocaleString()}</span>
+                  <span className="text-[12px] font-mono text-[var(--pds-text-secondary)]">£{(deal.value || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`pds-status-badge ${deal.stage === 'contacted' ? 'active' : ''}`}>

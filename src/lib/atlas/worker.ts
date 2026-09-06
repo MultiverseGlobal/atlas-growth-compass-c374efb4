@@ -15,6 +15,9 @@ export interface RunProgress {
   status: "running" | "completed" | "failed";
   itemsDiscovered: number;
   itemsQualified: number;
+  current: number;
+  total: number;
+  message: string;
   logs: string[];
 }
 
@@ -230,6 +233,9 @@ export async function executeAcquisitionRun(
         status: "running",
         itemsDiscovered: discoveredCount,
         itemsQualified: qualifiedCount,
+        current: discoveredCount,
+        total: feed.length,
+        message: `Evaluating ${item.organization_name}...`,
         logs: [...logs],
       });
     }
@@ -255,6 +261,9 @@ export async function executeAcquisitionRun(
       status: "completed",
       itemsDiscovered: discoveredCount,
       itemsQualified: qualifiedCount,
+      current: feed.length,
+      total: feed.length,
+      message: `Completed: ${qualifiedCount} qualified out of ${feed.length}`,
       logs: [...logs, `Run completed successfully. Qualified: ${qualifiedCount}/${discoveredCount}`],
     });
   }

@@ -20,6 +20,14 @@ import {
 import { formatBusinessDate } from "@/lib/atlas/dateUtils";
 import { toast } from "sonner";
 
+function getHostname(urlStr: string): string {
+  try {
+    return new URL(urlStr).hostname;
+  } catch {
+    return urlStr || "Direct Provenance";
+  }
+}
+
 interface OpportunityDossierDrawerProps {
   opportunityId: string | null;
   isOpen: boolean;
@@ -294,7 +302,7 @@ export function OpportunityDossierDrawer({
                   Observed Facts vs. Strategic Inference
                 </div>
 
-                {evidence.map((ev) => (
+                {(evidence || []).map((ev) => (
                   <div
                     key={ev.id}
                     className="p-4 rounded-xl border border-[var(--pds-border-subtle)] bg-[var(--pds-surface-2)]/40 space-y-3 text-xs"
@@ -311,7 +319,7 @@ export function OpportunityDossierDrawer({
                         "{ev.raw_snippet}"
                       </p>
                       <div className="text-[10px] font-mono text-[var(--pds-text-muted)] flex items-center justify-between pt-1">
-                        <span>Source: {new URL(ev.source_url).hostname}</span>
+                        <span>Source: {getHostname(ev.source_url)}</span>
                         <a
                           href={ev.source_url}
                           target="_blank"

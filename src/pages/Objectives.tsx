@@ -253,7 +253,7 @@ export default function ObjectivesPage() {
                 {proposedIcp.employee_range_min}–{proposedIcp.employee_range_max} Employees
               </div>
               <div className="text-[11px] text-[var(--pds-text-secondary)]">
-                Geographies: {proposedIcp.target_geography.join(", ")}
+                Geographies: {(proposedIcp.target_geography || []).join(", ")}
               </div>
             </div>
 
@@ -263,7 +263,7 @@ export default function ObjectivesPage() {
                 Observable Pain Signals (Evidence Criteria)
               </span>
               <div className="flex flex-wrap gap-2">
-                {proposedIcp.pain_signals.map((p, idx) => (
+                {(proposedIcp.pain_signals || []).map((p, idx) => (
                   <span
                     key={idx}
                     className="px-2.5 py-1 rounded-lg bg-[var(--pds-surface-1)] border border-[var(--pds-border-subtle)] text-[var(--pds-text-primary)] text-xs font-mono font-medium"
@@ -280,7 +280,7 @@ export default function ObjectivesPage() {
                 Disqualification Filters (Hard Exclusions)
               </span>
               <div className="flex flex-wrap gap-2">
-                {proposedIcp.disqualification_criteria.map((d, idx) => (
+                {(proposedIcp.disqualification_criteria || []).map((d, idx) => (
                   <span
                     key={idx}
                     className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-mono font-medium"
@@ -344,10 +344,10 @@ export default function ObjectivesPage() {
               <div className="flex items-center justify-between">
                 <span className="text-[var(--pds-text-primary)] font-semibold flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                  {runProgress.message}
+                  {runProgress.message || "Processing feed..."}
                 </span>
                 <span className="text-[var(--pds-text-muted)]">
-                  {runProgress.current} / {runProgress.total} Targets Evaluated
+                  {runProgress.current || 0} / {runProgress.total || 1} Targets Evaluated
                 </span>
               </div>
 
@@ -356,7 +356,7 @@ export default function ObjectivesPage() {
                 <div
                   className="h-full bg-indigo-500 transition-all duration-300"
                   style={{
-                    width: `${Math.min(100, Math.round((runProgress.current / runProgress.total) * 100))}%`,
+                    width: `${Math.min(100, Math.round(((runProgress.current || 0) / (runProgress.total || 1)) * 100))}%`,
                   }}
                 />
               </div>
