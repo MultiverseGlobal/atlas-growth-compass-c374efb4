@@ -124,7 +124,7 @@ export async function executeAcquisitionRun(
       fit_score: scoring.fitScore,
       score_breakdown: scoring.scoreBreakdown,
       next_action_recommendation: scoring.isQualified
-        ? "Inspect evidence dossier and generate outreach draft"
+        ? "Review evidence and prepare personalized founder note"
         : null,
       next_action_due_at: null,
       deal_value_usd: null,
@@ -215,7 +215,7 @@ export async function executeAcquisitionRun(
         job_title: item.contact_title || "Managing Director",
         email: item.contact_email,
         linkedin_url: null,
-        verification_tier: item.contact_verification_tier,
+        verification_tier: item.contact_verification_tier || "email_domain_valid",
         provenance_source: item.contact_source_url || item.source_url,
         verified_at: itemTimestamp,
         created_at: itemTimestamp,

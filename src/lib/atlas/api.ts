@@ -221,6 +221,120 @@ export async function getMorningFocus(): Promise<
   });
 }
 
+export interface MorningFocusDashboardData {
+  focusItems: Array<{
+    opportunity: AtlasOpportunity;
+    primaryEvidence: AtlasEvidence | null;
+    decisionMaker: AtlasContact | null;
+    outreach: AtlasOutreach | null;
+  }>;
+  reserveItems: Array<{
+    opportunity: AtlasOpportunity;
+    primaryEvidence: AtlasEvidence | null;
+    decisionMaker: AtlasContact | null;
+  }>;
+  followupItems: Array<{
+    opportunity: AtlasOpportunity;
+    outreach: AtlasOutreach | null;
+    primaryEvidence: AtlasEvidence | null;
+    decisionMaker: AtlasContact | null;
+    nextActionDueAt: string | null;
+  }>;
+  metrics: {
+    totalEvaluated: number;
+    totalQualified: number;
+    inFocus: number;
+    inReserve: number;
+    totalContacted: number;
+    totalDisqualified: number;
+  };
+}
+
+export async function getMorningFocusDashboard(): Promise<MorningFocusDashboardData> {
+  const allOpps = Array.from(memoryStore.opportunities.values());
+  
+  const qualifiedOpps = allOpps
+    .filter((o) => (o.pipeline_stage === "qualified" || o.pipeline_stage === "outreach_ready") && o.fit_score >= 60)
+    .sort((a, b) => {
+      if (b.fit_score !== a.fit_score) return b.fit_score - a.fit_score;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+
+  const availableQualified = qualifiedOpps.filter((o) => {
+    const out = memoryStore.outreach.get(o.id);
+    return !(out && (out.status === "manually_sent" || out.status === "replied"));
+  });
+
+  const focusOpps = availableQualified.slice(0, 3);
+  const reserveOpps = availableQualified.slice(3);
+
+  const contactedOpps = allOpps
+    .filter((o) => o.pipeline_stage === "contacted")
+    .sort((a, b) => {
+      const timeA = a.next_action_due_at ? new Date(a.next_action_due_at).getTime() : 0;
+      const timeB = b.next_action_due_at ? new Date(b.next_action_due_at).getTime() : 0;
+      return timeA - timeB;
+    });
+
+  const disqualifiedOpps = allOpps.filter((o) => o.pipeline_stage === "disqualified" || o.fit_score < 60);
+
+  const focusItems = focusOpps.map((opportunity) => {
+    const evList = memoryStore.evidence.get(opportunity.id) || [];
+    const primaryEvidence = evList.find((e) => e.signal_type === "pain_signal") || evList[0] || null;
+    const contactList = memoryStore.contacts.get(opportunity.id) || [];
+    const decisionMaker = contactList[0] || null;
+    const outreach = memoryStore.outreach.get(opportunity.id) || null;
+    return { opportunity, primaryEvidence, decisionMaker, outreach };
+  });
+
+  const reserveItems = reserveOpps.map((opportunity) => {
+    const evList = memoryStore.evidence.get(opportunity.id) || [];
+    const primaryEvidence = evList.find((e) => e.signal_type === "pain_signal") || evList[0] || null;
+    const contactList = memoryStore.contacts.get(opportunity.id) || [];
+    const decisionMaker = contactList[0] || null;
+    return { opportunity, primaryEvidence, decisionMaker };
+  });
+
+  const followupItems = contactedOpps.map((opportunity) => {
+    const evList = memoryStore.evidence.get(opportunity.id) || [];
+    const primaryEvidence = evList.find((e) => e.signal_type === "pain_signal") || evList[0] || null;
+    const contactList = memoryStore.contacts.get(opportunity.id) || [];
+    const decisionMaker = contactList[0] || null;
+    const outreach = memoryStore.outreach.get(opportunity.id) || null;
+    return {
+      opportunity,
+      outreach,
+      primaryEvidence,
+      decisionMaker,
+      nextActionDueAt: opportunity.next_action_due_at,
+    };
+  });
+
+  return {
+    focusItems,
+    reserveItems,
+    followupItems,
+    metrics: {
+      totalEvaluated: allOpps.length,
+      totalQualified: qualifiedOpps.length,
+      inFocus: focusItems.length,
+      inReserve: reserveItems.length,
+      totalContacted: followupItems.length,
+      totalDisqualified: disqualifiedOpps.length,
+    },
+  };
+}
+
+export async function seedControlledFixtureDemo(onProgress?: (progress: any) => void) {
+  const { icpDraft } = await proposeIcp({
+    offerSummary: "AI-assisted delivery operations and project coordination platform",
+    targetHypothesis: "5-30 person digital & web agencies in US/UK with delivery friction",
+  });
+  await approveIcp({ icpId: icpDraft.id });
+  const { executeAcquisitionRun } = await import("./worker");
+  return await executeAcquisitionRun(icpDraft.id, onProgress);
+}
+
 // ==============================================================================
 // 4. GET OPPORTUNITY DOSSIER
 // ==============================================================================

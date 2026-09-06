@@ -59,6 +59,60 @@ export function OpportunityDossierDrawer({
   const [dealValue, setDealValue] = useState("3500");
   const [dealNotes, setDealNotes] = useState("");
 
+  const drawerRef = React.useRef<HTMLDivElement>(null);
+  const previouslyFocusedElementRef = React.useRef<HTMLElement | null>(null);
+
+  // Return focus and initial focus management
+  useEffect(() => {
+    if (isOpen) {
+      previouslyFocusedElementRef.current = document.activeElement as HTMLElement | null;
+      const timer = setTimeout(() => {
+        if (drawerRef.current) {
+          const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length > 0) {
+            focusable[0].focus();
+          } else {
+            drawerRef.current.focus();
+          }
+        }
+      }, 60);
+      return () => clearTimeout(timer);
+    } else if (previouslyFocusedElementRef.current) {
+      previouslyFocusedElementRef.current.focus();
+      previouslyFocusedElementRef.current = null;
+    }
+  }, [isOpen]);
+
+  // Focus trap inside drawer
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleTrapTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !drawerRef.current) return;
+      const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleTrapTab);
+    return () => window.removeEventListener("keydown", handleTrapTab);
+  }, [isOpen]);
+
   // Close on ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -178,9 +232,21 @@ export function OpportunityDossierDrawer({
   const isWon = opportunity?.pipeline_stage === "closed_won";
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !showDealModal) {
+          onClose();
+        }
+      }}
+    >
       <div 
-        className="w-full max-w-5xl bg-[var(--pds-canvas)] border-l border-[var(--pds-border-mid)] shadow-2xl h-full flex flex-col overflow-hidden animate-in slide-in-from-right duration-300"
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dossier-title"
+        tabIndex={-1}
+        className="w-full max-w-5xl bg-[var(--pds-canvas)] border-l border-[var(--pds-border-mid)] shadow-2xl h-full flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 outline-none"
         style={{ color: "var(--pds-text-primary)" }}
       >
         {/* ── Dossier Header (Surface 03) ──────────────────────────────── */}
@@ -191,7 +257,7 @@ export function OpportunityDossierDrawer({
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h2 className="text-lg font-bold tracking-tight text-[var(--pds-text-primary)] font-display">
+                <h2 id="dossier-title" className="text-lg font-bold tracking-tight text-[var(--pds-text-primary)] font-display">
                   {opportunity?.organization_name || "Loading Opportunity..."}
                 </h2>
                 <a
@@ -218,6 +284,7 @@ export function OpportunityDossierDrawer({
               onClick={onClose}
               className="p-1.5 rounded-lg text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] hover:bg-[var(--pds-surface-2)] transition-colors cursor-pointer"
               title="Close dossier (ESC)"
+              aria-label="Close dossier"
             >
               <X className="w-5 h-5" />
             </button>

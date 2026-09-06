@@ -34,7 +34,10 @@ export function calculateFitScore(
   };
 
   // 1. Employee Count Fit (+25)
-  if (
+  if (prospect.employee_fit_points !== undefined) {
+    fitScore += prospect.employee_fit_points;
+    scoreBreakdown.employeeFit.points = prospect.employee_fit_points;
+  } else if (
     prospect.employee_count >= icp.employee_range_min &&
     prospect.employee_count <= icp.employee_range_max
   ) {
@@ -75,9 +78,10 @@ export function calculateFitScore(
 
   // 5. Observed Buying Signal (+15)
   if (prospect.buying_signal && prospect.buying_signal.trim().length > 0) {
-    fitScore += 15;
+    const points = prospect.buying_signal_points !== undefined ? prospect.buying_signal_points : 15;
+    fitScore += points;
     scoreBreakdown.buyingSignal = {
-      points: 15,
+      points,
       snippet: prospect.buying_signal,
       sourceUrl: prospect.buying_source_url || prospect.source_url,
     };

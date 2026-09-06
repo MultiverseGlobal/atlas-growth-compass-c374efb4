@@ -177,15 +177,17 @@ export interface AgencyFeedItem {
   domain: string;
   country: string;
   employee_count: number;
+  employee_fit_points?: number;
   industry: string;
   source_url: string;
   pain_signal: string | null;
   pain_source_url: string | null;
   buying_signal: string | null;
+  buying_signal_points?: number;
   buying_source_url: string | null;
   contact_name: string | null;
   contact_title: string | null;
   contact_email: string | null;
   contact_source_url: string | null;
-  contact_verification_tier: AtlasContactVerificationTier;
+  contact_verification_tier?: AtlasContactVerificationTier | null;
 }
