@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { 
   Target, Search, MessageSquare, BarChart2,
-  Database, Zap, User as UserIcon, LogOut, Moon, Sun, ChevronRight, Command
+  Database, Zap, User as UserIcon, LogOut, Moon, Sun, ChevronRight, Command,
+  Volume2, VolumeX
 } from "lucide-react";
+import { soundManager } from "@/lib/audioFeedback";
 import { LogoMark } from "@/components/atlas/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -135,6 +137,7 @@ export default function HqShell() {
 
   const [vaultOpen, setVaultOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(() => soundManager.isMuted);
 
   useEffect(() => {
     if (!loading && !user && location.pathname.startsWith("/hq")) navigate("/auth");
@@ -258,11 +261,11 @@ export default function HqShell() {
 
           {/* Acoustic Sound Toggle */}
           <button
-            onClick={() => soundManager.toggleMute()}
+            onClick={() => setIsMuted(soundManager.toggleMute())}
             className="h-8 w-8 rounded-lg bg-[var(--pds-surface-2)] hover:bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors cursor-pointer"
-            title="Toggle tactile sound feedback"
+            title={isMuted ? "Unmute tactile sound feedback" : "Mute tactile sound feedback"}
           >
-            <Volume2 className="h-3.5 w-3.5" />
+            {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5 text-emerald-400" />}
           </button>
 
           {/* Theme Toggle (Default to Dark Mode in Atlas) */}
