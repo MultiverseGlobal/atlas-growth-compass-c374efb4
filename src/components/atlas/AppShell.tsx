@@ -13,7 +13,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { AtlasChat } from "@/components/atlas/ChatDrawer";
 import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 import { CompassLoader } from "@/pages/app/Home";
-import { WaffleSwitcher } from "../../../../packages/ui/src/WaffleSwitcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -236,9 +235,6 @@ export default function AppShell() {
             >
               <LogOut className="h-3.5 w-3.5" />
             </button>
-            <div className="ml-1 pl-1 border-l border-border/50">
-              <WaffleSwitcher />
-            </div>
           </div>
         </div>
       </header>
