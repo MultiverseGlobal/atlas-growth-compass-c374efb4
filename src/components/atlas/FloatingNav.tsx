@@ -102,7 +102,7 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-5 left-1/2 -translate-x-1/2 z-50"
+        className="fixed top-5 right-5 z-50"
       >
         <div className="flex items-center p-1 rounded-2xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md">
           {Object.entries(ROUTES).map(([path, routeInfo]) => {
