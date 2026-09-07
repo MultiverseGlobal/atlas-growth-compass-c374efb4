@@ -21,6 +21,7 @@ import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
+import CommandFeed from "./pages/CommandFeed";
 
 const SovereignSyncWrapper = ({ children }: { children: React.ReactNode }) => {
   useSovereignSync();
@@ -40,16 +41,16 @@ const App = () => (
           <Routes>
             {/* ── Sovereign App Shell (Atlas V1 Core Surfaces & Extended) ─ */}
             <Route element={<HqShell />}>
-              <Route path="/" element={<Index />} />
-              <Route path="/objectives" element={<Objectives />} />
-              <Route path="/workspace" element={<Index />} />
-              <Route path="/command" element={<Index />} />
+              <Route path="/" element={<CommandFeed />} />
+              <Route path="/objectives" element={<CommandFeed />} />
+              <Route path="/workspace" element={<CommandFeed />} />
+              <Route path="/command" element={<CommandFeed />} />
 
               {/* ── Sovereign Pipeline Flow ────────────────────────────── */}
               <Route path="/hq">
                 <Route index element={<Navigate to="/hq/engine" replace />} />
-                <Route path="engine" element={<HqRevenueEngine />} />
-                <Route path="leads/:id" element={<HqLeadDetail />} />
+                <Route path="engine" element={<CommandFeed />} />
+                <Route path="leads/:id" element={<CommandFeed />} />
                 <Route path="leads/:id/proposal" element={<HqProposal />} />
                 <Route path="settings" element={<HqSettings />} />
               </Route>

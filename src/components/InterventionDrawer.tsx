@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import type { DiscoveredLead, OutreachDraft } from "@/services/campaignEngine";
 import { soundManager } from "@/lib/audioFeedback";
+import { StaggerGroup } from "@/components/atlas/StaggerGroup";
 
 interface InterventionDrawerProps {
   isOpen: boolean;
@@ -123,9 +124,11 @@ export function InterventionDrawer({
             transition={{ type: "spring", stiffness: 280, damping: 28, mass: 1 }}
             className={`fixed right-0 top-0 bottom-0 z-50 w-full max-w-xl border-l backdrop-blur-2xl flex flex-col shadow-2xl ${
               isDark
-                ? "bg-[#0c0e16]/95 border-white/10 text-white"
-                : "bg-white/95 border-neutral-200 text-neutral-900"
-            }`}
+                ? "bg-[#0c0e16]/95 text-white"
+                : "bg-white/95 text-neutral-900"
+            } ${
+              isDispatching ? "border-emerald-500/50 shadow-[0_0_40px_rgba(16,185,129,0.15)]" : (isDark ? "border-white/10" : "border-neutral-200")
+            } transition-colors duration-300`}
           >
             {/* Header */}
             <div className={`flex items-center justify-between border-b px-6 py-4 ${
@@ -158,7 +161,7 @@ export function InterventionDrawer({
             </div>
 
             {/* Scrollable Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            <StaggerGroup className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
               {/* Target Prospect Info Card */}
               {lead && (
                 <div className={`rounded-2xl border p-4 space-y-3 ${
@@ -392,7 +395,7 @@ export function InterventionDrawer({
                   <ChevronRight className="h-3 w-3" />
                 </button>
               </div>
-            </div>
+            </StaggerGroup>
 
             {/* Footer Actions */}
             <div className={`border-t p-6 space-y-2.5 ${

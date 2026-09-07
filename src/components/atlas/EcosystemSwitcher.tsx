@@ -132,7 +132,7 @@ export function EcosystemSwitcher({ align = "right", isDark = true }: EcosystemS
         {/* Sovereign Popover Panel */}
         {isOpen && (
           <div
-            className={`absolute ${align === "right" ? "right-0" : "left-0"} mt-3 w-88 rounded-2xl border p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3.5 ${
+            className={`absolute ${align === "right" ? "right-0" : "left-0"} mt-3 w-[360px] rounded-2xl border p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3.5 ${
               isDark
                 ? "bg-[#090b10] border-white/15 shadow-[0_25px_65px_rgba(0,0,0,0.92)] text-white"
                 : "bg-white border-neutral-200 shadow-2xl text-neutral-900"

@@ -169,7 +169,7 @@ export function CommandEngine({
               isDark
                 ? "bg-gradient-to-r from-white/20 via-emerald-400/20 to-white/10"
                 : "bg-gradient-to-r from-neutral-300/60 via-emerald-500/20 to-neutral-200/50"
-            }`}
+            } ${!isRunning && inputPrompt.length === 0 ? "atlas-animate-breathe" : ""}`}
           />
 
           <div

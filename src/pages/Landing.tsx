@@ -6,6 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { LogoMark } from "@/components/atlas/Logo";
+import { SpatialCanvas } from "@/components/SpatialCanvas";
+import { ScrollReveal } from "@/components/atlas/ScrollReveal";
+import { motion } from "framer-motion";
 
 export default function Landing() {
   const [form, setForm] = useState({ company: "", prospect: "", email: "", website: "", bottleneck: "" });
@@ -41,7 +44,8 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 flex flex-col grain">
+    <div className="relative min-h-screen bg-background text-foreground selection:bg-primary/20 flex flex-col overflow-hidden">
+      <SpatialCanvas isProcessing={false} requiresIntervention={false} isDark={false} />
       {/* Header */}
       <header className="absolute top-0 w-full p-6 flex items-center justify-between z-10">
         <div className="flex items-center gap-2">
@@ -56,22 +60,51 @@ export default function Landing() {
       {/* Hero Section */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 pt-32 pb-20">
         <div className="max-w-4xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-semibold uppercase tracking-widest mb-4">
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-semibold uppercase tracking-widest mb-4"
+          >
             <Zap className="h-3.5 w-3.5" /> For Small Agencies & Service Businesses
-          </div>
+          </motion.div>
           
-          <h1 className="text-5xl md:text-7xl font-display font-bold tracking-tight leading-[1.1] text-balance">
-            Stop losing 10+ hours a week to manual operations.
-          </h1>
+          <motion.h1 
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: { opacity: 1, transition: { staggerChildren: 0.05, delayChildren: 0.2 } }
+            }}
+            className="text-5xl md:text-7xl font-display font-bold tracking-tight leading-[1.1] text-balance"
+          >
+            {"Stop losing 10+ hours a week to manual operations.".split(" ").map((word, i) => (
+              <motion.span
+                key={i}
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  visible: { opacity: 1, y: 0, transition: { type: "spring", damping: 20, stiffness: 100 } }
+                }}
+                className="inline-block mr-[0.25em]"
+              >
+                {word}
+              </motion.span>
+            ))}
+          </motion.h1>
           
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed text-balance">
+          <motion.p 
+            initial={{ opacity: 0, filter: "blur(4px)" }}
+            animate={{ opacity: 1, filter: "blur(0px)" }}
+            transition={{ delay: 0.8, duration: 0.7 }}
+            className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed text-balance"
+          >
             We find and remove the hidden operational bottlenecks destroying your margins. Get a free, custom teardown of your agency's most broken process.
-          </p>
+          </motion.p>
 
-          <div className="pt-8 w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 text-left">
+          <div className="pt-8 w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 text-left relative z-10">
             
             {/* Left: Video / Proof */}
-            <div className="space-y-6">
+            <ScrollReveal direction="left" delay={0.3} className="space-y-6">
               <div className="aspect-video bg-card border border-border/50 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group shadow-xl">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
                 <div className="h-16 w-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform cursor-pointer shadow-lg backdrop-blur-md z-10">
@@ -88,10 +121,10 @@ export default function Landing() {
                   <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> <span className="leading-tight">Zero obligations, zero sales pressure. Just actionable value.</span></li>
                 </ul>
               </div>
-            </div>
+            </ScrollReveal>
 
             {/* Right: Form */}
-            <div className="bg-card border border-border/50 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+            <ScrollReveal direction="right" delay={0.4} className="bg-card border border-border/50 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 p-32 bg-primary/5 blur-3xl rounded-full" />
               
               {submitted ? (
@@ -151,7 +184,7 @@ export default function Landing() {
                   </Button>
                 </form>
               )}
-            </div>
+            </ScrollReveal>
 
           </div>
         </div>

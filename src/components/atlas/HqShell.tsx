@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { 
   Target, Search, MessageSquare, BarChart2,
   Database, Zap, User as UserIcon, LogOut, Moon, Sun, ChevronRight, Command,
@@ -49,7 +50,7 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
   const navigate = useNavigate();
 
   const NAV_CMDS: CmdAction[] = [
-    { id: "go-morning-focus", label: "Morning Focus", description: "Review today's top 3 qualified opportunities", shortcut: "G F", action: () => navigate("/") },
+    { id: "go-daily-briefing", label: "Daily Briefing", description: "Review today's top 3 qualified opportunities", shortcut: "G B", action: () => navigate("/") },
     { id: "go-objectives",    label: "Define Hunt", description: "Declare commercial intent & lock search thesis", shortcut: "G O", action: () => navigate("/objectives") },
     { id: "go-engine",        label: "Pipeline & Deals", description: "Active engagements and revenue radar", action: () => navigate("/hq/engine") },
     { id: "go-settings",      label: "Settings & Keys", description: "Account, database, and system status", action: () => navigate("/hq/settings") },
@@ -190,14 +191,17 @@ export default function HqShell() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col overflow-x-hidden">
+    <div className="min-h-screen atlas-grid-bg text-foreground flex flex-col overflow-x-hidden relative">
+      {/* ── Fixed Ambient Radiant Light Mesh (Filters through all frosted glass) ── */}
+      <div className="fixed inset-0 atlas-light-mesh pointer-events-none z-0" />
+
       {/* ── Top Sovereign Process Header ──────────────────────────────────────── */}
-      <header className="nav-glass sticky top-0 z-40 w-full h-14 px-4 md:px-6 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 w-full h-14 px-4 md:px-6 flex items-center justify-between gap-4 transition-colors duration-300 bg-white/70 dark:bg-[#07080c]/70 backdrop-blur-2xl border-b border-black/5 dark:border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
 
         {/* Left: Brand Identity */}
         <div className="flex items-center gap-6 shrink-0">
           <NavLink to="/" className="flex items-center gap-2.5 group">
-            <div className="h-7 w-7 rounded-lg bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center justify-center transition-colors group-hover:bg-[var(--pds-surface-3)]">
+            <div className="h-7 w-7 rounded-lg atlas-glass-capsule flex items-center justify-center transition-colors group-hover:bg-[var(--pds-surface-3)]">
               <LogoMark size={16} className="text-[var(--pds-text-primary)]" />
             </div>
             <div className="flex flex-col">
@@ -211,37 +215,8 @@ export default function HqShell() {
           </NavLink>
         </div>
 
-        {/* Center: Unified Workspace Navigation Tabs */}
-        <nav className="flex items-center gap-1 p-1 rounded-xl border bg-[var(--pds-surface-1)] border-[var(--pds-border-subtle)] shadow-sm">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              `px-3.5 py-1.5 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 ${
-                isActive
-                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold shadow-xs"
-                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] hover:bg-[var(--pds-surface-2)]/60"
-              }`
-            }
-          >
-            <span>Morning Focus</span>
-            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 font-bold">
-              3
-            </span>
-          </NavLink>
-          <NavLink
-            to="/objectives"
-            className={({ isActive }) =>
-              `px-3.5 py-1.5 rounded-lg text-xs font-mono transition-all ${
-                isActive
-                  ? "bg-[var(--pds-surface-3)] text-[var(--pds-text-primary)] font-semibold shadow-xs"
-                  : "text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] hover:bg-[var(--pds-surface-2)]/60"
-              }`
-            }
-          >
-            Define Hunt
-          </NavLink>
-        </nav>
+        {/* Center: Removed Legacy Navigation */}
+        <div className="flex-1"></div>
 
         {/* Right: Actions & Ecosystem Tools */}
         <div className="flex items-center gap-2 shrink-0">
@@ -268,14 +243,14 @@ export default function HqShell() {
             {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5 text-emerald-400" />}
           </button>
 
-          {/* Theme Toggle (Default to Dark Mode in Atlas) */}
+          {/* Theme Toggle */}
           <button
             onClick={() => cycleTheme()}
             className="h-8 w-8 rounded-lg bg-[var(--pds-surface-2)] hover:bg-[var(--pds-surface-3)] border border-[var(--pds-border-subtle)] flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] transition-colors cursor-pointer"
             aria-label="Toggle theme"
             title="Toggle light / dark mode"
           >
-            {theme === "dark" ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-neutral-600" />}
+            {theme === "dark" ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5" />}
           </button>
 
           {/* Sovereign Ecosystem Switcher */}
@@ -307,7 +282,18 @@ export default function HqShell() {
 
       {/* ── Main Full-Width Process Workspace ───────────────────────────────── */}
       <main className="flex-1 min-w-0 w-full">
-        <Outlet />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
+            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full"
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* ── The Vault Modal / Drawer ────────────────────────────────────────── */}

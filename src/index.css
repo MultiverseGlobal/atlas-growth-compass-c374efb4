@@ -18,31 +18,31 @@
 
   /* ── Light Mode (:root default) ─────────────────────────────────────────── */
   :root {
-    --pds-canvas:    #F8F7F4;
-    --pds-surface-1: #FFFFFF;
-    --pds-surface-2: #F1F0EC;
-    --pds-surface-3: #EBEBE6;
-    --pds-surface-4: #E3E2DC;
+    --pds-canvas:    #F8FAFC;
+    --pds-surface-1: rgba(255, 255, 255, 0.76);
+    --pds-surface-2: rgba(241, 245, 249, 0.82);
+    --pds-surface-3: rgba(226, 232, 240, 0.88);
+    --pds-surface-4: rgba(203, 213, 225, 0.94);
 
-    --pds-border-subtle: rgba(17, 19, 24, 0.06);
-    --pds-border-mid:    rgba(17, 19, 24, 0.12);
-    --pds-border-strong: rgba(17, 19, 24, 0.20);
+    --pds-border-subtle: rgba(15, 23, 42, 0.05);
+    --pds-border-mid:    rgba(15, 23, 42, 0.09);
+    --pds-border-strong: rgba(15, 23, 42, 0.16);
 
-    --pds-text-primary:   #111318;
-    --pds-text-secondary: #6B7280;
-    --pds-text-muted:     #9CA3AF;
-    --pds-text-disabled:  #D1D5DB;
+    --pds-text-primary:   #0F172A;
+    --pds-text-secondary: #334155;
+    --pds-text-muted:     #64748B;
+    --pds-text-disabled:  #94A3B8;
 
-    --pds-accent:     #111318;
-    --pds-accent-inv: #F8F7F4;
-    --pds-accent-dim: rgba(17, 19, 24, 0.06);
-    --pds-accent-glow: rgba(17, 19, 24, 0.12);
+    --pds-accent:     #0F172A;
+    --pds-accent-inv: #FFFFFF;
+    --pds-accent-dim: rgba(15, 23, 42, 0.05);
+    --pds-accent-glow: rgba(16, 185, 129, 0.15);
 
-    --pds-shadow-sm:    0 1px 2px rgba(17, 19, 24, 0.04);
-    --pds-shadow-md:    0 4px 12px rgba(17, 19, 24, 0.06), 0 1px 3px rgba(17, 19, 24, 0.03);
-    --pds-shadow-lg:    0 16px 32px rgba(17, 19, 24, 0.08), 0 4px 8px rgba(17, 19, 24, 0.04);
-    --pds-shadow-float: 0 24px 48px rgba(17, 19, 24, 0.10), 0 8px 16px rgba(17, 19, 24, 0.05);
-    --pds-shadow-glow:  none;
+    --pds-shadow-sm:    0 1px 2px rgba(15, 23, 42, 0.03);
+    --pds-shadow-md:    0 6px 18px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02);
+    --pds-shadow-lg:    0 16px 36px -4px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.03);
+    --pds-shadow-float: 0 24px 48px -6px rgba(15, 23, 42, 0.09), 0 4px 12px rgba(15, 23, 42, 0.04);
+    --pds-shadow-glow:  0 0 20px -2px rgba(16, 185, 129, 0.15);
 
     --pds-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.05);
     --pds-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
@@ -50,10 +50,10 @@
     --pds-t-base:  300ms;
     --pds-t-slow:  500ms;
 
-    --pds-success: #22c55e;
+    --pds-success: #10b981;
     --pds-warning: #f59e0b;
     --pds-danger:  #ef4444;
-    --pds-info:    #38bdf8;
+    --pds-info:    #6366f1;
 
     /* Compatibility mapping for UI components */
     --background: var(--pds-canvas);
@@ -75,6 +75,21 @@
     --border: var(--pds-border-mid);
     --input: var(--pds-border-mid);
     --ring: var(--pds-accent);
+
+    /* Atlas Luminous Frosted Minimalist Glass System (Light Mode) */
+    --atlas-glass-base: rgba(255, 255, 255, 0.65);
+    --atlas-glass-surface: rgba(255, 255, 255, 0.78);
+    --atlas-glass-raised: rgba(255, 255, 255, 0.92);
+    --atlas-glass-border: rgba(15, 23, 42, 0.08);
+    --atlas-glass-border-subtle: rgba(15, 23, 42, 0.04);
+    --atlas-glass-border-hover: rgba(16, 185, 129, 0.45);
+    --atlas-glass-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.95);
+    --atlas-glass-shadow: 0 10px 30px -4px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+    --atlas-glass-shadow-hover: 0 18px 42px -6px rgba(15, 23, 42, 0.08), 0 0 20px -2px rgba(16, 185, 129, 0.15);
+    --atlas-glass-blur: 24px;
+    --atlas-glow-emerald: rgba(16, 185, 129, 0.09);
+    --atlas-glow-indigo: rgba(99, 102, 241, 0.09);
+    --atlas-glow-amber: rgba(245, 158, 11, 0.09);
   }
 
   /* ── Dark Mode (.dark on <html>) ─────────────────────────────────────────── */
@@ -125,6 +140,21 @@
     --border: var(--pds-border-mid);
     --input: var(--pds-border-mid);
     --ring: var(--pds-accent);
+
+    /* Atlas Frosted Minimalist Glass System (Dark / Smoked Obsidian) */
+    --atlas-glass-base: rgba(13, 16, 23, 0.72);
+    --atlas-glass-surface: rgba(17, 21, 30, 0.82);
+    --atlas-glass-raised: rgba(23, 28, 40, 0.92);
+    --atlas-glass-border: rgba(255, 255, 255, 0.09);
+    --atlas-glass-border-subtle: rgba(255, 255, 255, 0.05);
+    --atlas-glass-border-hover: rgba(255, 255, 255, 0.24);
+    --atlas-glass-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.14);
+    --atlas-glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.42), 0 1px 3px rgba(0, 0, 0, 0.25);
+    --atlas-glass-shadow-hover: 0 16px 44px -4px rgba(0, 0, 0, 0.65), 0 0 24px -2px rgba(16, 185, 129, 0.15);
+    --atlas-glass-blur: 18px;
+    --atlas-glow-emerald: rgba(16, 185, 129, 0.20);
+    --atlas-glow-amber: rgba(245, 158, 11, 0.20);
+    --atlas-glow-indigo: rgba(99, 102, 241, 0.20);
   }
 
   /* ── Reset & Base ─────────────────────────────────────────────────────────── */
@@ -209,6 +239,65 @@
     opacity: 0.03;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
   }
+
+  /* Atlas Luminous Frosted Minimalist Glass Utility Classes */
+  .atlas-glass-card {
+    background: var(--atlas-glass-surface);
+    backdrop-filter: blur(var(--atlas-glass-blur)) saturate(190%);
+    -webkit-backdrop-filter: blur(var(--atlas-glass-blur)) saturate(190%);
+    border: 1px solid var(--atlas-glass-border);
+    box-shadow: var(--atlas-glass-shadow), var(--atlas-glass-highlight);
+    transition: all 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .atlas-glass-card:hover {
+    box-shadow: var(--atlas-glass-shadow-hover), var(--atlas-glass-highlight);
+    border-color: var(--atlas-glass-border-hover);
+    transform: translateY(-2px);
+  }
+
+  .atlas-glass-nav {
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(24px) saturate(190%);
+    -webkit-backdrop-filter: blur(24px) saturate(190%);
+    border-bottom: 1px solid var(--atlas-glass-border);
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.95), 0 4px 20px -4px rgba(15, 23, 42, 0.04);
+  }
+
+  .atlas-glass-capsule {
+    background: var(--atlas-glass-base);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid var(--atlas-glass-border);
+    box-shadow: var(--atlas-glass-highlight), 0 2px 8px rgba(15, 23, 42, 0.03);
+  }
+
+  /* Architectural Grid Pattern for Light Atmosphere */
+  .atlas-grid-bg {
+    background-color: var(--pds-canvas);
+    background-image: radial-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Ambient Radiant Light Mesh behind glass */
+  .atlas-light-mesh {
+    background: 
+      radial-gradient(at 15% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 55%),
+      radial-gradient(at 85% 10%, rgba(16, 185, 129, 0.07) 0px, transparent 55%),
+      radial-gradient(at 50% 40%, rgba(245, 158, 11, 0.04) 0px, transparent 60%);
+  }
+
+  .atlas-ambient-glow {
+    background: radial-gradient(circle at 50% -10%, var(--atlas-glow-emerald) 0%, transparent 65%);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .atlas-glass-card, .atlas-glass-nav, .atlas-glass-capsule {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      background: var(--pds-surface-1) !important;
+    }
+  }
 }
 
 /* ── Custom Scrollbar ────────────────────────────────────────────────────────── */
@@ -228,6 +317,31 @@
 @keyframes pds-blur-in {
   from { opacity: 0; filter: blur(8px); }
   to   { opacity: 1; filter: blur(0); }
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position: 400px 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--pds-surface-2) 25%,
+    var(--pds-surface-3) 50%,
+    var(--pds-surface-2) 75%
+  );
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes atlas-breathing-glow {
+  0%, 100% { opacity: 0.5; filter: blur(20px); transform: scale(1); }
+  50% { opacity: 0.8; filter: blur(25px); transform: scale(1.05); }
+}
+
+.atlas-animate-breathe {
+  animation: atlas-breathing-glow 4s ease-in-out infinite;
 }
 
 @keyframes pds-pulse-dot {
@@ -316,7 +430,7 @@
                 background var(--pds-t-fast) var(--pds-ease-out);
   }
   .pds-btn-primary:hover:not(:disabled) { opacity: 0.88; }
-  .pds-btn-primary:active:not(:disabled) { opacity: 0.75; }
+  .pds-btn-primary:active:not(:disabled) { opacity: 0.75; transform: scale(0.97); }
   .pds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
   .pds-btn-primary:focus-visible {
     outline: 2px solid var(--pds-border-strong);
@@ -343,6 +457,9 @@
   .pds-btn-ghost:hover:not(:disabled) {
     background: var(--pds-surface-3);
     border-color: var(--pds-border-mid);
+  }
+  .pds-btn-ghost:active:not(:disabled) {
+    transform: scale(0.97);
   }
   .pds-btn-ghost:focus-visible {
     outline: 2px solid var(--pds-border-strong);
