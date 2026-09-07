@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
-  Sun, Moon, Plus, Command,
+  Sun, Moon, Plus, Command, ExternalLink,
   Radar, Crosshair, Cpu, SlidersHorizontal, User
 } from "lucide-react";
 import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
@@ -79,6 +79,37 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
             <DropdownMenuItem onClick={cycleTheme} className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg">
               {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
               <span>Toggle Theme</span>
+            </DropdownMenuItem>
+            
+            <DropdownMenuSeparator className="bg-border/50 my-1" />
+            <div className="px-2 py-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Ecosystem</div>
+            <DropdownMenuItem asChild>
+              <a href="https://pseudonyms.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                <span>Pseudonyms ID</span>
+                <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href="https://orion-intel.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>Orion</span>
+                <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href="https://clario-docs.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+                <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                <span>Clario</span>
+                <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href="https://metaphor-ai.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+                <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                <span>Metaphor</span>
+                <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+              </a>
             </DropdownMenuItem>
             
             {user && (

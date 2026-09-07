@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Target, UserPlus, Linkedin } from "lucide-react";
 import { toast } from "sonner";
@@ -75,22 +76,30 @@ export function NewLeadModal({ open, onClose }: { open: boolean; onClose: () => 
     }
   };
 
-  return (
+  // Handle Portal mounting safely
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
-        <>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm pointer-events-auto"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 p-6"
+            className="relative z-10 w-full max-w-md p-6 pointer-events-auto"
           >
             <div className="bg-card border border-border/60 rounded-2xl shadow-xl overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
@@ -102,7 +111,7 @@ export function NewLeadModal({ open, onClose }: { open: boolean; onClose: () => 
                 </div>
                 <button
                   onClick={onClose}
-                  className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -139,8 +148,9 @@ export function NewLeadModal({ open, onClose }: { open: boolean; onClose: () => 
               </form>
             </div>
           </motion.div>
-        </>
+        </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

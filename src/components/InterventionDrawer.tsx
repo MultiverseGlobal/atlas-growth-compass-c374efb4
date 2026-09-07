@@ -132,20 +132,14 @@ export function InterventionDrawer({
             <div className={`flex items-center justify-between border-b px-6 py-4 ${
               isDark ? "border-white/10" : "border-neutral-200"
             }`}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500">
-                  <AlertCircle className="h-4 w-4" />
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-foreground text-background">
+                  <AlertCircle className="h-3.5 w-3.5" />
                 </div>
                 <div>
-                  <h2 className="font-display text-base tracking-tight font-semibold flex items-center gap-2">
+                  <h2 className="font-display text-sm tracking-tight font-semibold flex items-center gap-2">
                     Human Review Required
-                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
-                      Step 1 of 1
-                    </span>
                   </h2>
-                  <p className={`text-xs ${isDark ? "text-white/50" : "text-neutral-500"}`}>
-                    Autonomous pipeline paused. Authorize outbound sequence.
-                  </p>
                 </div>
               </div>
               <button
@@ -162,46 +156,48 @@ export function InterventionDrawer({
             <StaggerGroup className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
               {/* Target Prospect Info Card */}
               {lead && (
-                <div className={`rounded-2xl border p-4 space-y-3 ${
-                  isDark ? "border-white/10 bg-white/[0.03]" : "border-neutral-200 bg-neutral-50"
+                <div className={`rounded-xl border p-4 space-y-4 ${
+                  isDark ? "border-white/10 bg-black/40" : "border-neutral-200 bg-white"
                 }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <Building2 className="h-4 w-4 text-emerald-500" />
-                      <span className="font-display text-sm font-semibold tracking-tight">{lead.company}</span>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Building2 className="h-3.5 w-3.5 text-foreground opacity-70" />
+                        <span className="font-display text-sm font-semibold tracking-tight">{lead.company}</span>
+                      </div>
                       <a
                         href={lead.website}
                         target="_blank"
                         rel="noreferrer"
-                        className={`text-xs flex items-center gap-1 font-mono transition-colors hover:underline ${
-                          isDark ? "text-white/40 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
-                        }`}
+                        className="text-[11px] font-mono opacity-50 hover:opacity-100 transition-opacity flex items-center gap-1"
                       >
                         <Globe className="h-3 w-3" />
                         {lead.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
                       </a>
                     </div>
                     {lead.icp_score && (
-                      <span className="font-mono text-xs text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md font-semibold">
+                      <span className="font-mono text-[10px] text-background bg-foreground px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
                         {lead.icp_score}% FIT
                       </span>
                     )}
                   </div>
 
-                  <div className={`flex items-center gap-2 text-xs border-t pt-2.5 ${
-                    isDark ? "border-white/5 text-white/70" : "border-neutral-200 text-neutral-600"
+                  <div className={`flex flex-col gap-1 text-xs border-t pt-3 ${
+                    isDark ? "border-white/10 text-white/80" : "border-neutral-200 text-neutral-700"
                   }`}>
-                    <User className="h-3.5 w-3.5 opacity-60" />
-                    <span className="font-medium">{lead.founder?.name}</span>
-                    <span className="opacity-40">•</span>
-                    <span className="opacity-70">{lead.founder?.role}</span>
+                    <div className="flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 opacity-50" />
+                      <span className="font-semibold">{lead.founder?.name}</span>
+                      <span className="opacity-40">•</span>
+                      <span className="opacity-70">{lead.founder?.role}</span>
+                    </div>
                   </div>
 
                   {lead.bottleneck && (
-                    <div className={`text-[11px] rounded-lg p-2 font-mono ${
-                      isDark ? "bg-black/30 text-white/70" : "bg-neutral-200/50 text-neutral-800"
+                    <div className={`text-[10px] rounded p-2.5 font-mono leading-relaxed ${
+                      isDark ? "bg-white/5 text-white/70" : "bg-neutral-100 text-neutral-600"
                     }`}>
-                      <span className="text-emerald-500 font-semibold uppercase">Bottleneck: </span>
+                      <span className="text-foreground font-bold uppercase tracking-wider block mb-1">Observed Bottleneck:</span>
                       {lead.bottleneck}
                     </div>
                   )}
@@ -215,38 +211,38 @@ export function InterventionDrawer({
                 }`}>
                   Outreach Medium
                 </span>
-                <div className={`flex items-center rounded-xl border p-1 ${
+                <div className={`flex items-center rounded-lg border p-1 ${
                   isDark ? "border-white/10 bg-black/40" : "border-neutral-200 bg-neutral-100"
                 }`}>
                   <button
                     onClick={() => handleChannelSwitch("email")}
-                    className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-lg font-medium transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1 text-[11px] rounded uppercase tracking-wider transition-all cursor-pointer ${
                       channel === "email"
                         ? isDark
-                          ? "bg-white text-black font-semibold shadow-sm"
-                          : "bg-white text-neutral-900 font-semibold shadow-sm"
+                          ? "bg-white text-black font-bold shadow-sm"
+                          : "bg-black text-white font-bold shadow-sm"
                         : isDark
-                        ? "text-white/60 hover:text-white"
-                        : "text-neutral-600 hover:text-neutral-900"
+                        ? "text-white/50 hover:text-white"
+                        : "text-neutral-500 hover:text-neutral-900"
                     }`}
                   >
-                    <Mail className="h-3.5 w-3.5" />
-                    Cold Email
+                    <Mail className="h-3 w-3" />
+                    Email
                   </button>
                   <button
                     onClick={() => handleChannelSwitch("linkedin")}
-                    className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-lg font-medium transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1 text-[11px] rounded uppercase tracking-wider transition-all cursor-pointer ${
                       channel === "linkedin"
                         ? isDark
-                          ? "bg-white text-black font-semibold shadow-sm"
-                          : "bg-white text-neutral-900 font-semibold shadow-sm"
+                          ? "bg-white text-black font-bold shadow-sm"
+                          : "bg-black text-white font-bold shadow-sm"
                         : isDark
-                        ? "text-white/60 hover:text-white"
-                        : "text-neutral-600 hover:text-neutral-900"
+                        ? "text-white/50 hover:text-white"
+                        : "text-neutral-500 hover:text-neutral-900"
                     }`}
                   >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    LinkedIn DM
+                    <MessageSquare className="h-3 w-3" />
+                    LinkedIn
                   </button>
                 </div>
               </div>
@@ -264,9 +260,9 @@ export function InterventionDrawer({
                     value={recipientEmail}
                     onChange={(e) => setRecipientEmail(e.target.value)}
                     placeholder="prospect@company.com"
-                    className={`w-full rounded-xl border px-4 py-2.5 text-sm font-mono focus:outline-none transition-colors ${
+                    className={`w-full rounded-xl border px-3 py-2 text-xs font-mono focus:outline-none transition-colors ${
                       isDark
-                        ? "border-white/10 bg-white/[0.04] text-white focus:border-white/30"
+                        ? "border-white/10 bg-black/40 text-white focus:border-white/30"
                         : "border-neutral-200 bg-neutral-50 text-neutral-900 focus:border-neutral-400"
                     }`}
                   />
@@ -285,9 +281,9 @@ export function InterventionDrawer({
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium focus:outline-none transition-colors ${
+                    className={`w-full rounded-xl border px-3 py-2 text-xs font-medium focus:outline-none transition-colors ${
                       isDark
-                        ? "border-white/10 bg-white/[0.04] text-white focus:border-white/30"
+                        ? "border-white/10 bg-black/40 text-white focus:border-white/30"
                         : "border-neutral-200 bg-neutral-50 text-neutral-900 focus:border-neutral-400"
                     }`}
                   />
@@ -336,15 +332,18 @@ export function InterventionDrawer({
 
                 <div className="relative">
                   <textarea
-                    rows={8}
                     value={body}
+                    onChange={(e) => {
+                      if (!isStreaming) setBody(e.target.value);
+                    }}
                     onFocus={completeStreamingImmediately}
-                    onChange={(e) => setBody(e.target.value)}
-                    className={`w-full rounded-xl border p-4 text-sm leading-relaxed font-sans focus:outline-none transition-colors resize-none ${
+                    readOnly={isStreaming}
+                    className={`w-full h-48 resize-none rounded-xl border p-4 text-xs font-medium leading-relaxed focus:outline-none transition-colors ${
                       isDark
-                        ? "border-white/10 bg-white/[0.04] text-white/90 focus:border-white/30"
+                        ? "border-white/10 bg-black/40 text-white focus:border-white/30"
                         : "border-neutral-200 bg-neutral-50 text-neutral-900 focus:border-neutral-400"
-                    }`}
+                    } ${isStreaming ? "animate-pulse border-emerald-500/50" : ""}`}
+                    placeholder="Message content..."
                   />
                   {isStreaming && (
                     <span className="absolute bottom-3 right-3 flex items-center gap-1 font-mono text-[10px] text-emerald-500/80">
@@ -396,39 +395,28 @@ export function InterventionDrawer({
             </StaggerGroup>
 
             {/* Footer Actions */}
-            <div className={`border-t p-6 space-y-2.5 ${
-              isDark ? "border-white/10 bg-[#08090f]/80" : "border-neutral-200 bg-neutral-50/90"
-            }`}>
+            <div className={`border-t p-4 space-y-2 ${isDark ? "border-white/10 bg-neutral-950/95" : "border-neutral-200 bg-white/95"}`}>
               <button
-                disabled={isDispatching || !body.trim()}
                 onClick={handleApprove}
-                className={`group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-5 py-3.5 text-sm font-semibold transition-all active:scale-[0.99] disabled:opacity-50 cursor-pointer shadow-md ${
-                  isDark
-                    ? "bg-white text-black hover:bg-white/90"
-                    : "bg-neutral-900 text-white hover:bg-neutral-800"
-                }`}
+                disabled={isDispatching || isStreaming || !body}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-3 text-xs font-semibold text-background hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
               >
                 {isDispatching ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Dispatching Sequence...</span>
-                  </>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    <Send className="h-4 w-4" />
-                    <span>Approve & Dispatch Outreach</span>
-                    <span className={`text-[11px] font-mono ml-2 opacity-60`}>⌘↵</span>
-                    <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </>
+                  <Send className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 )}
+                {isDispatching ? "Dispatching..." : "Approve & Dispatch Outreach"}
+                <span className="ml-2 rounded border border-background/20 bg-background/10 px-1.5 py-0.5 text-[10px] font-mono opacity-80">
+                  ⌘↵
+                </span>
               </button>
-
+              
               <button
-                onClick={onClose}
-                className={`w-full rounded-xl border px-4 py-2.5 text-xs font-mono transition-colors cursor-pointer ${
-                  isDark
-                    ? "border-white/10 text-white/50 hover:bg-white/5 hover:text-white"
-                    : "border-neutral-200 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                onClick={onSkip}
+                disabled={isDispatching}
+                className={`w-full rounded-xl px-4 py-2.5 text-xs font-mono uppercase tracking-widest transition-colors disabled:opacity-50 cursor-pointer ${
+                  isDark ? "text-white/40 hover:bg-white/5 hover:text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
                 }`}
               >
                 Keep Paused in Workspace
