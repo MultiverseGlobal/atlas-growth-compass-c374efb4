@@ -140,7 +140,7 @@ export default function HqRevenueEngine() {
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-56px)] bg-[var(--pds-canvas)] items-center justify-center">
+      <div className="flex h-screen pt-[72px] bg-[var(--pds-canvas)] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-6 h-6 animate-spin text-[var(--pds-text-muted)]" />
           <span className="text-[11px] font-mono tracking-widest text-[var(--pds-text-muted)] uppercase">Calibrating Engine...</span>
@@ -150,7 +150,7 @@ export default function HqRevenueEngine() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-56px)] bg-[var(--pds-canvas)] text-[var(--pds-text-primary)] font-sans">
+    <div className="flex h-screen pt-[72px] bg-[var(--pds-canvas)] text-[var(--pds-text-primary)] font-sans">
       
       {/* ── Left Sidebar: Pipeline ────────────────────────────────────────── */}
       <div className="w-[340px] border-r border-[var(--pds-border-mid)] bg-[var(--pds-surface-2)] flex flex-col shrink-0">

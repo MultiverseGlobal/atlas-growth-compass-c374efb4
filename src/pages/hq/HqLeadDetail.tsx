@@ -333,9 +333,9 @@ export default function HqLeadDetail() {
   const stageIdx = STAGE_STEPS.indexOf(lead.stage);
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col pt-[72px]">
       {/* Top bar */}
-      <div className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur-sm">
+      <div className="sticky top-[72px] z-30 border-b border-border/60 bg-background/90 backdrop-blur-sm">
         <div className="flex items-center gap-3 px-5 py-3">
           <Button variant="ghost" size="sm" onClick={() => navigate("/hq/leads")} className="h-7 w-7 p-0 shrink-0">
             <ArrowLeft className="h-4 w-4" />
