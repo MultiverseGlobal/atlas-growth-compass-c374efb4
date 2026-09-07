@@ -196,7 +196,7 @@ export default function HqShell() {
       <div className="fixed inset-0 atlas-light-mesh pointer-events-none z-0" />
 
       {/* ── Top Sovereign Process Header ──────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full h-14 px-4 md:px-6 flex items-center justify-between gap-4 transition-colors duration-300 bg-white/70 dark:bg-[#07080c]/70 backdrop-blur-2xl border-b border-black/5 dark:border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
+      <header className="sticky top-0 z-40 w-full h-14 px-4 md:px-6 flex items-center justify-between gap-4 transition-colors duration-300 bg-transparent pt-2">
 
         {/* Left: Brand Identity */}
         <div className="flex items-center gap-6 shrink-0">
