@@ -35,16 +35,24 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
   const location = useLocation();
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed top-6 left-1/2 -translate-x-1/2 h-[52px] bg-card/60 backdrop-blur-xl border border-border/60 z-50 flex flex-row items-center px-2 rounded-2xl gap-2 shadow-2xl"
-    >
+    <header className="sticky top-0 z-50 w-full h-16 bg-card/60 backdrop-blur-xl border-b border-border/60 flex items-center justify-between px-4 md:px-8">
+      
+      {/* ── Left: Brand & Dropdown ── */}
+      <div className="flex items-center gap-3">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center justify-center w-9 h-9 rounded-xl bg-foreground text-background shadow-md hover:scale-105 transition-transform outline-none ml-1">
-            <AtlasIcon size={18} className="text-background" />
+          <button className="flex items-center gap-2.5 outline-none group">
+            <div className="h-8 w-8 rounded-lg bg-foreground text-background flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+              <AtlasIcon size={18} className="text-background" />
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="font-bold text-xs tracking-tight text-foreground group-hover:text-primary transition-colors">
+                ATLAS
+              </span>
+              <span className="text-[9px] text-muted-foreground font-mono">
+                Sovereign Strategist
+              </span>
+            </div>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="bottom" alignOffset={-10} sideOffset={14} className="w-56 bg-card/95 backdrop-blur-xl border-border/50 shadow-xl rounded-xl p-1">
@@ -117,9 +125,10 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <div className="h-6 w-px bg-border/60 mx-1" />
+      </div>
 
-      <div className="flex flex-row items-center gap-1">
+      {/* ── Center: Navigation ── */}
+      <nav className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1 p-1 rounded-xl bg-surface-2 border border-border backdrop-blur-md shadow-inner">
         {Object.entries(ROUTES).map(([path, routeInfo]) => {
           const isActive = location.pathname === path;
           return (
@@ -127,17 +136,39 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
               key={path}
               onClick={() => navigate(path)}
               title={routeInfo.label}
-              className={`group relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-300 ease-out ${
-                isActive 
-                  ? "bg-foreground text-background shadow-md" 
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                isActive
+                  ? "bg-foreground text-background shadow-md shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/80"
               }`}
             >
-              <routeInfo.icon className={`w-4 h-4 ${isActive ? "" : "opacity-80 group-hover:opacity-100 transition-opacity"}`} />
+              <routeInfo.icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? "" : "opacity-50"}`} />
+              <span className="hidden lg:inline">{routeInfo.label}</span>
             </button>
           );
         })}
+      </nav>
+
+      {/* ── Right: User Actions ── */}
+      <div className="flex items-center gap-2.5 shrink-0">
+        <button
+          onClick={cycleTheme}
+          className="h-8 w-8 rounded-lg bg-card/50 hover:bg-card border border-border/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Toggle theme"
+        >
+          {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+        </button>
+        {user && (
+          <button
+            onClick={() => signOut().then(() => navigate("/auth"))}
+            className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center text-primary hover:bg-primary/20 transition-all"
+            title="Sign out"
+          >
+            <User className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
-    </motion.div>
+
+    </header>
   );
 }
