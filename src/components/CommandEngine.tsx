@@ -214,16 +214,19 @@ export function CommandEngine({
             {/* Tactical Controls */}
             <div className="pr-4 flex items-center gap-2">
               <AnimatePresence>
-                {inputPrompt.length > 0 && !isRunning && (
+                {!isRunning && (
                   <motion.button
                     initial={{ opacity: 0, scale: 0.85, x: 10 }}
                     animate={{ opacity: 1, scale: 1, x: 0 }}
                     exit={{ opacity: 0, scale: 0.85, x: 10 }}
                     type="submit"
-                    className={`flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all active:scale-95 cursor-pointer shadow-md ${
-                      isDark
-                        ? "bg-white text-black hover:bg-white/90 shadow-[0_4px_16px_rgba(255,255,255,0.25)]"
-                        : "bg-neutral-900 text-white hover:bg-neutral-800 shadow-[0_4px_16px_rgba(0,0,0,0.18)]"
+                    disabled={inputPrompt.trim().length === 0}
+                    className={`flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all shadow-md ${
+                      inputPrompt.trim().length === 0
+                        ? isDark ? "bg-white/10 text-white/40 cursor-not-allowed" : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
+                        : isDark
+                        ? "bg-white text-black hover:bg-white/90 active:scale-95 shadow-[0_4px_16px_rgba(255,255,255,0.25)] cursor-pointer"
+                        : "bg-neutral-900 text-white hover:bg-neutral-800 active:scale-95 shadow-[0_4px_16px_rgba(0,0,0,0.18)] cursor-pointer"
                     }`}
                   >
                     <span>Initiate Flow</span>

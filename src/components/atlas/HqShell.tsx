@@ -263,7 +263,7 @@ export default function HqShell() {
               title={user?.email || "Founder Mode"}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{profile?.display_name || user?.email?.split("@")[0] || "Founder"}</span>
+              <span>Founder Profile</span>
             </div>
             {user && (
               <button
