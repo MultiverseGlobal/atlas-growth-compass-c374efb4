@@ -116,7 +116,7 @@ export default function DailyBriefing() {
                 </div>
 
                 <Link 
-                  to={`/hq/leads/${opp.id}`}
+                  to="/hq/engine"
                   className="h-9 px-4 rounded-lg bg-background hover:bg-accent border border-border/60 text-xs font-semibold text-foreground flex items-center gap-1.5 transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >

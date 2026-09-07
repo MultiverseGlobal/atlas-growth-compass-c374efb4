@@ -53,8 +53,8 @@ const App = () => (
               {/* ── Sovereign Pipeline Flow ────────────────────────────── */}
               <Route path="/hq">
                 <Route index element={<Navigate to="/hq/engine" replace />} />
-                <Route path="engine" element={<CommandFeed />} />
-                <Route path="leads/:id" element={<CommandFeed />} />
+                <Route path="engine" element={<HqRevenueEngine />} />
+                <Route path="leads/:id" element={<HqLeadDetail />} />
                 <Route path="leads/:id/proposal" element={<HqProposal />} />
                 <Route path="settings" element={<HqSettings />} />
               </Route>
