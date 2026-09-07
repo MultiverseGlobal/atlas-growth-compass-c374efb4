@@ -249,8 +249,9 @@ export default function CommandFeed() {
       {/* ── Campaign Workspace ─────────────────────────────────────────── */}
       <motion.div 
         animate={{
-          x: drawerOpen ? "-10%" : "0%",
-          scale: drawerOpen ? 0.85 : 1,
+          scale: drawerOpen ? 0.96 : 1,
+          filter: drawerOpen ? "blur(4px)" : "blur(0px)",
+          opacity: drawerOpen ? 0.4 : 1,
         }}
         transition={{ type: "spring", stiffness: 280, damping: 30 }}
         className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-16 sm:px-6 lg:px-8"
