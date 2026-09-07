@@ -16,6 +16,7 @@ import HqRevenueEngine from "./pages/hq/HqRevenueEngine";
 import HqLeadDetail from "./pages/hq/HqLeadDetail";
 import HqProposal from "./pages/hq/HqProposal";
 import DailyBriefing from "./pages/hq/DailyBriefing";
+import CommandFeed from "./pages/CommandFeed";
 import HqSettings from "./pages/hq/HqSettings";
 import Objectives from "./pages/Objectives";
 import PublicProfile from "./pages/PublicProfile";
@@ -43,7 +44,8 @@ const App = () => (
           <Routes>
             {/* ── Sovereign App Shell (Atlas V1 Core Surfaces & Extended) ─ */}
             <Route element={<HqShell />}>
-              <Route path="/" element={<DailyBriefing />} />
+              <Route path="/" element={<CommandFeed />} />
+              <Route path="/briefing" element={<DailyBriefing />} />
               <Route path="/objectives" element={<ObjectivesStudio />} />
               <Route path="/workspace" element={<CommandFeed />} />
               <Route path="/command" element={<CommandFeed />} />

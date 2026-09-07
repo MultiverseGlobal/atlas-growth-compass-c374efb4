@@ -23,7 +23,7 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
   }, [query]);
 
   const NAV_CMDS: CmdAction[] = [
-    { id: "go-daily-briefing", label: "Daily Briefing", description: "Review today's top 3 qualified opportunities", shortcut: "G B", action: () => navigate("/") },
+    { id: "go-daily-briefing", label: "Daily Briefing", description: "Review today's top 3 qualified opportunities", shortcut: "G B", action: () => navigate("/briefing") },
     { id: "go-objectives",    label: "Define Hunt", description: "Declare commercial intent & lock search thesis", shortcut: "G O", action: () => navigate("/objectives") },
     { id: "go-engine",        label: "Pipeline & Deals", description: "Active engagements and revenue radar", action: () => navigate("/hq/engine") },
     { id: "go-settings",      label: "Settings & Keys", description: "Account, database, and system status", action: () => navigate("/hq/settings") },
