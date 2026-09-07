@@ -35,100 +35,95 @@ const TOP_OPPORTUNITIES = [
 
 export default function DailyBriefing() {
   return (
-    <div className="w-full min-h-screen bg-background">
-      
-      <div className="container max-w-5xl mx-auto px-6 py-24 relative z-10">
+    <div className="w-full min-h-screen bg-background flex flex-col items-center">
+      <div className="w-full max-w-5xl px-6 py-24 relative z-10 space-y-12">
         
         {/* Header section */}
-        <div className="flex flex-col gap-3 mb-12">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-foreground shadow-[0_0_8px_rgba(255,255,255,0.2)]" />
-            <span className="text-xs font-mono tracking-widest text-foreground uppercase">Systems Nominal</span>
+        <div className="flex flex-col gap-4 border-b border-border/60 pb-8">
+          <div className="flex items-center gap-3">
+            <span className="flex h-2 w-2 bg-foreground" />
+            <span className="text-xs font-mono tracking-widest text-foreground uppercase">Morning Intelligence Report</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-display font-semibold tracking-tight text-foreground">
+          <h1 className="text-4xl md:text-5xl font-display font-bold tracking-tight text-foreground">
             Daily Briefing
           </h1>
-          <p className="text-muted-foreground text-sm md:text-base max-w-2xl">
-            Review your top 3 qualified opportunities for today based on commercial intent and system signals.
+          <p className="text-muted-foreground text-sm max-w-2xl font-mono uppercase tracking-wide">
+            Algorithmically curated top targets / {new Date().toISOString().split('T')[0]}
           </p>
         </div>
 
-        {/* Action Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-          <div className="bg-card border border-border/60 rounded-xl p-5 shadow-sm flex flex-col gap-2 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Zap className="w-16 h-16" />
-            </div>
-            <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest">Active Signals</span>
-            <span className="text-3xl font-display font-semibold text-foreground">24</span>
+        {/* Action Metrics - Ultra Minimal */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-y border-border/60 divide-y md:divide-y-0 md:divide-x divide-border/60">
+          <div className="p-6 flex flex-col gap-2">
+            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-widest">Active Signals Processing</span>
+            <span className="text-4xl font-display font-light text-foreground">24</span>
           </div>
-          <div className="bg-card border border-border/60 rounded-xl p-5 shadow-sm flex flex-col gap-2 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <AlertCircle className="w-16 h-16" />
-            </div>
-            <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest">Urgent Actions</span>
-            <span className="text-3xl font-display font-semibold text-foreground">3</span>
+          <div className="p-6 flex flex-col gap-2 bg-foreground/5">
+            <span className="text-[10px] font-mono uppercase text-foreground tracking-widest font-semibold">Immediate Action Required</span>
+            <span className="text-4xl font-display font-light text-foreground">03</span>
           </div>
-          <div className="bg-card border border-border/60 rounded-xl p-5 shadow-sm flex flex-col gap-2 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <CheckCircle2 className="w-16 h-16" />
-            </div>
-            <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest">Pipeline Health</span>
-            <span className="text-3xl font-display font-semibold text-foreground">92%</span>
+          <div className="p-6 flex flex-col gap-2">
+            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-widest">System Health / Parsing</span>
+            <span className="text-4xl font-display font-light text-foreground">92.4%</span>
           </div>
         </div>
 
-        {/* Top Opportunities List */}
-        <div className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-            Priority Targets
-            <span className="px-2 py-0.5 rounded-full bg-accent text-accent-foreground text-[10px] font-mono">Top 3</span>
-          </h3>
+        {/* Top Opportunities List - Dossier Style */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between border-b border-border/60 pb-2">
+            <h3 className="text-xs font-mono uppercase tracking-widest text-foreground font-semibold">
+              Priority Targets (Top 3)
+            </h3>
+            <span className="text-[10px] font-mono uppercase text-muted-foreground">Ranked by Intent Score</span>
+          </div>
 
-          {TOP_OPPORTUNITIES.map((opp, idx) => (
-            <div key={opp.id} className="group bg-card border border-border/60 hover:border-foreground/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:shadow-md cursor-pointer">
-              
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center font-mono text-xs font-bold text-accent-foreground shrink-0 border border-border/50">
-                  {idx + 1}
+          <div className="grid grid-cols-1 gap-4">
+            {TOP_OPPORTUNITIES.map((opp, idx) => (
+              <div key={opp.id} className="group border border-border/60 bg-card hover:bg-foreground/5 transition-colors p-0 flex flex-col md:flex-row w-full">
+                
+                {/* Rank & Score Block */}
+                <div className="flex flex-row md:flex-col items-center justify-between md:justify-center p-4 md:w-24 border-b md:border-b-0 md:border-r border-border/60 bg-muted/30">
+                  <span className="text-[10px] font-mono uppercase text-muted-foreground">Rank 0{idx + 1}</span>
+                  <span className="text-2xl font-display font-semibold text-foreground">{opp.score}</span>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">{opp.company}</span>
-                    <span className="text-muted-foreground text-xs">•</span>
-                    <span className="text-muted-foreground text-xs">{opp.role}</span>
+
+                {/* Main Intel Block */}
+                <div className="flex-1 p-6 flex flex-col justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <h4 className="text-lg font-semibold text-foreground tracking-tight">{opp.company}</h4>
+                      <span className="px-2 py-0.5 border border-border/60 text-[10px] font-mono uppercase text-muted-foreground bg-background">
+                        {opp.role}
+                      </span>
+                    </div>
+                    <p className="text-sm font-mono text-muted-foreground mt-2 border-l-2 border-foreground/20 pl-3 py-0.5">
+                      {opp.intent}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground line-clamp-1">{opp.intent}</p>
+                  
+                  <div className="flex items-center justify-between pt-4 border-t border-border/30 mt-2">
+                    <div className="flex items-center gap-4 text-[10px] font-mono text-muted-foreground uppercase">
+                      <span>Detected: {opp.time}</span>
+                      <span>Status: {opp.status}</span>
+                    </div>
+                    
+                    <Link 
+                      to="/hq/engine"
+                      className="text-xs font-semibold font-mono uppercase text-foreground hover:underline flex items-center gap-1"
+                    >
+                      Engage Target <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
                 </div>
+
               </div>
-
-              <div className="flex items-center gap-6 pl-14 md:pl-0">
-                <div className="flex flex-col md:items-end gap-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-mono text-foreground font-semibold">{opp.score} Score</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    {opp.time}
-                  </div>
-                </div>
-
-                <Link 
-                  to="/hq/engine"
-                  className="h-9 px-4 rounded-lg bg-background hover:bg-accent border border-border/60 text-xs font-semibold text-foreground flex items-center gap-1.5 transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Engage <ArrowUpRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Empty state padder to keep UI balanced */}
-        <div className="mt-12 text-center text-xs text-muted-foreground font-mono">
-          End of briefing. Press <kbd className="px-1.5 py-0.5 rounded border border-border/60 bg-muted">⌘K</kbd> to launch Revenue Engine.
+        <div className="pt-12 text-center text-[10px] text-muted-foreground font-mono uppercase tracking-widest border-t border-border/30">
+          End of dossier. Press <kbd className="px-1.5 py-0.5 border border-border/60 text-foreground bg-muted/50 mx-1">⌘K</kbd> to launch Revenue Engine.
         </div>
 
       </div>
