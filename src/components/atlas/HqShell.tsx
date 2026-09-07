@@ -102,14 +102,14 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
               onClick={() => { cmd.action(); setOpen(false); setQuery(""); }}
               onMouseEnter={() => setSelectedIndex(idx)}
               className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg text-left cursor-pointer transition-colors ${
-                selectedIndex === idx ? "bg-accent text-accent-foreground" : "hover:bg-accent/50 text-foreground"
+                selectedIndex === idx ? "bg-[var(--pds-surface-2)] text-[var(--pds-text-primary)]" : "hover:bg-[var(--pds-surface-2)]/50 text-[var(--pds-text-primary)]"
               }`}
             >
               <div>
                 <span className="block text-[13px] font-medium text-[var(--pds-text-primary)]">{cmd.label}</span>
                 {cmd.description && <span className="text-[11px] text-[var(--pds-text-muted)]">{cmd.description}</span>}
               </div>
-              {cmd.shortcut && <kbd className="text-[10px] font-mono text-[var(--pds-text-muted)]">{cmd.shortcut}</kbd>}
+              {cmd.shortcut && <kbd className="text-[10px] font-mono text-[var(--pds-text-muted)]">{cmd.shortcut.replace('O', 'O')}</kbd>}
             </button>
           ))}
         </div>

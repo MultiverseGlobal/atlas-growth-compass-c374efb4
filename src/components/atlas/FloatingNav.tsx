@@ -4,12 +4,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
   Sun, Moon, Plus, Command,
-  LayoutDashboard, Target, Layers, Settings
+  LayoutDashboard, Target, Layers, Settings, Terminal
 } from "lucide-react";
+import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
 
 // ── Route metadata ────────────────────────────────────────────────────────────
 const ROUTES: Record<string, { label: string; icon: React.ElementType }> = {
-  "/":            { label: "Command Feed",    icon: LayoutDashboard },
+  "/":            { label: "Command",         icon: Terminal },
   "/briefing":    { label: "Daily Briefing",  icon: LayoutDashboard },
   "/objectives":  { label: "Define Hunt",     icon: Target },
   "/hq/engine":   { label: "Revenue Engine",  icon: Layers },
@@ -41,10 +42,8 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
           onClick={() => navigate("/")}
           className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md hover:bg-card transition-colors"
         >
-          {/* Atlas "A" mark */}
-          <span className="font-mono font-black text-[13px] tracking-tight text-foreground leading-none">
-            A<span className="text-emerald-500">.</span>
-          </span>
+          {/* Atlas Icon */}
+          <AtlasIcon size={16} className="text-foreground" />
           <span className="text-[11px] font-semibold text-muted-foreground hidden sm:block">
             Atlas
           </span>
