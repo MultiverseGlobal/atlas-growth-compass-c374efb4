@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
   Sun, Moon, Plus, Command,
-  LayoutDashboard, Target, Layers, Settings, Terminal, User
+  Radar, Crosshair, Cpu, SlidersHorizontal, User
 } from "lucide-react";
 import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
 import {
@@ -17,11 +17,11 @@ import {
 
 // ── Route metadata ────────────────────────────────────────────────────────────
 const ROUTES: Record<string, { label: string; icon: React.ElementType }> = {
-  "/":            { label: "Command",         icon: Terminal },
-  "/briefing":    { label: "Daily Briefing",  icon: LayoutDashboard },
-  "/objectives":  { label: "Define Hunt",     icon: Target },
-  "/hq/engine":   { label: "Revenue Engine",  icon: Layers },
-  "/hq/settings": { label: "Settings",        icon: Settings },
+  "/":            { label: "Command",         icon: Command },
+  "/briefing":    { label: "Daily Briefing",  icon: Radar },
+  "/objectives":  { label: "Define Hunt",     icon: Crosshair },
+  "/hq/engine":   { label: "Revenue Engine",  icon: Cpu },
+  "/hq/settings": { label: "Settings",        icon: SlidersHorizontal },
 };
 
 interface FloatingNavProps {
