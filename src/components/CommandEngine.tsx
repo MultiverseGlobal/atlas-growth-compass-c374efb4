@@ -268,10 +268,10 @@ export function CommandEngine({
                   setInputPrompt(preset.query);
                   executePrompt(preset.query);
                 }}
-                className={`px-3.5 py-1.5 rounded-full border text-xs font-mono tracking-tight transition-all cursor-pointer backdrop-blur-md ${
+                className={`px-3.5 py-1.5 rounded-full border text-xs font-mono font-medium tracking-tight transition-all cursor-pointer backdrop-blur-md ${
                   isDark
-                    ? "border-white/[0.08] bg-white/[0.03] text-white/60 hover:bg-white/[0.08] hover:border-white/20 hover:text-white"
-                    : "border-neutral-200 bg-white/70 text-neutral-600 hover:bg-white hover:border-neutral-300 hover:text-neutral-900 shadow-sm"
+                    ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/15 hover:border-white/30 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                    : "border-neutral-200 bg-white/80 text-neutral-700 hover:bg-white hover:border-neutral-400 hover:text-neutral-950 shadow-sm hover:shadow-md"
                 }`}
               >
                 <span>{preset.label}</span>
