@@ -11,7 +11,7 @@ import React, { Suspense } from "react";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import MetaphorAuthCallback from "./pages/MetaphorAuthCallback";
-import HqShell from "./components/atlas/HqShell";
+import AppShell from "./components/atlas/AppShell";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Privacy from "./pages/Privacy";
@@ -57,7 +57,7 @@ const App = () => (
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* ── Sovereign App Shell (Atlas V1 Core Surfaces & Extended) ─ */}
-                <Route element={<HqShell />}>
+                <Route element={<AppShell />}>
                   <Route path="/" element={<CommandFeed />} />
                   <Route path="/briefing" element={<DailyBriefing />} />
                   <Route path="/objectives" element={<ObjectivesStudio />} />

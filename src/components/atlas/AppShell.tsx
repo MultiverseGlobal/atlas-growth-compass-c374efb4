@@ -14,6 +14,14 @@ import { AtlasChat } from "@/components/atlas/ChatDrawer";
 import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 import { CompassLoader } from "@/pages/app/Home";
 import { WaffleSwitcher } from "../../../../packages/ui/src/WaffleSwitcher";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ExternalLink, Command } from "lucide-react";
 
 const SEQUENTIAL_STEPS = [
   { step: "01", to: "/hq/icp",      label: "ICP & Offer",      icon: Crosshair,     desc: "Define target thesis & pain engine" },
@@ -93,19 +101,54 @@ export default function AppShell() {
       <header className="sticky top-0 z-40 w-full h-16 border-b border-border bg-background/85 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between gap-4">
         {/* Brand */}
         <div className="flex items-center gap-3 shrink-0">
-          <NavLink to="/hq/icp" className="flex items-center gap-2.5 group">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
-              <LogoMark size={20} className="text-primary" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-xs tracking-tight text-foreground group-hover:text-primary transition-colors">
-                ATLAS
-              </span>
-              <span className="text-[9px] text-muted-foreground font-mono">
-                Sovereign Strategist
-              </span>
-            </div>
-          </NavLink>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2.5 outline-none group">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/25 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-sm">
+                  <LogoMark size={20} className="text-primary" />
+                </div>
+                <div className="flex flex-col text-left">
+                  <span className="font-bold text-xs tracking-tight text-foreground group-hover:text-primary transition-colors">
+                    ATLAS
+                  </span>
+                  <span className="text-[9px] text-muted-foreground font-mono">
+                    Sovereign Strategist
+                  </span>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="bottom" alignOffset={-10} sideOffset={14} className="w-56 bg-card/95 backdrop-blur-xl border-border/50 shadow-xl rounded-xl p-1">
+              <div className="px-3 py-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest font-bold">Ecosystem</div>
+              <DropdownMenuItem asChild>
+                <a href="https://pseudonyms.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  <span className="font-medium">Pseudonyms ID</span>
+                  <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-50" />
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="https://orion-intel.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span className="font-medium">Orion</span>
+                  <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-50" />
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="https://clario-docs.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+                  <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                  <span className="font-medium">Clario</span>
+                  <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-50" />
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="https://metaphor-ai.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                  <span className="font-medium">Metaphor</span>
+                  <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-50" />
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Center: The 4-Step Sequential Acquisition Stream */}
