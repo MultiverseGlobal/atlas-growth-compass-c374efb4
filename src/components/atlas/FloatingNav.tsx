@@ -4,7 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
   Sun, Moon, Plus, Command, ExternalLink,
-  Radar, Crosshair, Cpu, SlidersHorizontal, User
+  Radar, Crosshair, Cpu, SlidersHorizontal, User,
+  Globe
 } from "lucide-react";
 import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
 import {
@@ -15,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// ── Route metadata ────────────────────────────────────────────────────────────
 const ROUTES: Record<string, { label: string; icon: React.ElementType }> = {
   "/":            { label: "Command",         icon: Command },
   "/briefing":    { label: "Daily Briefing",  icon: Radar },
@@ -34,134 +34,108 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const route = ROUTES[location.pathname];
-
   return (
-    <>
-      {/* ── Brand Mark — top left ───────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, x: -8 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-5 left-5 z-50"
-      >
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md hover:bg-card transition-colors outline-none data-[state=open]:bg-card"
-            >
-              {/* Atlas Icon */}
-              <AtlasIcon size={16} className="text-foreground" />
-              <span className="text-[11px] font-semibold text-muted-foreground hidden sm:block">
-                Atlas
-              </span>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48 bg-card/95 backdrop-blur-xl border-border/50 shadow-xl rounded-xl p-1">
-            <DropdownMenuItem onClick={onNewLead} className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg">
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Lead</span>
-              <span className="ml-auto text-[10px] font-mono opacity-60">⌘N</span>
-            </DropdownMenuItem>
-            
-            <DropdownMenuItem 
-              onClick={() => {
-                const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
-                document.dispatchEvent(e);
-              }}
-              className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg"
-            >
-              <Command className="w-3.5 h-3.5" />
-              <span>Command Palette</span>
-              <span className="ml-auto text-[10px] font-mono opacity-60">⌘K</span>
-            </DropdownMenuItem>
-            
-            <DropdownMenuItem onClick={cycleTheme} className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg">
-              {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-              <span>Toggle Theme</span>
-            </DropdownMenuItem>
-            
-            <DropdownMenuSeparator className="bg-border/50 my-1" />
-            <div className="px-2 py-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Ecosystem</div>
-            <DropdownMenuItem asChild>
-              <a href="https://pseudonyms.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                <span>Pseudonyms ID</span>
-                <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <a href="https://orion-intel.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                <span>Orion</span>
-                <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <a href="https://clario-docs.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
-                <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-                <span>Clario</span>
-                <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <a href="https://metaphor-ai.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
-                <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-                <span>Metaphor</span>
-                <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
-              </a>
-            </DropdownMenuItem>
-            
-            {user && (
-              <>
-                <DropdownMenuSeparator className="bg-border/50 my-1" />
-                <DropdownMenuItem 
-                  onClick={() => signOut().then(() => navigate("/auth"))}
-                  className="gap-2 text-[12px] focus:bg-foreground focus:text-background cursor-pointer rounded-lg"
-                >
-                  <User className="w-3.5 h-3.5" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </motion.div>
-
-      {/* ── Main Navigation Dock — top center ────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: -6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-5 right-5 z-50"
-      >
-        <div className="flex items-center p-1 rounded-2xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md">
-          {Object.entries(ROUTES).map(([path, routeInfo]) => {
-            const isActive = location.pathname === path;
-            return (
-              <button
-                key={path}
-                onClick={() => navigate(path)}
-                title={routeInfo.label}
-                className={`group flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-300 ease-out ${
-                  isActive 
-                    ? "bg-foreground text-background shadow-sm" 
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                }`}
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className="fixed top-0 left-0 h-screen w-[72px] bg-card/50 backdrop-blur-md border-r border-border/60 z-50 flex flex-col items-center py-6 gap-8"
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="flex items-center justify-center w-10 h-10 rounded-xl bg-foreground text-background shadow-md hover:scale-105 transition-transform outline-none">
+            <AtlasIcon size={20} className="text-background" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" side="right" alignOffset={-10} sideOffset={14} className="w-56 bg-card/95 backdrop-blur-xl border-border/50 shadow-xl rounded-xl p-1">
+          <DropdownMenuItem onClick={onNewLead} className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg">
+            <Plus className="w-4 h-4" />
+            <span className="font-medium">New Lead</span>
+            <span className="ml-auto text-[10px] font-mono opacity-60">⌘N</span>
+          </DropdownMenuItem>
+          
+          <DropdownMenuItem 
+            onClick={() => {
+              const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
+              document.dispatchEvent(e);
+            }}
+            className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg"
+          >
+            <Command className="w-4 h-4" />
+            <span className="font-medium">Command Palette</span>
+            <span className="ml-auto text-[10px] font-mono opacity-60">⌘K</span>
+          </DropdownMenuItem>
+          
+          <DropdownMenuItem onClick={cycleTheme} className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg">
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            <span className="font-medium">Toggle Theme</span>
+          </DropdownMenuItem>
+          
+          <DropdownMenuSeparator className="bg-border/50 my-1" />
+          <div className="px-3 py-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest font-bold">Ecosystem</div>
+          <DropdownMenuItem asChild>
+            <a href="https://pseudonyms.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <span className="font-medium">Pseudonyms ID</span>
+              <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-50" />
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href="https://orion-intel.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="font-medium">Orion</span>
+              <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-50" />
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href="https://clario-docs.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+              <span className="font-medium">Clario</span>
+              <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-50" />
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href="https://metaphor-ai.vercel.app" target="_blank" rel="noreferrer" className="gap-2 text-[12px] cursor-pointer hover:bg-muted/80 rounded-lg">
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+              <span className="font-medium">Metaphor</span>
+              <ExternalLink className="w-3.5 h-3.5 ml-auto opacity-50" />
+            </a>
+          </DropdownMenuItem>
+          
+          {user && (
+            <>
+              <DropdownMenuSeparator className="bg-border/50 my-1" />
+              <DropdownMenuItem 
+                onClick={() => signOut().then(() => navigate("/auth"))}
+                className="gap-2 text-[12px] focus:bg-foreground focus:text-background cursor-pointer rounded-lg"
               >
-                <routeInfo.icon className={`w-3.5 h-3.5 ${isActive ? "" : "opacity-70 group-hover:opacity-100 transition-opacity"}`} />
-                <span className={`text-[11px] font-semibold font-mono tracking-wide overflow-hidden transition-all duration-300 ease-out ${
-                  isActive ? "max-w-24 opacity-100" : "max-w-0 opacity-0 group-hover:max-w-24 group-hover:opacity-100 group-hover:ml-2"
-                }`}>
-                  {routeInfo.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </motion.div>
+                <User className="w-4 h-4" />
+                <span className="font-medium">Sign out</span>
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-
-    </>
+      <div className="flex flex-col items-center gap-2 w-full mt-4">
+        {Object.entries(ROUTES).map(([path, routeInfo]) => {
+          const isActive = location.pathname === path;
+          return (
+            <button
+              key={path}
+              onClick={() => navigate(path)}
+              title={routeInfo.label}
+              className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 ease-out ${
+                isActive 
+                  ? "bg-foreground text-background shadow-md" 
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <routeInfo.icon className={`w-5 h-5 ${isActive ? "" : "opacity-80 group-hover:opacity-100 transition-opacity"}`} />
+            </button>
+          );
+        })}
+      </div>
+    </motion.div>
   );
 }

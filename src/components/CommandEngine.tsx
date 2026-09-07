@@ -276,22 +276,22 @@ export function CommandEngine({
             className="w-full max-w-2xl mx-auto flex items-center justify-between px-6 py-2 my-2 text-xs font-mono"
           >
             <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${campaignState.leads.length > 0 ? "bg-emerald-500" : "bg-emerald-500 animate-ping"}`} />
-              <span className={campaignState.leads.length > 0 ? "text-[var(--pds-text-primary)] font-semibold" : "text-[var(--pds-text-secondary)]"}>
+              <span className={`h-2 w-2 rounded-full ${campaignState.leads.length > 0 ? "bg-foreground" : "bg-foreground animate-ping"}`} />
+              <span className={campaignState.leads.length > 0 ? "text-foreground font-semibold" : "text-muted-foreground"}>
                 01 Reconnaissance
               </span>
             </div>
-            <div className="h-px flex-1 mx-4 bg-[var(--pds-border-mid)]" />
+            <div className="h-px flex-1 mx-4 bg-border" />
             <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${campaignState.currentDraft ? "bg-emerald-500" : campaignState.status === "drafting" ? "bg-amber-500 animate-ping" : "bg-[var(--pds-border-strong)]"}`} />
-              <span className={campaignState.currentDraft ? "text-[var(--pds-text-primary)] font-semibold" : "text-[var(--pds-text-muted)]"}>
+              <span className={`h-2 w-2 rounded-full ${campaignState.currentDraft ? "bg-foreground" : campaignState.status === "drafting" ? "bg-foreground opacity-50 animate-ping" : "bg-border"}`} />
+              <span className={campaignState.currentDraft ? "text-foreground font-semibold" : "text-muted-foreground"}>
                 02 Tactical Angle
               </span>
             </div>
-            <div className="h-px flex-1 mx-4 bg-[var(--pds-border-mid)]" />
+            <div className="h-px flex-1 mx-4 bg-border" />
             <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${campaignState.contactedCount > 0 ? "bg-emerald-500" : "bg-[var(--pds-border-strong)]"}`} />
-              <span className={campaignState.contactedCount > 0 ? "text-[var(--pds-text-primary)] font-semibold" : "text-[var(--pds-text-muted)]"}>
+              <span className={`h-2 w-2 rounded-full ${campaignState.contactedCount > 0 ? "bg-foreground" : "bg-border"}`} />
+              <span className={campaignState.contactedCount > 0 ? "text-foreground font-semibold" : "text-muted-foreground"}>
                 03 Dispatch
               </span>
             </div>
@@ -328,13 +328,13 @@ export function CommandEngine({
               <div className="mt-4 space-y-3">
                 {/* Visual Telemetry Badge */}
                 <div
-                  className="relative h-12 w-full rounded-xl flex items-center justify-between px-4 border bg-[var(--pds-surface-2)] border-[var(--pds-border-subtle)] dark:bg-black/30 dark:border-white/5"
+                  className="relative h-12 w-full rounded-xl flex items-center justify-between px-4 border bg-muted border-border"
                 >
-                  <div className="flex items-center gap-2.5 font-mono text-[11px] text-emerald-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <div className="flex items-center gap-2.5 font-mono text-[11px] text-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-foreground animate-pulse" />
                     <span className="font-semibold uppercase tracking-wider">{campaignState.channel?.toUpperCase() || "YC / DIRECT"}</span>
                   </div>
-                  <span className="text-[10px] font-mono text-[var(--pds-text-muted)] uppercase truncate max-w-[140px]">
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase truncate max-w-[140px]">
                     {campaignState.keyword || "Active Channel"}
                   </span>
                 </div>
@@ -346,15 +346,15 @@ export function CommandEngine({
                       <button
                         key={idx}
                         onClick={() => setSelectedLeadModal(lead)}
-                        className="w-full flex items-center justify-between text-xs rounded-lg border px-2.5 py-1.5 font-mono text-left transition-colors cursor-pointer bg-white border-neutral-200 hover:bg-neutral-50 text-neutral-900 shadow-sm dark:bg-white/[0.03] dark:border-white/5 dark:hover:bg-white/[0.08] dark:text-white/90"
+                        className="w-full flex items-center justify-between text-xs rounded-lg border px-2.5 py-1.5 font-mono text-left transition-colors cursor-pointer bg-card border-border hover:bg-muted text-foreground shadow-sm"
                       >
                         <span className="truncate max-w-[150px] font-medium">{lead.company}</span>
-                        <span className="text-[10px] text-emerald-500 font-semibold">{lead.icp_score}% FIT</span>
+                        <span className="text-[10px] text-foreground font-semibold">{lead.icp_score}% FIT</span>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-2 text-xs font-mono text-neutral-400 dark:text-white/30">
+                  <div className="text-center py-2 text-xs font-mono text-muted-foreground">
                     Decomposing query parameters...
                   </div>
                 )}
@@ -390,39 +390,35 @@ export function CommandEngine({
               <div className="mt-4 space-y-3">
                 {campaignState.currentLead ? (
                   <div
-                    className="rounded-xl border p-3 relative overflow-hidden bg-white border-neutral-200 shadow-sm dark:bg-black/40 dark:border-white/10"
+                    className="rounded-xl border p-3 relative overflow-hidden bg-card border-border/50 shadow-sm"
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`text-xs font-semibold truncate max-w-[160px] ${campaignState.status === "awaiting_approval" ? "text-neutral-900 dark:text-white" : "text-neutral-900 dark:text-white"}`}>
+                      <span className="text-xs font-semibold truncate max-w-[160px] text-foreground">
                         {campaignState.currentLead.founder?.name}
                       </span>
-                      <span className={`text-[10px] font-mono uppercase ${campaignState.status === "awaiting_approval" ? "text-neutral-500 dark:text-white/50" : "text-neutral-500 dark:text-white/50"}`}>
+                      <span className="text-[10px] font-mono uppercase text-muted-foreground">
                         {campaignState.currentLead.company}
                       </span>
                     </div>
                     {campaignState.currentDraft && (
                       <div
-                        className={`mt-2 text-[11px] font-sans italic line-clamp-2 p-2 rounded-lg border ${
-                          campaignState.status === "awaiting_approval"
-                            ? "text-neutral-800 bg-amber-500/10 border-amber-500/20 dark:text-white/80 dark:bg-white/[0.05] dark:border-white/10"
-                            : "text-neutral-700 bg-neutral-50 border-neutral-200 dark:text-white/80 dark:bg-white/[0.05] dark:border-white/10"
-                        }`}
+                        className="mt-2 text-[11px] font-sans italic line-clamp-2 p-2 rounded-lg border text-foreground bg-muted/50 border-border/50"
                       >
                         "{campaignState.currentDraft.subject}"
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className={`text-center py-4 text-xs font-mono ${isDark ? "text-white/40" : "text-neutral-500"}`}>
+                  <div className="text-center py-4 text-xs font-mono text-muted-foreground">
                     Awaiting target qualification...
                   </div>
                 )}
 
                 {/* Intervention Alert Prompt */}
                 {campaignState.status === "awaiting_approval" && (
-                  <div className="flex items-center justify-between text-xs text-amber-500 font-mono pt-1 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 cursor-pointer">
+                  <div className="flex items-center justify-between text-xs text-foreground font-mono pt-1 p-2.5 rounded-lg bg-foreground/5 border border-foreground/20 cursor-pointer">
                     <span className="flex items-center gap-1.5 font-semibold">
-                      <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                      <span className="h-2 w-2 rounded-full bg-foreground animate-ping" />
                       Intervention Required
                     </span>
                     <span className="underline font-semibold flex items-center gap-0.5">
@@ -444,28 +440,28 @@ export function CommandEngine({
             >
               <div className="mt-4 space-y-3 font-mono text-xs">
                 <div
-                  className="flex items-center justify-between p-2.5 rounded-xl border text-neutral-700 bg-neutral-50 border-neutral-200 dark:text-white/70 dark:bg-black/30 dark:border-white/5"
+                  className="flex items-center justify-between p-2.5 rounded-xl border bg-muted text-foreground border-border"
                 >
-                  <span className="uppercase text-[10px] text-neutral-400 dark:text-white/40">
+                  <span className="uppercase text-[10px] text-muted-foreground">
                     Pipeline Velocity
                   </span>
-                  <span className="text-emerald-500 font-bold text-sm">
+                  <span className="text-foreground font-bold text-sm">
                     £{(campaignState.contactedCount * 1250).toLocaleString()}
                   </span>
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px] text-neutral-600 dark:text-white/60">
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>Target Quota</span>
-                    <span className="font-semibold text-neutral-900 dark:text-white">
+                    <span className="font-semibold text-foreground">
                       {campaignState.contactedCount} / {campaignState.targetCount} Targets
                     </span>
                   </div>
                   <div
-                    className="w-full rounded-full h-2 overflow-hidden border p-[1px] bg-neutral-200 border-neutral-300 dark:bg-black/40 dark:border-white/5"
+                    className="w-full rounded-full h-2 overflow-hidden border p-[1px] bg-muted border-border"
                   >
                     <div
-                      className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-700 shadow-sm"
+                      className="bg-foreground h-full rounded-full transition-all duration-700 shadow-sm opacity-80"
                       style={{
                         width: `${Math.min(100, (campaignState.contactedCount / (campaignState.targetCount || 15)) * 100)}%`,
                       }}
@@ -473,21 +469,19 @@ export function CommandEngine({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[10px] border-t pt-2 text-neutral-400 border-neutral-200 dark:text-white/40 dark:border-white/5">
+                <div className="flex items-center justify-between text-[10px] border-t pt-2 text-muted-foreground border-border">
                   <div className="flex items-center gap-1.5">
                     <span>Mode:</span>
                     <button
                       type="button"
                       onClick={onToggleAutoPilot}
-                      className={`font-semibold cursor-pointer underline hover:text-emerald-400 transition-colors ${
-                        isAutoPilot ? "text-emerald-400" : isDark ? "text-white/70" : "text-neutral-700"
-                      }`}
+                      className="font-semibold cursor-pointer underline hover:text-foreground transition-colors text-foreground"
                     >
                       {isAutoPilot ? "Auto-Pilot" : "Supervised"}
                     </button>
                   </div>
-                  <span className="text-emerald-500 flex items-center gap-1 font-semibold">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-foreground flex items-center gap-1 font-semibold">
+                    <span className="h-1.5 w-1.5 rounded-full bg-foreground animate-pulse" />
                     Active
                   </span>
                 </div>
@@ -611,23 +605,16 @@ function TiltCard({
         onClick ? "cursor-pointer" : ""
       } ${
         highlight
-          ? "border-amber-400/80 bg-amber-500/[0.04] shadow-[0_0_35px_rgba(245,158,11,0.20)] ring-1 ring-amber-400/50 scale-[1.02] z-20"
-          : "border-black/[0.08] bg-white/80 shadow-[0_12px_30px_rgba(0,0,0,0.06)] hover:border-black/15 dark:border-white/[0.08] dark:bg-[#0c0e15]/85 dark:shadow-[0_16px_40px_rgba(0,0,0,0.6)] dark:hover:border-white/20"
+          ? "border-foreground/30 bg-foreground/5 shadow-[0_0_30px_rgba(255,255,255,0.05)] ring-1 ring-foreground/20 scale-[1.02] z-20"
+          : "border-border/60 bg-card shadow-[0_16px_40px_rgba(0,0,0,0.4)] hover:border-border"
       }`}
-      style={{
-        boxShadow: highlight
-          ? "0 0 35px rgba(245, 158, 11, 0.20), inset 0 1px 1px 0 rgba(255, 255, 255, 0.15)"
-          : isDark
-          ? "0 20px 45px rgba(0, 0, 0, 0.7), inset 0 1px 1px 0 rgba(255, 255, 255, 0.08)"
-          : "0 12px 30px rgba(0, 0, 0, 0.06), inset 0 1px 1px 0 rgba(255, 255, 255, 0.6)",
-      }}
     >
       {/* Dynamic Specular Glare following Mouse */}
       <div
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 hover:opacity-100"
         style={{
           background: `radial-gradient(circle 180px at ${glarePos.x}% ${glarePos.y}%, ${
-            isDark ? "rgba(255, 255, 255, 0.09)" : "rgba(255, 255, 255, 0.5)"
+            isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"
           }, transparent 80%)`,
         }}
       />
@@ -638,10 +625,10 @@ function TiltCard({
           <div
             className={`rounded-xl p-2.5 border transition-colors ${
               highlight
-                ? "bg-amber-500/20 text-amber-500 border-amber-500/30"
+                ? "bg-foreground/10 text-foreground border-foreground/20"
                 : isComplete
-                ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/20"
-                : "bg-neutral-100 text-neutral-600 border-neutral-200 dark:bg-white/[0.04] dark:text-white/70 dark:border-white/10"
+                ? "bg-foreground/5 text-foreground border-foreground/10"
+                : "bg-muted text-muted-foreground border-border/50"
             }`}
           >
             <Icon className="h-5 w-5" />
@@ -649,18 +636,16 @@ function TiltCard({
           <div>
             <div className="flex items-center gap-1.5">
               <span className={`font-mono text-[9px] uppercase tracking-wider font-bold ${
-                highlight ? "text-amber-700 dark:text-amber-500/70" : "text-neutral-400 dark:text-white/40"
+                highlight ? "text-foreground/80" : "text-muted-foreground"
               }`}>
                 PHASE {step}
               </span>
             </div>
-            <h3 className={`font-display text-sm font-semibold tracking-tight ${
-              highlight ? "text-amber-900 dark:text-amber-500" : "text-neutral-900 dark:text-white"
-            }`}>
+            <h3 className={`font-display text-sm font-semibold tracking-tight text-foreground`}>
               {title}
             </h3>
             <p className={`font-mono text-[10px] uppercase tracking-wider ${
-              highlight ? "text-amber-800 dark:text-amber-500/60" : "text-neutral-500 dark:text-white/50"
+              highlight ? "text-foreground/70" : "text-muted-foreground"
             }`}>
               {stage}
             </p>
@@ -671,13 +656,13 @@ function TiltCard({
         <div>
           {highlight ? (
             <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-50" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-foreground shadow-[0_0_8px_rgba(255,255,255,0.3)]" />
             </span>
           ) : isActive ? (
-            <Cpu className="h-4 w-4 animate-spin text-emerald-500" />
+            <Cpu className="h-4 w-4 animate-spin text-foreground" />
           ) : isComplete ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            <CheckCircle2 className="h-4 w-4 text-foreground" />
           ) : null}
         </div>
       </div>

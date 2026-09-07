@@ -22,12 +22,25 @@ export default defineConfig(({ mode }) => ({
   build: {
     target: 'esnext',
     sourcemap: false,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'framer-motion': ['framer-motion'],
-          'lucide': ['lucide-react']
+          'lucide': ['lucide-react'],
+          'ui-components': [
+            '@radix-ui/react-slot',
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-dropdown-menu'
+          ]
         }
       }
     }

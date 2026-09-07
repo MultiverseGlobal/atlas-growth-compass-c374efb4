@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { 
   Building2, MessageSquare, Zap, Loader2, Check, Copy, Send,
-  Target, BarChart2, Mail, ExternalLink, ChevronRight, Activity, Globe
+  Target, BarChart2, Mail, ExternalLink, ChevronRight, Activity, Globe,
+  Lock, Focus, Plus
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 // Types based on the actual DB schema
 interface Deal {
@@ -27,18 +29,6 @@ interface Lead {
   research_data: any; 
   founder?: { name?: string; email?: string; role?: string };
 }
-
-interface OutreachMsg {
-  id: string;
-  company_id: string;
-  type: string;
-  subject: string | null;
-  body: string;
-  status: string;
-  sent_at: string | null;
-}
-
-const STAGES = ["contacted", "replied", "discovery", "proposal", "negotiation", "won"];
 
 export default function HqRevenueEngine() {
   const { user } = useAuth();
@@ -66,7 +56,6 @@ export default function HqRevenueEngine() {
       if (dealsRes.data) setDeals(dealsRes.data);
       if (leadsRes.data) setLeads(leadsRes.data);
       
-      // Auto-select first active deal if none selected
       if (!activeCompanyId && dealsRes.data && dealsRes.data.length > 0) {
         setActiveCompanyId(dealsRes.data[0].company_id);
       }
@@ -79,11 +68,9 @@ export default function HqRevenueEngine() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Derived State
   const activeDeal = deals.find(d => d.company_id === activeCompanyId);
   const activeLead = leads.find(l => (l.company_id === activeCompanyId) || (l.id === activeCompanyId) || (l.company === activeDeal?.company_name));
 
-  // Actions
   const handleGenerate = async () => {
     if (!activeDeal && !activeLead) return;
     setGenerating(true);
@@ -105,7 +92,7 @@ export default function HqRevenueEngine() {
 
       if (error) throw new Error(error.message);
       setDrafts(data);
-      toast.success("Draft generated.", { icon: <Zap className="w-4 h-4 text-[#10b981]" /> });
+      toast.success("Draft generated.");
     } catch (e: any) {
       toast.error(`Generation failed: ${e.message}`);
     } finally {
@@ -140,26 +127,32 @@ export default function HqRevenueEngine() {
 
   if (loading) {
     return (
-      <div className="flex h-screen pt-[72px] bg-[var(--pds-canvas)] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-6 h-6 animate-spin text-[var(--pds-text-muted)]" />
-          <span className="text-[11px] font-mono tracking-widest text-[var(--pds-text-muted)] uppercase">Calibrating Engine...</span>
+      <div className="flex h-screen bg-background items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+          <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Calibrating Engine...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen pt-[72px] bg-[var(--pds-canvas)] text-[var(--pds-text-primary)] font-sans">
+    <div className="flex h-screen bg-background text-foreground font-sans overflow-hidden">
       
       {/* ── Left Sidebar: Pipeline ────────────────────────────────────────── */}
-      <div className="w-[340px] border-r border-[var(--pds-border-mid)] bg-[var(--pds-surface-2)] flex flex-col shrink-0">
-        <div className="p-5 border-b border-[var(--pds-border-subtle)] flex items-center justify-between">
+      <div className="w-[340px] border-r border-border/60 bg-muted/20 flex flex-col shrink-0">
+        <div className="p-5 border-b border-border/60 flex items-center justify-between bg-card/50">
           <div>
-            <h2 className="font-display text-[15px] tracking-tight font-bold">PIPELINE</h2>
-            <p className="text-[11px] font-mono text-[var(--pds-text-muted)] mt-1">{deals.length} active engagements</p>
+            <h2 className="font-display text-sm tracking-tight font-bold">PIPELINE</h2>
+            <p className="text-[11px] font-mono text-muted-foreground mt-0.5">{deals.length} active engagements</p>
           </div>
-          <Activity className="w-4 h-4 text-[var(--pds-text-muted)]" />
+          <Button 
+            onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true }))}
+            size="sm" 
+            className="h-8 w-8 p-0 rounded-lg bg-foreground text-background"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
         </div>
         
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -171,20 +164,19 @@ export default function HqRevenueEngine() {
                 onClick={() => setActiveCompanyId(deal.company_id)}
                 className={`w-full text-left p-4 rounded-xl border transition-all ${
                   isSelected 
-                    ? "bg-[var(--pds-surface-1)] border-[var(--pds-accent-dim)] shadow-[var(--pds-shadow-glow)]" 
-                    : "bg-[var(--pds-surface-3)] border-[var(--pds-border-subtle)] hover:border-[var(--pds-border-mid)] shadow-[var(--pds-shadow-sm)] opacity-80 hover:opacity-100"
+                    ? "bg-card border-foreground/30 shadow-md" 
+                    : "bg-background border-border/40 hover:border-foreground/20 opacity-80 hover:opacity-100"
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[14px] font-bold tracking-tight truncate pr-2">{deal.company_name}</span>
-                  <span className="text-[12px] font-mono text-[var(--pds-text-secondary)]">£{(deal.value || 0).toLocaleString()}</span>
+                  <span className="text-[12px] font-mono text-muted-foreground">£{(deal.value || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className={`pds-status-badge ${deal.stage === 'contacted' ? 'active' : ''}`}>
-                    <div className={`pds-status-dot ${deal.stage === 'contacted' ? 'active' : ''}`} />
+                  <span className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border ${deal.stage === 'contacted' ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/10' : 'border-border/60 text-muted-foreground bg-muted/50'}`}>
                     {deal.stage}
                   </span>
-                  <ChevronRight className={`w-4 h-4 ${isSelected ? "text-[var(--pds-text-primary)]" : "text-[var(--pds-text-muted)]"}`} />
+                  <ChevronRight className={`w-4 h-4 ${isSelected ? "text-foreground" : "text-muted-foreground"}`} />
                 </div>
               </button>
             );
@@ -193,152 +185,150 @@ export default function HqRevenueEngine() {
       </div>
 
       {/* ── Center: Command Center ────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[var(--pds-canvas)] grain">
+      <div className="flex-1 flex flex-col min-w-0 bg-background relative">
         {(activeDeal || activeLead) ? (
           <div className="relative z-10 flex flex-col h-full">
             {/* Header */}
-            <div className="px-10 py-8 border-b border-[var(--pds-border-subtle)] bg-[var(--pds-surface-1)]/50 backdrop-blur-xl">
+            <div className="px-10 py-8 border-b border-border/60 bg-card/30 backdrop-blur-sm shrink-0">
               <div className="max-w-5xl mx-auto w-full flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-3 mb-1">
-                  <h1 className="text-3xl font-display font-bold tracking-tight text-[var(--pds-text-primary)]">
-                    {activeDeal?.company_name || activeLead?.company}
-                  </h1>
-                  <span className="pds-status-badge">£{(activeDeal?.value || 0).toLocaleString()}</span>
+                    <h1 className="text-3xl font-display font-bold tracking-tight text-foreground">
+                      {activeDeal?.company_name || activeLead?.company}
+                    </h1>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-foreground/20 bg-foreground/5 text-foreground">£{(activeDeal?.value || 0).toLocaleString()}</span>
+                  </div>
+                  {activeLead?.website && (
+                    <a href={activeLead.website} target="_blank" rel="noreferrer" className="inline-flex items-center text-[12px] font-mono text-muted-foreground hover:text-foreground transition-colors mt-2">
+                      <Globe className="w-3.5 h-3.5 mr-1.5" />
+                      {activeLead.website.replace(/^https?:\/\//, '')}
+                      <ExternalLink className="w-3 h-3 ml-1.5 opacity-50" />
+                    </a>
+                  )}
                 </div>
-                {activeLead?.website && (
-                  <a href={activeLead.website} target="_blank" rel="noreferrer" className="inline-flex items-center text-[12px] font-mono text-[var(--pds-text-secondary)] hover:text-[var(--pds-text-primary)] transition-colors mt-2">
-                    <Globe className="w-3.5 h-3.5 mr-1.5" />
-                    {activeLead.website.replace(/^https?:\/\//, '')}
-                    <ExternalLink className="w-3 h-3 ml-1.5 opacity-50" />
-                  </a>
-                )}
+                <Button variant="outline" size="sm" className="h-8 text-xs font-semibold">
+                  Update Stage
+                </Button>
               </div>
-              <button className="pds-btn-ghost">
-                Update Stage
-              </button>
-            </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-10">
               <div className="max-w-5xl mx-auto w-full space-y-10">
-              
-              {/* Grid Layout for Recon & Synthesis */}
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 
-                {/* Recon Data */}
-                <div className="pds-data-card p-6">
-                  <div className="flex items-center gap-2 mb-6">
-                    <Target className="w-4 h-4 text-[var(--pds-accent)]" />
-                    <span className="pds-label !mb-0">Reconnaissance</span>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 rounded-lg bg-[var(--pds-surface-2)] border border-[var(--pds-border-subtle)]">
-                        <span className="block text-[10px] font-mono text-[var(--pds-text-muted)] uppercase mb-1">Primary Target</span>
-                        <span className="block text-[13px] font-semibold">{activeLead?.founder?.name || "Unknown"}</span>
-                        <span className="block text-[11px] text-[var(--pds-text-secondary)] mt-0.5">{activeLead?.founder?.role || "Decision Maker"}</span>
-                      </div>
-                      <div className="p-4 rounded-lg bg-[var(--pds-surface-2)] border border-[var(--pds-border-subtle)]">
-                        <span className="block text-[10px] font-mono text-[var(--pds-text-muted)] uppercase mb-1">Deal Probability</span>
-                        <span className="block text-[13px] font-semibold">{activeDeal?.probability || 0}%</span>
-                        <div className="mt-2 h-1 w-full bg-[var(--pds-surface-4)] rounded-full overflow-hidden">
-                          <div className="h-full bg-[var(--pds-success)] rounded-full" style={{ width: `${activeDeal?.probability || 0}%` }} />
-                        </div>
-                      </div>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  
+                  {/* Recon Data */}
+                  <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+                    <div className="flex items-center gap-2 mb-6">
+                      <Target className="w-4 h-4 text-foreground" />
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-muted-foreground">Reconnaissance</span>
                     </div>
-                    {activeLead?.research_data && (
-                      <div className="mt-4 space-y-2">
-                        <span className="block text-[10px] font-mono text-[var(--pds-text-muted)] uppercase">Strategic Intelligence</span>
-                        <div className="p-4 rounded-xl bg-[var(--pds-surface-2)] border border-[var(--pds-border-subtle)] space-y-3">
-                          {activeLead.research_data.summary && (
-                            <p className="text-[12px] text-[var(--pds-text-secondary)] leading-relaxed">
-                              {activeLead.research_data.summary}
-                            </p>
-                          )}
-                          <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
-                            {activeLead.research_data.what_they_sell && (
-                              <div className="p-2.5 rounded-lg bg-[var(--pds-surface-1)] border border-[var(--pds-border-subtle)]">
-                                <span className="text-[9px] text-[var(--pds-text-muted)] block uppercase font-semibold">Focus</span>
-                                <span className="text-[var(--pds-text-primary)] truncate block mt-0.5">{activeLead.research_data.what_they_sell}</span>
-                              </div>
-                            )}
-                            {activeLead.research_data.suggested_offer && (
-                              <div className="p-2.5 rounded-lg bg-[var(--pds-surface-1)] border border-[var(--pds-border-subtle)]">
-                                <span className="text-[9px] text-[var(--pds-text-muted)] block uppercase font-semibold">Value Angle</span>
-                                <span className="text-emerald-500 font-medium truncate block mt-0.5">{activeLead.research_data.suggested_offer}</span>
-                              </div>
-                            )}
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 rounded-lg bg-background border border-border/60">
+                          <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Primary Target</span>
+                          <span className="block text-sm font-semibold">{activeLead?.founder?.name || "Unknown"}</span>
+                          <span className="block text-[11px] text-muted-foreground mt-0.5">{activeLead?.founder?.role || "Decision Maker"}</span>
+                        </div>
+                        <div className="p-4 rounded-lg bg-background border border-border/60">
+                          <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Deal Probability</span>
+                          <span className="block text-sm font-semibold">{activeDeal?.probability || 0}%</span>
+                          <div className="mt-2 h-1 w-full bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-foreground rounded-full" style={{ width: `${activeDeal?.probability || 0}%` }} />
                           </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Outreach Engine */}
-                <div className="pds-card p-6 flex flex-col">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-[var(--pds-accent)]" />
-                      <span className="pds-label !mb-0">Outreach Engine</span>
+                      
+                      {activeLead?.research_data && (
+                        <div className="mt-4 space-y-2">
+                          <span className="block text-[10px] font-mono text-muted-foreground uppercase">Strategic Intelligence</span>
+                          <div className="p-4 rounded-xl bg-background border border-border/60 space-y-3">
+                            {activeLead.research_data.summary && (
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                {activeLead.research_data.summary}
+                              </p>
+                            )}
+                            <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
+                              {activeLead.research_data.what_they_sell && (
+                                <div className="p-2.5 rounded-lg bg-card border border-border/60">
+                                  <span className="text-[9px] text-muted-foreground block uppercase font-semibold">Focus</span>
+                                  <span className="text-foreground truncate block mt-0.5">{activeLead.research_data.what_they_sell}</span>
+                                </div>
+                              )}
+                              {activeLead.research_data.suggested_offer && (
+                                <div className="p-2.5 rounded-lg bg-card border border-border/60">
+                                  <span className="text-[9px] text-muted-foreground block uppercase font-semibold">Value Angle</span>
+                                  <span className="text-foreground font-medium truncate block mt-0.5">{activeLead.research_data.suggested_offer}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {!drafts && (
-                      <button onClick={handleGenerate} disabled={generating} className="pds-btn-primary !w-auto !min-h-[32px] !text-[11px]">
-                        {generating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 mr-1.5" />}
-                        {generating ? "Synthesizing..." : "Generate Angle"}
-                      </button>
-                    )}
                   </div>
 
-                  {drafts ? (
-                    <div className="flex-1 flex flex-col rounded-xl border border-[var(--pds-border-mid)] bg-[var(--pds-surface-2)] p-6 shadow-inner relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-[var(--pds-info)]" />
-                      
-                      <div className="mb-4">
-                        <span className="block text-[10px] font-mono text-[var(--pds-text-muted)] uppercase mb-1">Subject Line</span>
-                        <div className="text-[14px] font-semibold text-[var(--pds-text-primary)]">{drafts.email.subject}</div>
+                  {/* Outreach Engine */}
+                  <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm flex flex-col">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-foreground" />
+                        <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-muted-foreground">Outreach Engine</span>
                       </div>
-                      
-                      <div className="flex-1 flex flex-col min-h-0">
-                        <span className="block text-[10px] font-mono text-[var(--pds-text-muted)] uppercase mb-1">Message Body</span>
-                        <div className="flex-1 text-[13px] text-[var(--pds-text-secondary)] whitespace-pre-wrap leading-relaxed bg-[var(--pds-surface-1)] p-5 rounded-lg border border-[var(--pds-border-subtle)] overflow-y-auto shadow-sm">
-                          {drafts.email.body}
+                      {!drafts && (
+                        <Button onClick={handleGenerate} disabled={generating} size="sm" className="h-8 text-xs bg-foreground text-background hover:bg-foreground/90">
+                          {generating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 mr-1.5" />}
+                          {generating ? "Synthesizing..." : "Generate Angle"}
+                        </Button>
+                      )}
+                    </div>
+
+                    {drafts ? (
+                      <div className="flex-1 flex flex-col rounded-xl border border-border/60 bg-background p-6 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-foreground" />
+                        
+                        <div className="mb-4">
+                          <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Subject Line</span>
+                          <div className="text-sm font-semibold text-foreground">{drafts.email.subject}</div>
+                        </div>
+                        
+                        <div className="flex-1 flex flex-col min-h-0">
+                          <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Message Body</span>
+                          <div className="flex-1 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-card p-4 rounded-lg border border-border/60 overflow-y-auto">
+                            {drafts.email.body}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-end gap-3 pt-5 mt-auto">
+                          <Button variant="outline" size="sm" onClick={handleCopy} className="h-8 text-xs">
+                            <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Text
+                          </Button>
+                          <Button size="sm" onClick={handleSaveOutreach} className="h-8 text-xs bg-foreground text-background">
+                            <Send className="w-3.5 h-3.5 mr-1.5" /> Log as Sent
+                          </Button>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center justify-end gap-3 pt-5 mt-auto">
-                        <button onClick={handleCopy} className="pds-btn-ghost !min-h-[36px]">
-                          <Copy className="w-3.5 h-3.5" /> Copy Text
-                        </button>
-                        <button onClick={handleSaveOutreach} className="pds-btn-primary !w-auto !min-h-[36px] bg-[var(--pds-info)] text-white">
-                          <Send className="w-3.5 h-3.5" /> Log as Sent
-                        </button>
+                    ) : (
+                      <div className="flex-1 rounded-xl border border-dashed border-border/60 flex flex-col items-center justify-center text-muted-foreground bg-background/50 p-8 text-center">
+                        <MessageSquare className="w-8 h-8 mb-3 opacity-20" />
+                        <p className="text-[13px] font-medium text-foreground/70">Awaiting Synthesis</p>
+                        <p className="text-[11px] mt-1 max-w-[200px]">Generate a hyper-personalized outreach draft using Atlas AI.</p>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex-1 rounded-xl border border-dashed border-[var(--pds-border-strong)] flex flex-col items-center justify-center text-[var(--pds-text-muted)] bg-[var(--pds-surface-2)]/50 p-8 text-center">
-                      <MessageSquare className="w-8 h-8 mb-3 opacity-20" />
-                      <p className="text-[13px] font-medium text-[var(--pds-text-secondary)]">Awaiting Synthesis</p>
-                      <p className="text-[11px] mt-1 max-w-[200px]">Generate a hyper-personalized outreach draft using Atlas AI.</p>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
                 </div>
-
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-[var(--pds-text-muted)] relative z-10">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground relative z-10">
             <Target className="w-16 h-16 mb-6 opacity-10" />
-            <h3 className="font-display text-xl text-[var(--pds-text-secondary)] mb-2">No Target Selected</h3>
+            <h3 className="font-display text-xl text-foreground/60 mb-2">No Target Selected</h3>
             <p className="text-[13px] max-w-sm text-center">Select an opportunity from the pipeline to initialize the Revenue Engine and begin tactical outreach.</p>
           </div>
         )}
       </div>
-
     </div>
   );
 }
