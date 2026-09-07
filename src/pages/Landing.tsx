@@ -19,7 +19,7 @@ export default function Landing() {
   // ── Redirect logged-in users straight to HQ ────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate("/hq/flow", { replace: true });
+      if (session) navigate("/", { replace: true });
     });
   }, [navigate]);
 

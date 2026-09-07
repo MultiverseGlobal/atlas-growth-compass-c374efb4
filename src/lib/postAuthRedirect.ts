@@ -6,6 +6,6 @@ export async function resolvePostAuthPath(userId: string): Promise<string> {
     .select("handle, onboarded_at")
     .eq("id", userId)
     .maybeSingle();
-  if (!data || !data.handle || !data.onboarded_at) return "/onboarding";
-  return "/app";
+  if (!data || !data.handle || !data.onboarded_at) return "/";
+  return "/";
 }
