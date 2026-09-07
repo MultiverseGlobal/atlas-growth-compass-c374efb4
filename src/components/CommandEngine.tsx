@@ -221,7 +221,7 @@ export function CommandEngine({
                     exit={{ opacity: 0, scale: 0.85, x: 10 }}
                     type="submit"
                     disabled={inputPrompt.trim().length === 0}
-                    className={`flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all shadow-md ${
+                    className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all shadow-md whitespace-nowrap flex-shrink-0 ${
                       inputPrompt.trim().length === 0
                         ? isDark ? "bg-white/10 text-white/40 cursor-not-allowed" : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
                         : isDark
