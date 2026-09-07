@@ -246,7 +246,14 @@ export default function CommandFeed() {
       />
 
       {/* ── Campaign Workspace ─────────────────────────────────────────── */}
-      <div className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-16 sm:px-6 lg:px-8">
+      <motion.div 
+        animate={{
+          x: drawerOpen ? "-15%" : "0%",
+          scale: drawerOpen ? 0.95 : 1,
+        }}
+        transition={{ type: "spring", stiffness: 280, damping: 30 }}
+        className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-16 sm:px-6 lg:px-8"
+      >
         <CommandEngine
           campaignState={campaignState}
           onStateChange={setCampaignState}
@@ -255,7 +262,7 @@ export default function CommandFeed() {
           isAutoPilot={isAutoPilot}
           onToggleAutoPilot={handleToggleAutoPilot}
         />
-      </div>
+      </motion.div>
 
       {/* ── Intervention Drawer (slides in from right) ─────────────────── */}
       <InterventionDrawer
