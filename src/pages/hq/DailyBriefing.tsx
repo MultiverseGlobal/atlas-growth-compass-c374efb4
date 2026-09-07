@@ -36,16 +36,14 @@ const TOP_OPPORTUNITIES = [
 export default function DailyBriefing() {
   return (
     <div className="w-full min-h-screen bg-background">
-      {/* Top ambient glow */}
-      <div className="absolute top-0 left-0 right-0 h-[30vh] bg-emerald-500/5 blur-[120px] pointer-events-none" />
       
       <div className="container max-w-5xl mx-auto px-6 py-24 relative z-10">
         
         {/* Header section */}
         <div className="flex flex-col gap-3 mb-12">
           <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-            <span className="text-xs font-mono tracking-widest text-emerald-600 dark:text-emerald-400 uppercase">Systems Nominal</span>
+            <span className="flex h-2 w-2 rounded-full bg-foreground shadow-[0_0_8px_rgba(255,255,255,0.2)]" />
+            <span className="text-xs font-mono tracking-widest text-foreground uppercase">Systems Nominal</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-display font-semibold tracking-tight text-foreground">
             Daily Briefing
@@ -69,14 +67,14 @@ export default function DailyBriefing() {
               <AlertCircle className="w-16 h-16" />
             </div>
             <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest">Urgent Actions</span>
-            <span className="text-3xl font-display font-semibold text-amber-500">3</span>
+            <span className="text-3xl font-display font-semibold text-foreground">3</span>
           </div>
           <div className="bg-card border border-border/60 rounded-xl p-5 shadow-sm flex flex-col gap-2 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <CheckCircle2 className="w-16 h-16" />
             </div>
             <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest">Pipeline Health</span>
-            <span className="text-3xl font-display font-semibold text-emerald-500">92%</span>
+            <span className="text-3xl font-display font-semibold text-foreground">92%</span>
           </div>
         </div>
 
@@ -88,7 +86,7 @@ export default function DailyBriefing() {
           </h3>
 
           {TOP_OPPORTUNITIES.map((opp, idx) => (
-            <div key={opp.id} className="group bg-card border border-border/60 hover:border-emerald-500/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:shadow-md cursor-pointer">
+            <div key={opp.id} className="group bg-card border border-border/60 hover:border-foreground/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:shadow-md cursor-pointer">
               
               <div className="flex items-start gap-4">
                 <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center font-mono text-xs font-bold text-accent-foreground shrink-0 border border-border/50">
@@ -107,7 +105,7 @@ export default function DailyBriefing() {
               <div className="flex items-center gap-6 pl-14 md:pl-0">
                 <div className="flex flex-col md:items-end gap-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{opp.score} Score</span>
+                    <span className="text-xs font-mono text-foreground font-semibold">{opp.score} Score</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Clock className="w-3 h-3" />

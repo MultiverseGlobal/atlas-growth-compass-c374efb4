@@ -197,9 +197,10 @@ export default function HqRevenueEngine() {
         {(activeDeal || activeLead) ? (
           <div className="relative z-10 flex flex-col h-full">
             {/* Header */}
-            <div className="px-10 py-8 border-b border-[var(--pds-border-subtle)] flex items-start justify-between bg-[var(--pds-surface-1)]/50 backdrop-blur-xl">
-              <div>
-                <div className="flex items-center gap-3 mb-1">
+            <div className="px-10 py-8 border-b border-[var(--pds-border-subtle)] bg-[var(--pds-surface-1)]/50 backdrop-blur-xl">
+              <div className="max-w-5xl mx-auto w-full flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
                   <h1 className="text-3xl font-display font-bold tracking-tight text-[var(--pds-text-primary)]">
                     {activeDeal?.company_name || activeLead?.company}
                   </h1>
@@ -217,8 +218,10 @@ export default function HqRevenueEngine() {
                 Update Stage
               </button>
             </div>
+            </div>
 
-            <div className="flex-1 overflow-y-auto p-10 space-y-10">
+            <div className="flex-1 overflow-y-auto p-10">
+              <div className="max-w-5xl mx-auto w-full space-y-10">
               
               {/* Grid Layout for Recon & Synthesis */}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

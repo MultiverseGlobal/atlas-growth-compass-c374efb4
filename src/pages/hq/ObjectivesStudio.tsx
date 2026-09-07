@@ -25,9 +25,10 @@ export default function ObjectivesStudio() {
   };
 
   return (
-    <div className="p-6 pt-[120px] md:p-8 md:pt-[120px] space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden">
-      {/* Header */}
-      <div className="border-b border-border/60 pb-5">
+    <div className="p-6 pt-[120px] md:p-8 md:pt-[120px] space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden flex flex-col items-center">
+      <div className="w-full max-w-5xl space-y-8">
+        {/* Header */}
+        <div className="border-b border-border/60 pb-5">
         <h1 className="text-3xl font-bold tracking-tight font-display flex items-center gap-3">
           <Target className="h-8 w-8 text-foreground" />
           Objectives Studio
@@ -194,6 +195,7 @@ export default function ObjectivesStudio() {
           </div>
         </motion.div>
       </StaggerGroup>
+      </div>
     </div>
   );
 }

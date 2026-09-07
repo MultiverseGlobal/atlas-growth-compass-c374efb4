@@ -95,8 +95,8 @@ export function NewLeadModal({ open, onClose }: { open: boolean; onClose: () => 
             <div className="bg-card border border-border/60 rounded-2xl shadow-xl overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <UserPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <div className="h-8 w-8 rounded-lg bg-foreground/5 border border-border flex items-center justify-center">
+                    <UserPlus className="w-4 h-4 text-foreground" />
                   </div>
                   <span className="font-semibold text-foreground">Import Lead</span>
                 </div>
@@ -118,7 +118,7 @@ export function NewLeadModal({ open, onClose }: { open: boolean; onClose: () => 
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="https://linkedin.com/company/acme or /in/john-doe"
-                    className="h-10 bg-background border-border/60 focus:border-emerald-500/50 text-foreground"
+                    className="h-10 bg-background border-border/60 focus:border-foreground/50 text-foreground"
                     required
                     autoFocus
                   />
