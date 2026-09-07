@@ -50,15 +50,12 @@ export function NewLeadModal({ open, onClose }: { open: boolean; onClose: () => 
     try {
       const companyName = guessCompanyFromUrl(url);
 
-      const { error } = await (supabase as any).from("leads").insert({
+      const { error } = await (supabase as any).from("atlas_opportunities").insert({
         user_id: user.id,
-        company: companyName,
-        source: "linkedin",
-        website: url,
-        stage: "new",
-        icp_score: 0,
-        is_contacted: false,
-        research_data: { linkedin_url: url },
+        organization_name: companyName,
+        primary_domain: url.replace(/^https?:\/\//, '').split('/')[0] || "unknown.com",
+        pipeline_stage: "discovered",
+        fit_score: 0,
       });
 
       if (error) throw error;

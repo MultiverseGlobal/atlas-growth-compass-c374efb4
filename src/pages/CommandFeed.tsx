@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { CommandEngine } from "@/components/CommandEngine";
 import { InterventionDrawer } from "@/components/InterventionDrawer";
@@ -57,11 +57,14 @@ export default function CommandFeed() {
   // ── Approve & dispatch outreach ─────────────────────────────────────────
   const handleApprove = useCallback(
     async (draft: OutreachDraft, recipientEmail: string) => {
-      if (!interventionLead) return;
+      // Use currentLead if interventionLead is not set (during auto-pilot)
+      const leadToProcess = interventionLead || campaignState.currentLead;
+      if (!leadToProcess) return;
+      
       setIsDispatching(true);
 
       try {
-        const result = await dispatchOutreach(interventionLead, draft, recipientEmail);
+        const result = await dispatchOutreach(leadToProcess, draft, recipientEmail);
 
         if (result.success) {
           soundManager.playSuccess();
@@ -100,10 +103,7 @@ export default function CommandFeed() {
                 currentDraft: nextDraft,
               }));
 
-              if (isAutoPilot) {
-                // In auto-pilot mode, immediately open the intervention drawer
-                handleRequireIntervention(nextLead, nextDraft);
-              } else {
+              if (!isAutoPilot) {
                 soundManager.playChime();
                 handleRequireIntervention(nextLead, nextDraft);
               }
@@ -130,8 +130,19 @@ export default function CommandFeed() {
         setIsDispatching(false);
       }
     },
-    [interventionLead, campaignState, isAutoPilot, handleRequireIntervention]
+    [interventionLead, campaignState, handleRequireIntervention]
   );
+
+  // ── Auto-Pilot Loop Effect ────────────────────────────────────────────────
+  useEffect(() => {
+    if (isAutoPilot && campaignState.status === "awaiting_approval" && campaignState.currentDraft && campaignState.currentLead && !isDispatching) {
+      toast.info(`Auto-Pilot: Sending to ${campaignState.currentLead.company}...`);
+      const timer = setTimeout(() => {
+        handleApprove(campaignState.currentDraft!, campaignState.currentLead!.founder?.email || "delivered@resend.dev");
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isAutoPilot, campaignState.status, campaignState.currentDraft, campaignState.currentLead, isDispatching, handleApprove]);
 
   // ── Regenerate draft for current lead ───────────────────────────────────
   const handleRegenerate = useCallback(async () => {

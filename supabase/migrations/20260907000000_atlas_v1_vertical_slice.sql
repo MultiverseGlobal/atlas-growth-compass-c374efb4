@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS public.atlas_acquisition_runs (
 -- 4. OPPORTUNITIES (Evaluated Organizations with Transparent Fit Score)
 CREATE TABLE IF NOT EXISTS public.atlas_opportunities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  run_id UUID NOT NULL REFERENCES public.atlas_acquisition_runs(id) ON DELETE CASCADE,
+  run_id UUID REFERENCES public.atlas_acquisition_runs(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   organization_name TEXT NOT NULL,
   primary_domain TEXT NOT NULL,

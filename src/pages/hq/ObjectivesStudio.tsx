@@ -7,21 +7,86 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { StaggerGroup } from "@/components/atlas/StaggerGroup";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ObjectivesStudio() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  
   const [isLocking, setIsLocking] = useState(false);
   const [thesis, setThesis] = useState("B2B SaaS teams hiring engineers on Hacker News");
   const [targetQuota, setTargetQuota] = useState("150");
+  const [companySize, setCompanySize] = useState("10 - 50 Employees");
+  const [fundingStage, setFundingStage] = useState("Seed / Early Stage");
+  const [seniorityLevel, setSeniorityLevel] = useState("C-Level / Founder");
+  const [department, setDepartment] = useState("Engineering & Tech");
+  const [dataSource, setDataSource] = useState("web");
   
-  const handleLockThesis = () => {
+  const handleLockThesis = async () => {
+    if (!user) {
+      toast.error("You must be signed in to lock a thesis.");
+      return;
+    }
+    
     setIsLocking(true);
     toast.info("Synthesizing parameters and locking search thesis...");
-    setTimeout(() => {
-      setIsLocking(false);
+    
+    try {
+      // 1. Insert Objective
+      const { data: objective, error: objError } = await supabase
+        .from("atlas_objectives")
+        .insert({
+          user_id: user.id,
+          offer_summary: thesis,
+          target_hypothesis: `Targeting ${department} professionals at ${companySize} companies with ${fundingStage} funding.`,
+          status: 'active'
+        })
+        .select()
+        .single();
+        
+      if (objError) throw objError;
+
+      // 2. Insert ICP Profile
+      const { data: icp, error: icpError } = await supabase
+        .from("atlas_icp_profiles")
+        .insert({
+          user_id: user.id,
+          objective_id: objective.id,
+          version: 1,
+          title: `Initial Hypothesis: ${department}`,
+          buyer_persona: { role: department, seniority: seniorityLevel },
+          target_geography: ['US', 'UK', 'CA'],
+          status: 'approved',
+          approved_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+        
+      if (icpError) throw icpError;
+
+      // 3. Insert Acquisition Run
+      const { error: runError } = await supabase
+        .from("atlas_acquisition_runs")
+        .insert({
+          user_id: user.id,
+          icp_profile_id: icp.id,
+          icp_version_snapshot: 1,
+          icp_snapshot: icp,
+          source_connector: dataSource === 'web' ? 'controlled_agency_feed' : 'metaphor_internal',
+          status: 'queued'
+        });
+        
+      if (runError) throw runError;
+
       toast.success("Thesis Locked. Autonomous agents ready for deployment.");
-      navigate("/hq/engine");
-    }, 2000);
+      navigate("/");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to lock thesis: " + err.message);
+    } finally {
+      setIsLocking(false);
+    }
   };
 
   return (
@@ -82,7 +147,11 @@ export default function ObjectivesStudio() {
               <div className="space-y-4 pt-1">
                 <div>
                   <label className="text-[10px] uppercase font-mono font-bold text-muted-foreground block mb-2">Company Size</label>
-                  <select className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-sm focus:outline-none shadow-sm">
+                  <select 
+                    value={companySize}
+                    onChange={(e) => setCompanySize(e.target.value)}
+                    className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-sm focus:outline-none shadow-sm"
+                  >
                     <option>10 - 50 Employees</option>
                     <option>50 - 200 Employees</option>
                     <option>200+ Employees</option>
@@ -90,7 +159,11 @@ export default function ObjectivesStudio() {
                 </div>
                 <div>
                   <label className="text-[10px] uppercase font-mono font-bold text-muted-foreground block mb-2">Funding Stage</label>
-                  <select className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-sm focus:outline-none shadow-sm">
+                  <select 
+                    value={fundingStage}
+                    onChange={(e) => setFundingStage(e.target.value)}
+                    className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-sm focus:outline-none shadow-sm"
+                  >
                     <option>Seed / Early Stage</option>
                     <option>Series A - B</option>
                     <option>Growth / Series C+</option>
@@ -107,7 +180,11 @@ export default function ObjectivesStudio() {
               <div className="space-y-4 pt-1">
                 <div>
                   <label className="text-[10px] uppercase font-mono font-bold text-muted-foreground block mb-2">Seniority Level</label>
-                  <select className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-sm focus:outline-none shadow-sm">
+                  <select 
+                    value={seniorityLevel}
+                    onChange={(e) => setSeniorityLevel(e.target.value)}
+                    className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-sm focus:outline-none shadow-sm"
+                  >
                     <option>C-Level / Founder</option>
                     <option>VP / Director</option>
                     <option>Manager</option>
@@ -115,7 +192,11 @@ export default function ObjectivesStudio() {
                 </div>
                 <div>
                   <label className="text-[10px] uppercase font-mono font-bold text-muted-foreground block mb-2">Department</label>
-                  <select className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-sm focus:outline-none shadow-sm">
+                  <select 
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 text-sm focus:outline-none shadow-sm"
+                  >
                     <option>Engineering & Tech</option>
                     <option>Sales & Marketing</option>
                     <option>Operations</option>
@@ -158,10 +239,16 @@ export default function ObjectivesStudio() {
                     Primary Data Source
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="border border-foreground/50 bg-foreground/10 rounded-lg p-2 flex items-center justify-center gap-2 cursor-pointer text-xs font-medium text-foreground">
+                    <div 
+                      onClick={() => setDataSource('web')}
+                      className={`rounded-lg p-2 flex items-center justify-center gap-2 cursor-pointer text-xs font-medium transition-colors ${dataSource === 'web' ? 'border border-foreground/50 bg-foreground/10 text-foreground' : 'border border-border/60 bg-background text-muted-foreground hover:bg-muted shadow-sm'}`}
+                    >
                       <Globe className="h-3.5 w-3.5" /> Web/Social
                     </div>
-                    <div className="border border-border/60 bg-background rounded-lg p-2 flex items-center justify-center gap-2 cursor-pointer text-xs font-medium text-muted-foreground hover:bg-muted transition-colors shadow-sm">
+                    <div 
+                      onClick={() => setDataSource('proprietary')}
+                      className={`rounded-lg p-2 flex items-center justify-center gap-2 cursor-pointer text-xs font-medium transition-colors ${dataSource === 'proprietary' ? 'border border-foreground/50 bg-foreground/10 text-foreground' : 'border border-border/60 bg-background text-muted-foreground hover:bg-muted shadow-sm'}`}
+                    >
                       <Filter className="h-3.5 w-3.5" /> Proprietary
                     </div>
                   </div>

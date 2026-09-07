@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { useSovereignSync } from "@/hooks/useSovereignSync";
+import { useAcquisitionSimulator } from "@/hooks/useAcquisitionSimulator";
 
 import React, { Suspense } from "react";
 import Auth from "./pages/Auth";
@@ -29,6 +30,7 @@ const PublicProfile = React.lazy(() => import("./pages/PublicProfile"));
 
 const SovereignSyncWrapper = ({ children }: { children: React.ReactNode }) => {
   useSovereignSync();
+  useAcquisitionSimulator();
   return <>{children}</>;
 };
 
