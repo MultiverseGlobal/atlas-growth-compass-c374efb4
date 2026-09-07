@@ -4,8 +4,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Command } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
-import { AtlasChat } from "@/components/atlas/ChatDrawer";
-import { TheVaultDrawer } from "@/components/atlas/TheVaultDrawer";
 import { NewLeadModal } from "@/components/atlas/NewLeadModal";
 
 
@@ -127,8 +125,6 @@ export default function HqShell() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [vaultOpen, setVaultOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const [newLeadOpen, setNewLeadOpen] = useState(false);
 
   useEffect(() => {
@@ -182,16 +178,6 @@ export default function HqShell() {
           </motion.div>
         </AnimatePresence>
       </main>
-
-      {/* ── The Vault Modal / Drawer ────────────────────────────────────────── */}
-      <TheVaultDrawer
-        open={vaultOpen}
-        onClose={() => setVaultOpen(false)}
-        onOpenChat={() => setChatOpen(true)}
-      />
-
-      {/* ── Atlas AI Chat Drawer ────────────────────────────────────────────── */}
-      <AtlasChat open={chatOpen} onClose={() => setChatOpen(false)} />
 
       {/* ── Command Palette (⌘K) — shared from @pseudonyms/ui ──────────────── */}
       <CommandPalette

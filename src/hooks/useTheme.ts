@@ -7,7 +7,8 @@ export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === "undefined") return "clean";
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    if (stored === "clean" || stored === "paper" || stored === "dark") return stored;
+    // Only restore non-dark stored preferences; light ("clean") is the system default
+    if (stored === "clean" || stored === "paper") return stored;
     return "clean";
   });
 
