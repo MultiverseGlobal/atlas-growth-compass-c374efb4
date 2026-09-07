@@ -5,22 +5,74 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export function NewLeadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [url, setUrl] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Extract a company name from the LinkedIn URL as a best-effort fallback
+  const guessCompanyFromUrl = (rawUrl: string): string => {
+    try {
+      const u = new URL(rawUrl);
+      const parts = u.pathname.split("/").filter(Boolean);
+      // linkedin.com/company/acme-corp → "Acme Corp"
+      if (parts[0] === "company" && parts[1]) {
+        return parts[1]
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+      }
+      // linkedin.com/in/john-doe → use person name as fallback
+      if (parts[0] === "in" && parts[1]) {
+        return parts[1]
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+      }
+    } catch {
+      /* invalid URL — swallow */
+    }
+    return "New Lead";
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      toast.error("You must be signed in to add leads.");
+      return;
+    }
+
     setLoading(true);
-    // Mock save
-    setTimeout(() => {
-      setLoading(false);
-      toast.success("Lead imported to pipeline", {
-        description: "Orion is processing background enrichment.",
-        icon: <Target className="w-4 h-4 text-emerald-500" />
+    try {
+      const companyName = guessCompanyFromUrl(url);
+
+      const { error } = await (supabase as any).from("leads").insert({
+        user_id: user.id,
+        company: companyName,
+        source: "linkedin",
+        website: url,
+        stage: "new",
+        icp_score: 0,
+        is_contacted: false,
+        research_data: { linkedin_url: url },
       });
+
+      if (error) throw error;
+
+      toast.success("Lead added to pipeline", {
+        description: `${companyName} — enrichment queued.`,
+        icon: <Target className="w-4 h-4 text-emerald-500" />,
+      });
+      setUrl("");
       onClose();
-    }, 800);
+    } catch (err: any) {
+      toast.error("Failed to add lead: " + (err.message ?? "Unknown error"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -61,18 +113,27 @@ export function NewLeadModal({ open, onClose }: { open: boolean; onClose: () => 
                   <Label htmlFor="url" className="text-xs font-semibold text-foreground/80 flex items-center gap-1.5">
                     <Linkedin className="w-3.5 h-3.5" /> LinkedIn URL
                   </Label>
-                  <Input 
-                    id="url" 
-                    placeholder="https://linkedin.com/in/..." 
+                  <Input
+                    id="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://linkedin.com/company/acme or /in/john-doe"
                     className="h-10 bg-background border-border/60 focus:border-emerald-500/50 text-foreground"
                     required
+                    autoFocus
                   />
-                  <p className="text-[10px] text-muted-foreground font-mono mt-1">Orion will auto-enrich the rest.</p>
+                  <p className="text-[10px] text-muted-foreground font-mono mt-1">
+                    Paste a company or profile URL. Orion will enrich the rest.
+                  </p>
                 </div>
-                
+
                 <div className="pt-2">
-                  <Button type="submit" disabled={loading} className="w-full h-10 bg-foreground text-background hover:bg-foreground/90 font-semibold gap-2">
-                    {loading ? "Analyzing Profile..." : "Initialize Enrichment"}
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-10 bg-foreground text-background hover:bg-foreground/90 font-semibold gap-2"
+                  >
+                    {loading ? "Adding to pipeline…" : "Initialize Enrichment"}
                   </Button>
                 </div>
               </form>
