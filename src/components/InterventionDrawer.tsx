@@ -111,9 +111,9 @@ export function InterventionDrawer({
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 50, opacity: 0, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 280, damping: 28, mass: 1 }}
-            className={`fixed right-6 bottom-6 top-24 z-50 w-full max-w-xl rounded-3xl border backdrop-blur-2xl flex flex-col shadow-2xl overflow-hidden ${
+            className={`fixed right-6 bottom-6 top-24 z-50 w-full max-w-lg rounded-3xl border backdrop-blur-2xl flex flex-col shadow-2xl overflow-hidden ${
               isDark
-                ? "bg-[#0c0e16]/90 text-white"
+                ? "bg-neutral-950/95 text-white"
                 : "bg-white/95 text-neutral-900"
             } ${
               isDispatching ? "border-emerald-500/50 shadow-[0_30px_80px_-20px_rgba(16,185,129,0.25)]" : (isDark ? "border-white/10 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]" : "border-neutral-200 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.15)]")
