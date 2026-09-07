@@ -97,23 +97,38 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
         </DropdownMenu>
       </motion.div>
 
-      {/* ── Current route indicator — top center ────────────────────── */}
-      {route && (
-        <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed top-5 left-1/2 -translate-x-1/2 z-50"
-        >
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md">
-            <route.icon className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-[11px] font-semibold text-foreground font-mono tracking-wide">
-              {route.label}
-            </span>
-          </div>
-        </motion.div>
-      )}
+      {/* ── Main Navigation Dock — top center ────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="fixed top-5 left-1/2 -translate-x-1/2 z-50"
+      >
+        <div className="flex items-center p-1 rounded-2xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md">
+          {Object.entries(ROUTES).map(([path, routeInfo]) => {
+            const isActive = location.pathname === path;
+            return (
+              <button
+                key={path}
+                onClick={() => navigate(path)}
+                title={routeInfo.label}
+                className={`group flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-300 ease-out ${
+                  isActive 
+                    ? "bg-foreground text-background shadow-sm" 
+                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                }`}
+              >
+                <routeInfo.icon className={`w-3.5 h-3.5 ${isActive ? "" : "opacity-70 group-hover:opacity-100 transition-opacity"}`} />
+                <span className={`text-[11px] font-semibold font-mono tracking-wide overflow-hidden transition-all duration-300 ease-out ${
+                  isActive ? "max-w-24 opacity-100" : "max-w-0 opacity-0 group-hover:max-w-24 group-hover:opacity-100 group-hover:ml-2"
+                }`}>
+                  {routeInfo.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </motion.div>
 
 
     </>
