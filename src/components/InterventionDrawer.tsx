@@ -105,29 +105,18 @@ export function InterventionDrawer({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Spatial Backdrop Blur Overlay */}
-          <motion.div
-            initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
-            animate={{ opacity: 1, backdropFilter: "blur(20px)" }}
-            exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className={`fixed inset-0 z-40 ${isDark ? "bg-black/60" : "bg-neutral-900/30"}`}
-            onClick={onClose}
-            aria-hidden="true"
-          />
-
           {/* Sliding Liquid Glass Panel */}
           <motion.div
-            initial={{ x: "100%", opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "100%", opacity: 0 }}
+            initial={{ y: 50, opacity: 0, scale: 0.95 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 50, opacity: 0, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 280, damping: 28, mass: 1 }}
-            className={`fixed right-0 top-0 bottom-0 z-50 w-full max-w-xl border-l backdrop-blur-2xl flex flex-col shadow-2xl ${
+            className={`fixed right-6 bottom-6 top-24 z-50 w-full max-w-xl rounded-3xl border backdrop-blur-2xl flex flex-col shadow-2xl overflow-hidden ${
               isDark
-                ? "bg-[#0c0e16]/95 text-white"
+                ? "bg-[#0c0e16]/90 text-white"
                 : "bg-white/95 text-neutral-900"
             } ${
-              isDispatching ? "border-emerald-500/50 shadow-[0_0_40px_rgba(16,185,129,0.15)]" : (isDark ? "border-white/10" : "border-neutral-200")
+              isDispatching ? "border-emerald-500/50 shadow-[0_30px_80px_-20px_rgba(16,185,129,0.25)]" : (isDark ? "border-white/10 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]" : "border-neutral-200 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.15)]")
             } transition-colors duration-300`}
           >
             {/* Header */}
