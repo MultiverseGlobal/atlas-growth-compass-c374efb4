@@ -23,15 +23,7 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
     setSelectedIndex(0);
   }, [query]);
 
-  const NAV_CMDS: CmdAction[] = [
-    { id: "go-daily-briefing", label: "Daily Briefing", description: "Review today's top 3 qualified opportunities", shortcut: "G B", action: () => navigate("/briefing") },
-    { id: "go-objectives",    label: "Define Hunt", description: "Declare commercial intent & lock search thesis", shortcut: "G O", action: () => navigate("/objectives") },
-    { id: "go-engine",        label: "Pipeline & Deals", description: "Active engagements and revenue radar", action: () => navigate("/hq/engine") },
-    { id: "go-settings",      label: "Settings & Keys", description: "Account, database, and system status", action: () => navigate("/hq/settings") },
-  ];
-
   const allCmds: CmdAction[] = [
-    ...NAV_CMDS,
     ...extraCommands.flatMap(g => g.commands),
   ];
 
@@ -189,10 +181,13 @@ export default function HqShell() {
           {
             id: "atlas-actions",
             label: "Atlas",
-            accent: "#10b981",
+            accent: "currentColor",
             commands: [
-              { id: "today",    label: "Revenue Engine", description: "Run today's prospects", accent: "#10b981", action: () => navigate("/hq/engine") },
-              { id: "newlead",  label: "New Lead",       description: "Add to pipeline",       accent: "#10b981", shortcut: "⌘N", action: () => setNewLeadOpen(true) },
+              { id: "newlead",  label: "New Lead",       description: "Add to pipeline",       accent: "currentColor", shortcut: "⌘N", action: () => setNewLeadOpen(true) },
+              { id: "engine",   label: "Revenue Engine", description: "Run today's prospects", accent: "currentColor", action: () => navigate("/hq/engine") },
+              { id: "briefing", label: "Daily Briefing", description: "Review today's top 3 qualified opportunities", shortcut: "G B", action: () => navigate("/briefing") },
+              { id: "objectives",label: "Define Hunt",   description: "Declare commercial intent & lock search thesis", shortcut: "G O", action: () => navigate("/objectives") },
+              { id: "settings", label: "Settings & Keys",description: "Account, database, and system status", action: () => navigate("/hq/settings") },
               { id: "theme",    label: "Toggle Theme",   description: "Switch light / dark mode",                  action: () => cycleTheme() },
               { id: "signout",  label: "Sign Out",       description: "End session and lock workspace",            action: () => signOut().then(() => navigate("/auth")) },
             ],

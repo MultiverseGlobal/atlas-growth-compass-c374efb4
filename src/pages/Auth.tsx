@@ -126,7 +126,7 @@ export default function Auth() {
                 window.location.href = `https://pseudonyms.vercel.app/oauth/authorize?client_id=atlas&redirect_uri=${returnUrl}`;
               }}
               disabled={loading}
-              className="w-full h-11 rounded-xl font-mono text-xs font-semibold gap-2 bg-amber-500 text-black hover:bg-amber-600 transition-colors"
+              className="w-full h-11 rounded-xl font-mono text-xs font-semibold gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4"/>
@@ -149,7 +149,7 @@ export default function Auth() {
           <form onSubmit={handleEmail} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-xs font-semibold text-foreground/80">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 rounded-xl bg-background border-border/60 focus:border-amber-500/50 focus:ring-amber-500/20 text-foreground" />
+              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 rounded-xl bg-background border-border/60 focus:border-foreground/50 focus:ring-foreground/20 text-foreground" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-xs font-semibold text-foreground/80">Password</Label>
@@ -161,7 +161,7 @@ export default function Auth() {
                   minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 rounded-xl bg-background border-border/60 focus:border-amber-500/50 focus:ring-amber-500/20 text-foreground pr-10"
+                  className="h-11 rounded-xl bg-background border-border/60 focus:border-foreground/50 focus:ring-foreground/20 text-foreground pr-10"
                 />
                 <button
                   type="button"
@@ -172,7 +172,7 @@ export default function Auth() {
                 </button>
               </div>
             </div>
-            <Button type="submit" disabled={loading} className="w-full h-11 rounded-xl font-mono text-xs font-semibold gap-1 bg-amber-500 text-black hover:bg-amber-600 transition-colors mt-2">
+            <Button type="submit" disabled={loading} className="w-full h-11 rounded-xl font-mono text-xs font-semibold gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors mt-2">
               Unlock System <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </form>

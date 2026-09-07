@@ -57,11 +57,11 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
               </span>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48 bg-card/95 backdrop-blur-xl border-border/50 shadow-xl rounded-xl">
-            <DropdownMenuItem onClick={onNewLead} className="gap-2 text-[12px] cursor-pointer">
-              <Plus className="w-3.5 h-3.5 text-emerald-500" />
+          <DropdownMenuContent align="start" className="w-48 bg-card/95 backdrop-blur-xl border-border/50 shadow-xl rounded-xl p-1">
+            <DropdownMenuItem onClick={onNewLead} className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg">
+              <Plus className="w-3.5 h-3.5" />
               <span>New Lead</span>
-              <span className="ml-auto text-[10px] text-muted-foreground font-mono">⌘N</span>
+              <span className="ml-auto text-[10px] font-mono opacity-60">⌘N</span>
             </DropdownMenuItem>
             
             <DropdownMenuItem 
@@ -69,24 +69,24 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
                 const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
                 document.dispatchEvent(e);
               }}
-              className="gap-2 text-[12px] cursor-pointer"
+              className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg"
             >
-              <Command className="w-3.5 h-3.5 text-muted-foreground" />
+              <Command className="w-3.5 h-3.5" />
               <span>Command Palette</span>
-              <span className="ml-auto text-[10px] text-muted-foreground font-mono">⌘K</span>
+              <span className="ml-auto text-[10px] font-mono opacity-60">⌘K</span>
             </DropdownMenuItem>
             
-            <DropdownMenuItem onClick={cycleTheme} className="gap-2 text-[12px] cursor-pointer">
-              {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-muted-foreground" /> : <Moon className="w-3.5 h-3.5 text-muted-foreground" />}
+            <DropdownMenuItem onClick={cycleTheme} className="gap-2 text-[12px] cursor-pointer focus:bg-foreground focus:text-background rounded-lg">
+              {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
               <span>Toggle Theme</span>
             </DropdownMenuItem>
             
             {user && (
               <>
-                <DropdownMenuSeparator className="bg-border/50" />
+                <DropdownMenuSeparator className="bg-border/50 my-1" />
                 <DropdownMenuItem 
                   onClick={() => signOut().then(() => navigate("/auth"))}
-                  className="gap-2 text-[12px] text-destructive focus:text-destructive cursor-pointer"
+                  className="gap-2 text-[12px] focus:bg-foreground focus:text-background cursor-pointer rounded-lg"
                 >
                   <User className="w-3.5 h-3.5" />
                   <span>Sign out</span>

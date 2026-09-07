@@ -25,11 +25,11 @@ export default function ObjectivesStudio() {
   };
 
   return (
-    <div className="p-6 pt-20 md:p-8 md:pt-20 space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden">
+    <div className="p-6 pt-[120px] md:p-8 md:pt-[120px] space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       {/* Header */}
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-3xl font-bold tracking-tight font-display flex items-center gap-3">
-          <Target className="h-8 w-8 text-amber-500" />
+          <Target className="h-8 w-8 text-foreground" />
           Objectives Studio
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -46,7 +46,7 @@ export default function ObjectivesStudio() {
         >
           <div className="rounded-xl border border-border/60 bg-card p-6 shadow-lg space-y-5">
             <div className="flex items-center gap-3 pb-2 border-b border-border/30">
-              <Sparkles className="h-5 w-5 text-emerald-500" />
+              <Sparkles className="h-5 w-5 text-foreground" />
               <h2 className="text-lg font-semibold tracking-tight">Search Thesis</h2>
             </div>
             
@@ -56,10 +56,10 @@ export default function ObjectivesStudio() {
                 value={thesis}
                 onChange={(e) => setThesis(e.target.value)}
                 placeholder="E.g., Series A B2B SaaS companies in New York hiring frontend engineers..."
-                className="w-full h-32 p-4 bg-background border border-border/60 rounded-xl resize-none focus:outline-none focus:border-amber-500/50 transition-colors text-sm font-sans"
+                className="w-full h-32 p-4 bg-background border border-border/60 rounded-xl resize-none focus:outline-none focus:border-foreground/50 transition-colors text-sm font-sans"
               />
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                <Zap className="h-3.5 w-3.5 text-foreground" />
                 Atlas will automatically decompose this intent into precise search parameters.
               </p>
             </div>
@@ -68,7 +68,7 @@ export default function ObjectivesStudio() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="rounded-xl border border-border/60 bg-card p-6 shadow-lg space-y-4">
               <div className="flex items-center gap-3">
-                <Building2 className="h-5 w-5 text-blue-500" />
+                <Building2 className="h-5 w-5 text-foreground" />
                 <h3 className="font-semibold text-sm">Firmographics</h3>
               </div>
               <div className="space-y-4 pt-2">
@@ -93,7 +93,7 @@ export default function ObjectivesStudio() {
 
             <div className="rounded-xl border border-border/60 bg-card p-6 shadow-lg space-y-4">
               <div className="flex items-center gap-3">
-                <Briefcase className="h-5 w-5 text-indigo-500" />
+                <Briefcase className="h-5 w-5 text-foreground" />
                 <h3 className="font-semibold text-sm">Target Personas</h3>
               </div>
               <div className="space-y-4 pt-2">
@@ -127,7 +127,7 @@ export default function ObjectivesStudio() {
         >
           <div className="rounded-xl border border-border/60 bg-card p-6 shadow-lg space-y-5">
             <h3 className="font-semibold text-sm flex items-center gap-2 pb-2 border-b border-border/30">
-              <Compass className="h-4 w-4 text-emerald-500" />
+              <Compass className="h-4 w-4 text-foreground" />
               Execution Parameters
             </h3>
             
@@ -142,7 +142,7 @@ export default function ObjectivesStudio() {
                   min="50" max="1000" step="50"
                   value={targetQuota}
                   onChange={(e) => setTargetQuota(e.target.value)}
-                  className="w-full mt-3 accent-amber-500"
+                  className="w-full mt-3 accent-foreground"
                 />
               </div>
 
@@ -151,8 +151,8 @@ export default function ObjectivesStudio() {
                   Primary Data Source
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="border border-amber-500/50 bg-amber-500/10 rounded-lg p-2 flex items-center gap-2 cursor-pointer text-xs font-medium">
-                    <Globe className="h-3.5 w-3.5 text-amber-500" /> Web/Social
+                  <div className="border border-foreground/50 bg-foreground/10 rounded-lg p-2 flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
+                    <Globe className="h-3.5 w-3.5 text-foreground" /> Web/Social
                   </div>
                   <div className="border border-border/60 bg-background rounded-lg p-2 flex items-center gap-2 cursor-pointer text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
                     <Filter className="h-3.5 w-3.5" /> Proprietary
@@ -162,13 +162,13 @@ export default function ObjectivesStudio() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.02] p-6 shadow-lg space-y-5 relative overflow-hidden">
+          <div className="rounded-xl border border-border/60 bg-foreground/[0.02] p-6 shadow-lg space-y-5 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Lock className="h-24 w-24 text-amber-500" />
+              <Lock className="h-24 w-24 text-foreground" />
             </div>
             
             <div>
-              <h3 className="text-lg font-bold text-amber-500">Lock Thesis</h3>
+              <h3 className="text-lg font-bold text-foreground">Lock Thesis</h3>
               <p className="text-xs text-muted-foreground mt-1 relative z-10">
                 Deploy autonomous agents to begin decomposing intent and discovering targets.
               </p>
@@ -177,7 +177,7 @@ export default function ObjectivesStudio() {
             <Button 
               onClick={handleLockThesis}
               disabled={isLocking || !thesis.trim()}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold h-12 text-sm relative z-10"
+              className="w-full bg-foreground hover:bg-foreground/90 text-background font-semibold h-12 text-sm relative z-10"
             >
               {isLocking ? (
                 <>
