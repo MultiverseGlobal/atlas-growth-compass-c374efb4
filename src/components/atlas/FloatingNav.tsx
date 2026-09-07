@@ -119,6 +119,7 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
 
       <div className="h-6 w-px bg-border/60 mx-1" />
 
