@@ -8,8 +8,25 @@ export function useTheme() {
     if (typeof window === "undefined") return "clean";
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
     if (stored === "clean" || stored === "paper" || stored === "dark") return stored;
-    return "clean"; // default theme is the clean landing page style
+    return "clean";
   });
+
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        setTheme(e.newValue as Theme);
+      }
+    };
+    const handleCustom = (e: CustomEvent) => {
+      setTheme(e.detail);
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("theme-change", handleCustom as EventListener);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("theme-change", handleCustom as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -25,6 +42,7 @@ export function useTheme() {
     }
     
     localStorage.setItem(STORAGE_KEY, theme);
+    window.dispatchEvent(new CustomEvent("theme-change", { detail: theme }));
   }, [theme]);
 
   const cycleTheme = () => {

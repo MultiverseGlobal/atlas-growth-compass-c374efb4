@@ -105,64 +105,6 @@ export function SpatialCanvas({
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
 
-      // ── Cartographic Topographic Contours ────────────────────────────────
-      const speed = isProcessing ? 0.007 : 0.0025;
-      if (!prefersReducedMotion) {
-        phase += speed;
-      }
-
-      const centerX = width / 2 + panX * 0.5;
-      const centerY = height / 2.2 + panY * 0.5;
-      const baseRadius = Math.min(width, height) * 0.16;
-
-      for (let k = 0; k < contourCount; k++) {
-        const radius = baseRadius + k * (Math.min(width, height) * 0.055);
-        const points = 36;
-        const angleStep = (Math.PI * 2) / points;
-
-        ctx.beginPath();
-        for (let i = 0; i <= points; i++) {
-          const angle = i * angleStep;
-          // Organic elevation distortion using harmonic sine waves
-          const distortion =
-            Math.sin(angle * 3 + phase + k * 0.6) * 14 +
-            Math.cos(angle * 5 - phase * 0.8 + k) * 9;
-
-          const r = radius + distortion;
-          const px = centerX + Math.cos(angle) * r;
-          const py = centerY + Math.sin(angle) * (r * 0.62); // Isometric flattening for map elevation
-
-          if (i === 0) {
-            ctx.moveTo(px, py);
-          } else {
-            ctx.lineTo(px, py);
-          }
-        }
-        ctx.closePath();
-
-        const alpha = isDark 
-          ? Math.max(0.015, (0.065 - k * 0.006))
-          : Math.max(0.02, (0.055 - k * 0.005));
-
-        ctx.lineWidth = k === 0 ? 1.2 : 0.8;
-
-        if (requiresIntervention && k === 0) {
-          ctx.strokeStyle = isDark
-            ? "rgba(245, 158, 11, 0.28)"
-            : "rgba(217, 119, 6, 0.35)";
-        } else if (isProcessing && k === 0) {
-          ctx.strokeStyle = isDark
-            ? "rgba(16, 185, 129, 0.32)"
-            : "rgba(13, 148, 136, 0.35)";
-        } else {
-          ctx.strokeStyle = isDark
-            ? `rgba(255, 255, 255, ${alpha})`
-            : `rgba(17, 19, 24, ${alpha})`;
-        }
-
-        ctx.stroke();
-      }
-
       if (!prefersReducedMotion) {
         animationFrameId = requestAnimationFrame(render);
       }
