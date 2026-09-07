@@ -72,13 +72,12 @@ function CommandPalette({ currentApp: _, extraCommands = [] }: { currentApp?: st
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-start justify-center pt-[18vh]"
-      style={{ background: "rgba(7,8,12,0.55)", backdropFilter: "blur(12px)" }}
+      className="fixed inset-0 z-[9999] flex items-start justify-center pt-[18vh] bg-foreground/20 backdrop-blur-sm"
       onClick={() => setOpen(false)}
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="pds-animate-enter w-full max-w-[560px] bg-card border border-border/60 shadow-xl rounded-xl overflow-hidden"
+        className="pds-animate-enter w-full max-w-[560px] bg-background border border-border/60 shadow-xl rounded-xl overflow-hidden"
       >
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border/60">
           <Command className="w-3.5 h-3.5 text-[var(--pds-text-muted)] shrink-0" />

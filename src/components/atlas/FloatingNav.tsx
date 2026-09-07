@@ -4,9 +4,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
   Sun, Moon, Plus, Command,
-  LayoutDashboard, Target, Layers, Settings, Terminal
+  LayoutDashboard, Target, Layers, Settings, Terminal, User
 } from "lucide-react";
 import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // ── Route metadata ────────────────────────────────────────────────────────────
 const ROUTES: Record<string, { label: string; icon: React.ElementType }> = {
@@ -38,16 +45,56 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="fixed top-5 left-5 z-50"
       >
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md hover:bg-card transition-colors"
-        >
-          {/* Atlas Icon */}
-          <AtlasIcon size={16} className="text-foreground" />
-          <span className="text-[11px] font-semibold text-muted-foreground hidden sm:block">
-            Atlas
-          </span>
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md hover:bg-card transition-colors outline-none data-[state=open]:bg-card"
+            >
+              {/* Atlas Icon */}
+              <AtlasIcon size={16} className="text-foreground" />
+              <span className="text-[11px] font-semibold text-muted-foreground hidden sm:block">
+                Atlas
+              </span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48 bg-card/95 backdrop-blur-xl border-border/50 shadow-xl rounded-xl">
+            <DropdownMenuItem onClick={onNewLead} className="gap-2 text-[12px] cursor-pointer">
+              <Plus className="w-3.5 h-3.5 text-emerald-500" />
+              <span>New Lead</span>
+              <span className="ml-auto text-[10px] text-muted-foreground font-mono">⌘N</span>
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem 
+              onClick={() => {
+                const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
+                document.dispatchEvent(e);
+              }}
+              className="gap-2 text-[12px] cursor-pointer"
+            >
+              <Command className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>Command Palette</span>
+              <span className="ml-auto text-[10px] text-muted-foreground font-mono">⌘K</span>
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem onClick={cycleTheme} className="gap-2 text-[12px] cursor-pointer">
+              {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-muted-foreground" /> : <Moon className="w-3.5 h-3.5 text-muted-foreground" />}
+              <span>Toggle Theme</span>
+            </DropdownMenuItem>
+            
+            {user && (
+              <>
+                <DropdownMenuSeparator className="bg-border/50" />
+                <DropdownMenuItem 
+                  onClick={() => signOut().then(() => navigate("/auth"))}
+                  className="gap-2 text-[12px] text-destructive focus:text-destructive cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Sign out</span>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </motion.div>
 
       {/* ── Current route indicator — top center ────────────────────── */}
@@ -68,57 +115,7 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
         </motion.div>
       )}
 
-      {/* ── User actions — top right ─────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, x: 8 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-5 right-5 z-50 flex items-center gap-2"
-      >
-        {/* New lead */}
-        <button
-          onClick={onNewLead}
-          title="New Lead (⌘N)"
-          className="h-8 w-8 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
 
-        {/* Command palette hint */}
-        <button
-          onClick={() => {
-            const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
-            document.dispatchEvent(e);
-          }}
-          title="Command Palette (⌘K)"
-          className="h-8 px-2.5 rounded-xl bg-card/80 hover:bg-card border border-border/50 shadow-sm backdrop-blur-md flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Command className="w-3 h-3" />
-          <span className="text-[10px] font-mono hidden sm:block">K</span>
-        </button>
-
-        {/* Theme toggle */}
-        <button
-          onClick={cycleTheme}
-          title="Toggle theme"
-          className="h-8 w-8 rounded-xl bg-card/80 hover:bg-card border border-border/50 shadow-sm backdrop-blur-md flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {theme === "dark"
-            ? <Sun className="w-3.5 h-3.5" />
-            : <Moon className="w-3.5 h-3.5" />}
-        </button>
-
-        {/* User avatar / sign out */}
-        {user && (
-          <button
-            onClick={() => signOut().then(() => navigate("/auth"))}
-            title={user.email ?? "Sign out"}
-            className="h-8 w-8 rounded-xl bg-card/80 hover:bg-card border border-border/50 shadow-sm backdrop-blur-md flex items-center justify-center font-semibold text-[11px] text-foreground transition-colors"
-          >
-            {(user.email?.[0] ?? "U").toUpperCase()}
-          </button>
-        )}
-      </motion.div>
     </>
   );
 }
