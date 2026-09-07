@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ExternalLink, Database } from "lucide-react";
+import { ExternalLink, Database, Brain } from "lucide-react";
 import {
   PseudonymsSovereignMark,
   PseudonymsIDIcon,
@@ -113,9 +113,10 @@ export function EcosystemSwitcher({ align = "right", isDark = true }: EcosystemS
           }`}
           title="Pseudonyms Sovereign Network (Cmd+.)"
         >
-          <PseudonymsSovereignMark
+          <Brain
             size={16}
             color={isOpen ? (isDark ? "#ffffff" : "#ffffff") : (isDark ? "#e2e8f0" : "#0f172a")}
+            className="animate-pulse opacity-80"
           />
           <span className="text-xs font-mono uppercase tracking-wider font-semibold hidden md:inline-block">
             Hub

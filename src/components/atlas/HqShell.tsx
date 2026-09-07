@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, Navigate } from "react-route
 import { AnimatePresence, motion } from "framer-motion";
 import { 
   Target, Search, MessageSquare, BarChart2,
-  Database, Zap, User as UserIcon, LogOut, Moon, Sun, ChevronRight, Command,
+  Database, Zap, User, LogOut, Moon, Sun, ChevronRight, Command,
   Volume2, VolumeX
 } from "lucide-react";
 import { soundManager } from "@/lib/audioFeedback";
@@ -256,15 +256,14 @@ export default function HqShell() {
           {/* Sovereign Ecosystem Switcher */}
           <EcosystemSwitcher currentApp="atlas" isDark={theme === "dark"} />
 
-          {/* Founder Identity Pill */}
+          {/* Founder Identity Button */}
           <div className="flex items-center gap-1.5 pl-2 border-l border-[var(--pds-border-subtle)]">
-            <div
-              className="h-7 px-2.5 rounded-lg bg-[var(--pds-surface-2)] border border-[var(--pds-border-mid)] flex items-center gap-1.5 text-[11px] font-mono text-[var(--pds-text-secondary)]"
-              title={user?.email || "Founder Mode"}
+            <button
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-[var(--pds-text-muted)] hover:text-[var(--pds-text-primary)] hover:bg-[var(--pds-surface-2)] transition-colors cursor-pointer"
+              title="Founder Profile"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Founder Profile</span>
-            </div>
+              <User className="h-3.5 w-3.5" />
+            </button>
             {user && (
               <button
                 onClick={() => signOut().then(() => navigate("/"))}
