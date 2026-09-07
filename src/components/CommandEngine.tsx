@@ -256,11 +256,7 @@ export function CommandEngine({
                   setInputPrompt(preset.query);
                   executePrompt(preset.query);
                 }}
-                className={`px-3.5 py-1.5 rounded-full border text-xs font-mono font-medium tracking-tight transition-all cursor-pointer backdrop-blur-md ${
-                  isDark
-                    ? "border-white/20 bg-white/10 text-white hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.15)]"
-                    : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50 shadow-sm hover:shadow-md"
-                }`}
+                className="px-3.5 py-1.5 rounded-full border text-xs font-mono font-medium tracking-tight transition-all cursor-pointer backdrop-blur-md border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50 shadow-sm hover:shadow-md dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 dark:hover:border-white/40 dark:hover:text-white dark:hover:shadow-[0_0_15px_rgba(255,255,255,0.15)]"
               >
                 <span>{preset.label}</span>
               </button>
@@ -332,9 +328,7 @@ export function CommandEngine({
               <div className="mt-4 space-y-3">
                 {/* Visual Telemetry Badge */}
                 <div
-                  className={`relative h-12 w-full rounded-xl flex items-center justify-between px-4 border ${
-                    isDark ? "bg-black/30 border-white/5" : "bg-[var(--pds-surface-2)] border-[var(--pds-border-subtle)]"
-                  }`}
+                  className="relative h-12 w-full rounded-xl flex items-center justify-between px-4 border bg-[var(--pds-surface-2)] border-[var(--pds-border-subtle)] dark:bg-black/30 dark:border-white/5"
                 >
                   <div className="flex items-center gap-2.5 font-mono text-[11px] text-emerald-500">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -352,11 +346,7 @@ export function CommandEngine({
                       <button
                         key={idx}
                         onClick={() => setSelectedLeadModal(lead)}
-                        className={`w-full flex items-center justify-between text-xs rounded-lg border px-2.5 py-1.5 font-mono text-left transition-colors cursor-pointer ${
-                          isDark
-                            ? "bg-white/[0.03] border-white/5 hover:bg-white/[0.08] text-white/90"
-                            : "bg-white border-neutral-200 hover:bg-neutral-50 text-neutral-900 shadow-sm"
-                        }`}
+                        className="w-full flex items-center justify-between text-xs rounded-lg border px-2.5 py-1.5 font-mono text-left transition-colors cursor-pointer bg-white border-neutral-200 hover:bg-neutral-50 text-neutral-900 shadow-sm dark:bg-white/[0.03] dark:border-white/5 dark:hover:bg-white/[0.08] dark:text-white/90"
                       >
                         <span className="truncate max-w-[150px] font-medium">{lead.company}</span>
                         <span className="text-[10px] text-emerald-500 font-semibold">{lead.icp_score}% FIT</span>
@@ -364,7 +354,7 @@ export function CommandEngine({
                     ))}
                   </div>
                 ) : (
-                  <div className={`text-center py-2 text-xs font-mono ${isDark ? "text-white/30" : "text-neutral-400"}`}>
+                  <div className="text-center py-2 text-xs font-mono text-neutral-400 dark:text-white/30">
                     Decomposing query parameters...
                   </div>
                 )}
@@ -400,26 +390,22 @@ export function CommandEngine({
               <div className="mt-4 space-y-3">
                 {campaignState.currentLead ? (
                   <div
-                    className={`rounded-xl border p-3 relative overflow-hidden ${
-                      isDark ? "bg-black/40 border-white/10" : "bg-white border-neutral-200 shadow-sm"
-                    }`}
+                    className="rounded-xl border p-3 relative overflow-hidden bg-white border-neutral-200 shadow-sm dark:bg-black/40 dark:border-white/10"
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`text-xs font-semibold truncate max-w-[160px] ${campaignState.status === "awaiting_approval" && !isDark ? "text-neutral-900" : isDark ? "text-white" : "text-neutral-900"}`}>
+                      <span className={`text-xs font-semibold truncate max-w-[160px] ${campaignState.status === "awaiting_approval" ? "text-neutral-900 dark:text-white" : "text-neutral-900 dark:text-white"}`}>
                         {campaignState.currentLead.founder?.name}
                       </span>
-                      <span className={`text-[10px] font-mono uppercase ${campaignState.status === "awaiting_approval" && !isDark ? "text-neutral-500" : isDark ? "text-white/50" : "text-neutral-500"}`}>
+                      <span className={`text-[10px] font-mono uppercase ${campaignState.status === "awaiting_approval" ? "text-neutral-500 dark:text-white/50" : "text-neutral-500 dark:text-white/50"}`}>
                         {campaignState.currentLead.company}
                       </span>
                     </div>
                     {campaignState.currentDraft && (
                       <div
                         className={`mt-2 text-[11px] font-sans italic line-clamp-2 p-2 rounded-lg border ${
-                          campaignState.status === "awaiting_approval" && !isDark
-                            ? "text-neutral-800 bg-amber-500/10 border-amber-500/20"
-                            : isDark
-                            ? "text-white/80 bg-white/[0.05] border-white/10"
-                            : "text-neutral-700 bg-neutral-50 border-neutral-200"
+                          campaignState.status === "awaiting_approval"
+                            ? "text-neutral-800 bg-amber-500/10 border-amber-500/20 dark:text-white/80 dark:bg-white/[0.05] dark:border-white/10"
+                            : "text-neutral-700 bg-neutral-50 border-neutral-200 dark:text-white/80 dark:bg-white/[0.05] dark:border-white/10"
                         }`}
                       >
                         "{campaignState.currentDraft.subject}"
@@ -458,13 +444,9 @@ export function CommandEngine({
             >
               <div className="mt-4 space-y-3 font-mono text-xs">
                 <div
-                  className={`flex items-center justify-between p-2.5 rounded-xl border ${
-                    isDark
-                      ? "text-white/70 bg-black/30 border-white/5"
-                      : "text-neutral-700 bg-neutral-50 border-neutral-200"
-                  }`}
+                  className="flex items-center justify-between p-2.5 rounded-xl border text-neutral-700 bg-neutral-50 border-neutral-200 dark:text-white/70 dark:bg-black/30 dark:border-white/5"
                 >
-                  <span className={`uppercase text-[10px] ${isDark ? "text-white/40" : "text-neutral-400"}`}>
+                  <span className="uppercase text-[10px] text-neutral-400 dark:text-white/40">
                     Pipeline Velocity
                   </span>
                   <span className="text-emerald-500 font-bold text-sm">
@@ -473,16 +455,14 @@ export function CommandEngine({
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className={`flex items-center justify-between text-[11px] ${isDark ? "text-white/60" : "text-neutral-600"}`}>
+                  <div className="flex items-center justify-between text-[11px] text-neutral-600 dark:text-white/60">
                     <span>Target Quota</span>
-                    <span className={`font-semibold ${isDark ? "text-white" : "text-neutral-900"}`}>
+                    <span className="font-semibold text-neutral-900 dark:text-white">
                       {campaignState.contactedCount} / {campaignState.targetCount} Targets
                     </span>
                   </div>
                   <div
-                    className={`w-full rounded-full h-2 overflow-hidden border p-[1px] ${
-                      isDark ? "bg-black/40 border-white/5" : "bg-neutral-200 border-neutral-300"
-                    }`}
+                    className="w-full rounded-full h-2 overflow-hidden border p-[1px] bg-neutral-200 border-neutral-300 dark:bg-black/40 dark:border-white/5"
                   >
                     <div
                       className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-700 shadow-sm"
@@ -493,9 +473,7 @@ export function CommandEngine({
                   </div>
                 </div>
 
-                <div className={`flex items-center justify-between text-[10px] border-t pt-2 ${
-                  isDark ? "text-white/40 border-white/5" : "text-neutral-400 border-neutral-200"
-                }`}>
+                <div className="flex items-center justify-between text-[10px] border-t pt-2 text-neutral-400 border-neutral-200 dark:text-white/40 dark:border-white/5">
                   <div className="flex items-center gap-1.5">
                     <span>Mode:</span>
                     <button
@@ -634,9 +612,7 @@ function TiltCard({
       } ${
         highlight
           ? "border-amber-400/80 bg-amber-500/[0.04] shadow-[0_0_35px_rgba(245,158,11,0.20)] ring-1 ring-amber-400/50 scale-[1.02] z-20"
-          : isDark
-          ? "border-white/[0.08] bg-[#0c0e15]/85 shadow-[0_16px_40px_rgba(0,0,0,0.6)] hover:border-white/20"
-          : "border-black/[0.08] bg-white/80 shadow-[0_12px_30px_rgba(0,0,0,0.06)] hover:border-black/15"
+          : "border-black/[0.08] bg-white/80 shadow-[0_12px_30px_rgba(0,0,0,0.06)] hover:border-black/15 dark:border-white/[0.08] dark:bg-[#0c0e15]/85 dark:shadow-[0_16px_40px_rgba(0,0,0,0.6)] dark:hover:border-white/20"
       }`}
       style={{
         boxShadow: highlight
@@ -665,9 +641,7 @@ function TiltCard({
                 ? "bg-amber-500/20 text-amber-500 border-amber-500/30"
                 : isComplete
                 ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/20"
-                : isDark
-                ? "bg-white/[0.04] text-white/70 border-white/10"
-                : "bg-neutral-100 text-neutral-600 border-neutral-200"
+                : "bg-neutral-100 text-neutral-600 border-neutral-200 dark:bg-white/[0.04] dark:text-white/70 dark:border-white/10"
             }`}
           >
             <Icon className="h-5 w-5" />
@@ -675,18 +649,18 @@ function TiltCard({
           <div>
             <div className="flex items-center gap-1.5">
               <span className={`font-mono text-[9px] uppercase tracking-wider font-bold ${
-                highlight ? (isDark ? "text-amber-500/70" : "text-amber-700") : isDark ? "text-white/40" : "text-neutral-400"
+                highlight ? "text-amber-700 dark:text-amber-500/70" : "text-neutral-400 dark:text-white/40"
               }`}>
                 PHASE {step}
               </span>
             </div>
             <h3 className={`font-display text-sm font-semibold tracking-tight ${
-              highlight ? (isDark ? "text-amber-500" : "text-amber-900") : isDark ? "text-white" : "text-neutral-900"
+              highlight ? "text-amber-900 dark:text-amber-500" : "text-neutral-900 dark:text-white"
             }`}>
               {title}
             </h3>
             <p className={`font-mono text-[10px] uppercase tracking-wider ${
-              highlight ? (isDark ? "text-amber-500/60" : "text-amber-800") : isDark ? "text-white/50" : "text-neutral-500"
+              highlight ? "text-amber-800 dark:text-amber-500/60" : "text-neutral-500 dark:text-white/50"
             }`}>
               {stage}
             </p>
