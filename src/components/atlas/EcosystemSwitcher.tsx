@@ -102,32 +102,22 @@ export function EcosystemSwitcher({ align = "right", isDark = true }: EcosystemS
           onClick={() => setIsOpen(!isOpen)}
           aria-label="Switch Sovereign App (Cmd+.)"
           aria-expanded={isOpen}
-          className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all cursor-pointer relative z-40 ${
+          className={`h-8 w-8 flex items-center justify-center rounded-lg transition-all cursor-pointer relative z-40 ${
             isOpen
               ? isDark
-                ? "bg-white/15 border-white/30 text-white shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-                : "bg-neutral-900 text-white border-neutral-900 shadow-md"
+                ? "bg-white/15 text-white shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                : "bg-neutral-900 text-white shadow-md"
               : isDark
-              ? "bg-white/[0.04] hover:bg-white/10 border-white/10 text-white/80 hover:text-white"
-              : "bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-700 hover:text-neutral-900 shadow-sm"
+              ? "hover:bg-white/10 text-white/80 hover:text-white"
+              : "hover:bg-neutral-100 text-neutral-700 hover:text-neutral-900"
           }`}
           title="Pseudonyms Sovereign Network (Cmd+.)"
         >
           <Brain
-            size={16}
+            size={18}
             color={isOpen ? (isDark ? "#ffffff" : "#ffffff") : (isDark ? "#e2e8f0" : "#0f172a")}
-            className="animate-pulse opacity-80"
+            className="animate-pulse opacity-90"
           />
-          <span className="text-xs font-mono uppercase tracking-wider font-semibold hidden md:inline-block">
-            Hub
-          </span>
-          <kbd
-            className={`hidden lg:inline-block rounded px-1.5 py-0.2 text-[9px] font-mono border ${
-              isDark ? "border-white/10 bg-white/5 text-white/40" : "border-neutral-200 bg-neutral-100 text-neutral-400"
-            }`}
-          >
-            ⌘.
-          </kbd>
         </button>
 
         {/* Sovereign Popover Panel */}
