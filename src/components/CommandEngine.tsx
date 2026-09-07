@@ -180,19 +180,7 @@ export function CommandEngine({
             }`}
           >
             <div className="pl-6 flex items-center gap-3">
-              <div
-                className={`h-10 w-10 rounded-xl border flex items-center justify-center shadow-inner ${
-                  isDark
-                    ? "bg-white/[0.06] border-white/10 text-white/70"
-                    : "bg-neutral-100 border-neutral-200 text-neutral-600"
-                }`}
-              >
-                <ChevronRight
-                  className={`h-5 w-5 transition-all duration-300 ${
-                    isRunning ? "text-emerald-500 animate-pulse" : "text-neutral-400"
-                  }`}
-                />
-              </div>
+              {/* Removed ChevronRight as requested */}
             </div>
 
             <input
@@ -270,8 +258,8 @@ export function CommandEngine({
                 }}
                 className={`px-3.5 py-1.5 rounded-full border text-xs font-mono font-medium tracking-tight transition-all cursor-pointer backdrop-blur-md ${
                   isDark
-                    ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/15 hover:border-white/30 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]"
-                    : "border-neutral-200 bg-white/80 text-neutral-700 hover:bg-white hover:border-neutral-400 hover:text-neutral-950 shadow-sm hover:shadow-md"
+                    ? "border-white/20 bg-white/10 text-white hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+                    : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50 shadow-sm hover:shadow-md"
                 }`}
               >
                 <span>{preset.label}</span>
