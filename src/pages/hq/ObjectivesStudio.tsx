@@ -25,7 +25,7 @@ export default function ObjectivesStudio() {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden">
+    <div className="p-6 pt-20 md:p-8 md:pt-20 space-y-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       {/* Header */}
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-3xl font-bold tracking-tight font-display flex items-center gap-3">

@@ -5,6 +5,7 @@ import { Command } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { NewLeadModal } from "@/components/atlas/NewLeadModal";
+import { FloatingNav } from "@/components/atlas/FloatingNav";
 
 
 
@@ -160,8 +161,11 @@ export default function HqShell() {
 
   return (
     <div className="min-h-screen atlas-grid-bg text-foreground flex flex-col overflow-x-hidden relative">
-      {/* ── Fixed Ambient Radiant Light Mesh (Filters through all frosted glass) ── */}
+      {/* ── Fixed Ambient Radiant Light Mesh ── */}
       <div className="fixed inset-0 atlas-light-mesh pointer-events-none z-0" />
+
+      {/* ── Floating Navigation (separate elements, not a header) ─── */}
+      <FloatingNav onNewLead={() => setNewLeadOpen(true)} />
 
       {/* ── Main Full-Width Process Workspace ───────────────────────────────── */}
       <main className="flex-1 min-w-0 w-full">
