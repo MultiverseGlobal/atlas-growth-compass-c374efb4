@@ -227,14 +227,14 @@ export function CommandEngine({
                 <button
                   type="button"
                   onClick={handleReset}
-                  className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-xs font-mono transition-all cursor-pointer shadow-sm ${
+                  className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-xs font-mono font-semibold transition-all cursor-pointer shadow-sm ${
                     isDark
-                      ? "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/10 hover:text-white"
-                      : "border-neutral-200 bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900"
+                      ? "border-white/20 bg-white/[0.08] text-white hover:bg-white/15"
+                      : "border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50 shadow-md"
                   }`}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Reset Flow
+                  Stop & Go Back
                 </button>
               )}
             </div>
@@ -405,18 +405,20 @@ export function CommandEngine({
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`text-xs font-semibold truncate max-w-[160px] ${isDark ? "text-white" : "text-neutral-900"}`}>
+                      <span className={`text-xs font-semibold truncate max-w-[160px] ${campaignState.status === "awaiting_approval" && !isDark ? "text-neutral-900" : isDark ? "text-white" : "text-neutral-900"}`}>
                         {campaignState.currentLead.founder?.name}
                       </span>
-                      <span className={`text-[10px] font-mono uppercase ${isDark ? "text-white/40" : "text-neutral-400"}`}>
+                      <span className={`text-[10px] font-mono uppercase ${campaignState.status === "awaiting_approval" && !isDark ? "text-neutral-500" : isDark ? "text-white/50" : "text-neutral-500"}`}>
                         {campaignState.currentLead.company}
                       </span>
                     </div>
                     {campaignState.currentDraft && (
                       <div
                         className={`mt-2 text-[11px] font-sans italic line-clamp-2 p-2 rounded-lg border ${
-                          isDark
-                            ? "text-white/70 bg-white/[0.02] border-white/5"
+                          campaignState.status === "awaiting_approval" && !isDark
+                            ? "text-neutral-800 bg-amber-500/10 border-amber-500/20"
+                            : isDark
+                            ? "text-white/80 bg-white/[0.05] border-white/10"
                             : "text-neutral-700 bg-neutral-50 border-neutral-200"
                         }`}
                       >
@@ -425,7 +427,7 @@ export function CommandEngine({
                     )}
                   </div>
                 ) : (
-                  <div className={`text-center py-4 text-xs font-mono ${isDark ? "text-white/30" : "text-neutral-400"}`}>
+                  <div className={`text-center py-4 text-xs font-mono ${isDark ? "text-white/40" : "text-neutral-500"}`}>
                     Awaiting target qualification...
                   </div>
                 )}
@@ -660,7 +662,7 @@ function TiltCard({
           <div
             className={`rounded-xl p-2.5 border transition-colors ${
               highlight
-                ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                ? "bg-amber-500/20 text-amber-500 border-amber-500/30"
                 : isComplete
                 ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/20"
                 : isDark
@@ -673,18 +675,18 @@ function TiltCard({
           <div>
             <div className="flex items-center gap-1.5">
               <span className={`font-mono text-[9px] uppercase tracking-wider font-bold ${
-                isDark ? "text-white/40" : "text-neutral-400"
+                highlight ? (isDark ? "text-amber-500/70" : "text-amber-700") : isDark ? "text-white/40" : "text-neutral-400"
               }`}>
                 PHASE {step}
               </span>
             </div>
             <h3 className={`font-display text-sm font-semibold tracking-tight ${
-              isDark ? "text-white" : "text-neutral-900"
+              highlight ? (isDark ? "text-amber-500" : "text-amber-900") : isDark ? "text-white" : "text-neutral-900"
             }`}>
               {title}
             </h3>
             <p className={`font-mono text-[10px] uppercase tracking-wider ${
-              isDark ? "text-white/50" : "text-neutral-500"
+              highlight ? (isDark ? "text-amber-500/60" : "text-amber-800") : isDark ? "text-white/50" : "text-neutral-500"
             }`}>
               {stage}
             </p>
