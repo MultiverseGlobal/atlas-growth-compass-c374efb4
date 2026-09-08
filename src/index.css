@@ -94,11 +94,11 @@
 
   /* ── Dark Mode (.dark on <html>) ─────────────────────────────────────────── */
   .dark {
-    --pds-canvas:    #0a0a0a;
-    --pds-surface-1: rgba(25, 25, 25, 0.60);
-    --pds-surface-2: rgba(35, 35, 35, 0.75);
-    --pds-surface-3: rgba(45, 45, 45, 0.85);
-    --pds-surface-4: rgba(55, 55, 55, 0.95);
+    --pds-canvas:    #000000;
+    --pds-surface-1: rgba(255, 255, 255, 0.05);
+    --pds-surface-2: rgba(255, 255, 255, 0.08);
+    --pds-surface-3: rgba(255, 255, 255, 0.12);
+    --pds-surface-4: rgba(255, 255, 255, 0.16);
 
     --pds-border-subtle: rgba(255, 255, 255, 0.08);
     --pds-border-mid:    rgba(255, 255, 255, 0.12);
