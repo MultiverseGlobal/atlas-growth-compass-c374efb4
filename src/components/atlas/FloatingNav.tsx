@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
   Sun, Moon, Plus, Command,
-  Radar, Crosshair, Cpu, SlidersHorizontal, ChevronRight, User
+  Radar, Crosshair, Gauge, SlidersHorizontal, Zap, User
 } from "lucide-react";
 import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
 import {
@@ -17,10 +17,10 @@ import {
 
 // ── Route metadata ────────────────────────────────────────────────────────────
 const ROUTES: Record<string, { label: string; icon: React.ElementType }> = {
-  "/":            { label: "Command",         icon: ChevronRight },
-  "/briefing":    { label: "Daily Briefing",  icon: Radar },
-  "/objectives":  { label: "Define Hunt",     icon: Crosshair },
-  "/hq/engine":   { label: "Revenue Engine",  icon: Cpu },
+  "/":            { label: "Command",         icon: Zap },
+  "/briefing":    { label: "Briefing",        icon: Radar },
+  "/objectives":  { label: "Hunt",            icon: Crosshair },
+  "/hq/engine":   { label: "Engine",          icon: Gauge },
   "/hq/settings": { label: "Settings",        icon: SlidersHorizontal },
 };
 
@@ -119,7 +119,7 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
                 }`}
               >
                 <routeInfo.icon className={`w-3.5 h-3.5 ${isActive ? "" : "opacity-70 group-hover:opacity-100 transition-opacity"}`} />
-                <span className={`text-[11px] font-semibold font-mono tracking-wide overflow-hidden transition-all duration-300 ease-out ${
+                <span className={`text-[11px] font-semibold font-mono tracking-wide whitespace-nowrap overflow-hidden transition-all duration-300 ease-out ${
                   isActive ? "max-w-24 opacity-100" : "max-w-0 opacity-0 group-hover:max-w-24 group-hover:opacity-100 group-hover:ml-2"
                 }`}>
                   {routeInfo.label}
