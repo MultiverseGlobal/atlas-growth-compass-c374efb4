@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Settings, Key, Users, Building2, Save
 } from "lucide-react";
@@ -7,15 +7,57 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function HqSettings() {
+  const { user } = useAuth();
   const [openAiKey, setOpenAiKey] = useState("");
   const [apolloKey, setApolloKey] = useState("");
   const [workspaceName, setWorkspaceName] = useState("Multiverse Global");
   const [domain, setDomain] = useState("multiverse.global");
+  const [loading, setLoading] = useState(true);
   
-  const handleSave = (section: string) => {
-    toast.success(`${section} settings saved.`);
+  useEffect(() => {
+    async function loadSettings() {
+      if (!user) return;
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('atlas_user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+        
+      if (data) {
+        setOpenAiKey(data.openai_api_key || "");
+        setApolloKey(data.apollo_api_key || "");
+      }
+      setLoading(false);
+    }
+    loadSettings();
+  }, [user]);
+
+  const handleSave = async (section: string) => {
+    if (!user) return;
+    
+    if (section === "OpenAI" || section === "Apollo") {
+      const { error } = await supabase
+        .from('atlas_user_settings')
+        .upsert({ 
+          user_id: user.id, 
+          openai_api_key: openAiKey,
+          apollo_api_key: apolloKey,
+          updated_at: new Date().toISOString()
+        });
+        
+      if (error) {
+        toast.error(`Failed to save ${section} settings: ${error.message}`);
+        return;
+      }
+      toast.success(`${section} settings saved securely to database.`);
+    } else {
+      toast.success(`${section} settings saved.`);
+    }
   };
 
   return (

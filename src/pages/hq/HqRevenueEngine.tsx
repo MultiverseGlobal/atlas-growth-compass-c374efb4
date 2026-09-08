@@ -42,7 +42,16 @@ export default function HqRevenueEngine() {
   
   // Generator State
   const [generating, setGenerating] = useState(false);
+  const [generatingStep, setGeneratingStep] = useState(0);
   const [drafts, setDrafts] = useState<{ email: { subject: string; body: string } } | null>(null);
+
+  const generationSteps = [
+    "Retrieving context from database...",
+    "Analyzing operational bottlenecks...",
+    "Applying Atlas framework...",
+    "Drafting personalized sequence...",
+    "Finalizing copy..."
+  ];
 
   // Load Data
   const loadData = useCallback(async () => {
@@ -96,6 +105,13 @@ export default function HqRevenueEngine() {
   const handleGenerate = async () => {
     if (!activeOpp) return;
     setGenerating(true);
+    setGeneratingStep(0);
+    
+    // Simulate step progression for UX
+    const stepInterval = setInterval(() => {
+      setGeneratingStep((prev) => (prev < generationSteps.length - 1 ? prev + 1 : prev));
+    }, 1500);
+
     try {
       const companyName = activeOpp.organization_name;
 
@@ -107,13 +123,17 @@ export default function HqRevenueEngine() {
         },
       });
 
+      clearInterval(stepInterval);
+      setGeneratingStep(generationSteps.length - 1);
+
       if (error) throw new Error(error.message);
       setDrafts(data);
       toast.success("Draft generated.");
     } catch (e: any) {
+      clearInterval(stepInterval);
       toast.error(`Generation failed: ${e.message}`);
     } finally {
-      setGenerating(false);
+      setTimeout(() => setGenerating(false), 500);
     }
   };
 
@@ -297,47 +317,88 @@ export default function HqRevenueEngine() {
                       <div className="flex items-center gap-2">
                         <Zap className="w-4 h-4 text-foreground" />
                         <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-muted-foreground">Outreach Engine</span>
+import { AnimatePresence } from "framer-motion";
+// Need to add this import if not already present, but motion is already imported. I will just replace the rendering.
+
                       </div>
                       {!drafts && (
-                        <Button onClick={handleGenerate} disabled={generating} size="sm" className="h-8 text-xs bg-foreground text-background hover:bg-foreground/90">
+                        <Button onClick={handleGenerate} disabled={generating} size="sm" className="h-8 text-xs bg-foreground text-background hover:bg-foreground/90 transition-all duration-300 w-[140px]">
                           {generating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 mr-1.5" />}
                           {generating ? "Synthesizing..." : "Generate Angle"}
                         </Button>
                       )}
                     </div>
 
-                    {drafts ? (
-                      <div className="flex-1 flex flex-col rounded-xl border border-border/60 bg-background p-6 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-foreground" />
-                        
-                        <div className="mb-4">
-                          <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Subject Line</span>
-                          <div className="text-sm font-semibold text-foreground">{drafts.email.subject}</div>
-                        </div>
-                        
-                        <div className="flex-1 flex flex-col min-h-0">
-                          <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Message Body</span>
-                          <div className="flex-1 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-card p-4 rounded-lg border border-border/60 overflow-y-auto">
-                            {drafts.email.body}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-end gap-3 pt-5 mt-auto">
-                          <Button variant="outline" size="sm" onClick={handleCopy} className="h-8 text-xs">
-                            <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Text
-                          </Button>
-                          <Button size="sm" onClick={handleSaveOutreach} className="h-8 text-xs bg-foreground text-background">
-                            <Send className="w-3.5 h-3.5 mr-1.5" /> Log as Sent
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex-1 rounded-xl border border-dashed border-border/60 flex flex-col items-center justify-center text-muted-foreground bg-background/50 p-8 text-center">
-                        <MessageSquare className="w-8 h-8 mb-3 opacity-20" />
-                        <p className="text-[13px] font-medium text-foreground/70">Awaiting Synthesis</p>
-                        <p className="text-[11px] mt-1 max-w-[200px]">Generate a hyper-personalized outreach draft using Atlas AI.</p>
-                      </div>
-                    )}
+                    <div className="flex-1 flex flex-col relative min-h-[200px]">
+                      <AnimatePresence mode="wait">
+                        {generating ? (
+                          <motion.div 
+                            key="generating"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="absolute inset-0 flex flex-col items-center justify-center bg-card/60 backdrop-blur-sm rounded-xl border border-border/40"
+                          >
+                            <Loader2 className="w-6 h-6 text-foreground animate-spin mb-4" />
+                            <div className="h-5 overflow-hidden relative w-full flex justify-center">
+                              <AnimatePresence mode="popLayout">
+                                <motion.div
+                                  key={generatingStep}
+                                  initial={{ y: 20, opacity: 0 }}
+                                  animate={{ y: 0, opacity: 1 }}
+                                  exit={{ y: -20, opacity: 0 }}
+                                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                  className="text-[12px] font-mono text-foreground tracking-wide absolute"
+                                >
+                                  {generationSteps[generatingStep]}
+                                </motion.div>
+                              </AnimatePresence>
+                            </div>
+                          </motion.div>
+                        ) : drafts ? (
+                          <motion.div 
+                            key="drafts"
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="flex-1 flex flex-col rounded-xl border border-border/60 bg-background p-6 relative overflow-hidden"
+                          >
+                            <div className="absolute top-0 left-0 w-1 h-full bg-foreground" />
+                            
+                            <div className="mb-4">
+                              <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Subject Line</span>
+                              <div className="text-sm font-semibold text-foreground">{drafts.email.subject}</div>
+                            </div>
+                            
+                            <div className="flex-1 flex flex-col min-h-0">
+                              <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Message Body</span>
+                              <div className="flex-1 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-card p-4 rounded-lg border border-border/60 overflow-y-auto">
+                                {drafts.email.body}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-end gap-3 pt-5 mt-auto">
+                              <Button variant="outline" size="sm" onClick={handleCopy} className="h-8 text-xs">
+                                <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Text
+                              </Button>
+                              <Button size="sm" onClick={handleSaveOutreach} className="h-8 text-xs bg-foreground text-background">
+                                <Send className="w-3.5 h-3.5 mr-1.5" /> Log as Sent
+                              </Button>
+                            </div>
+                          </motion.div>
+                        ) : (
+                          <motion.div 
+                            key="empty"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="absolute inset-0 rounded-xl border border-dashed border-border/60 flex flex-col items-center justify-center text-muted-foreground bg-background/50 p-8 text-center"
+                          >
+                            <MessageSquare className="w-8 h-8 mb-3 opacity-20" />
+                            <p className="text-[13px] font-medium text-foreground/70">Awaiting Synthesis</p>
+                            <p className="text-[11px] mt-1 max-w-[200px]">Generate a hyper-personalized outreach draft using Atlas AI.</p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
 
                 </div>

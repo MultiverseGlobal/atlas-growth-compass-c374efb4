@@ -216,6 +216,33 @@ function sanitizeJsonString(str: string): string {
   return result;
 }
 
+// ── Call OpenAI (Custom Key) ───────────────────────────────────────────────────
+async function callOpenAI(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    signal: AbortSignal.timeout(45000),
+    body: JSON.stringify({
+      model: "gpt-4o",
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenAI error: ${res.status} ${err}`);
+  }
+  const data = await res.json();
+  return extractJson(data.choices[0].message.content, expectArray);
+}
+
 // Call Kimi AI — model defaults to 8k for single calls; pass 32k + higher maxTokens for bulk arrays
 async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false, model = "moonshot-v1-8k", maxTokens = 4096): Promise<any> {
   const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
@@ -620,6 +647,15 @@ Deno.serve(async (req: Request) => {
         });
 
     const body: any = await req.json();
+
+    let dbSettings: any = null;
+    if (!isServiceCall) {
+      const { data: { user } } = await userClient.auth.getUser();
+      if (user) {
+        const { data } = await userClient.from("atlas_user_settings").select("*").eq("user_id", user.id).single();
+        dbSettings = data;
+      }
+    }
 
     let userId: string;
     if (isServiceCall) {
@@ -2499,8 +2535,8 @@ Respond ONLY with a JSON object using this exact shape:
     // ACTION: discover-leads
     // ─────────────────────────────────────────────
     if (body.action === "discover-leads") {
-      const { source, industry, keyword, custom_url } = body as any;
-      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+      const { source, industry, keyword, custom_url, custom_api_key } = body as any;
+      const openaiKey = custom_api_key || dbSettings?.openai_api_key || Deno.env.get("OPENAI_API_KEY");
 
       let rawContent = "";
       let sourceLabel = source;

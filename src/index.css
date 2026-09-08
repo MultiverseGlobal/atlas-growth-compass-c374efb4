@@ -233,11 +233,12 @@
   .grain::before {
     content: "";
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+    inset: 0;
     pointer-events: none;
     z-index: 50;
-    opacity: 0.03;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    opacity: 0.04;
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAAD///////////////////////////8q3v5IAAAACHRSTlMAAAAAAAB/wBf3W1kAAAKYSURBVDjLXZCxbsMwDEQTSL2M3V7sXzRkiG7KECNDhg7+/8+O48iSI8s0R4p8erqTRB6Pfx/8V4v5e/oH2V79n3x5L9bHl8v+I+v8wXy/sV9vrNcb63W3/XzT7W3W7fP5fL2+3m63+/3x+Pz8/P7+AaSUUkoJISCEkFJKCSFgTylllBBCCKSUUkqAEFAAEIQASimllBAQQimllBBSSgmEEFJKKQQQQgghhBBSKQEASiEAQgihlFIAIQRCKKUUQgihlFJKIYRQSikAQkAJJQAIIYQQSgEIhBBCCCkEUkophBBSSiGEEEIpBRBCCKWUUEoopQAIIYQQQiklEEIIoZRSCCH1C/oD7A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/A/wP8D/AP8D/APz/9w/kfxkX0t2f6gAAAABJRU5ErkJggg==");
+    background-repeat: repeat;
   }
 
   /* Atlas Luminous Frosted Minimalist Glass Utility Classes */

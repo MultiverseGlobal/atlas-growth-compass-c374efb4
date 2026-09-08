@@ -42,6 +42,20 @@ CREATE POLICY "users update own profile" ON public.profiles
 CREATE POLICY "users insert own profile" ON public.profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
 
+-- ============ ATLAS USER SETTINGS ============
+CREATE TABLE public.atlas_user_settings (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  openai_api_key TEXT,
+  apollo_api_key TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.atlas_user_settings TO authenticated;
+GRANT ALL ON public.atlas_user_settings TO service_role;
+ALTER TABLE public.atlas_user_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users manage own settings" ON public.atlas_user_settings
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
 -- ============ USER ROLES ============
 CREATE TABLE public.user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

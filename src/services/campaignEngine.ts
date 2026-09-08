@@ -165,7 +165,11 @@ export async function discoverCampaignLeads(
       },
     });
 
-    if (!error && data) {
+    if (error) {
+      throw new Error(error.message || "Sourcing edge function failed");
+    }
+
+    if (data) {
       const rawLeads = Array.isArray(data) ? data : (data?.leads ?? []);
       if (rawLeads.length > 0) {
         return rawLeads.map((l: any) => ({
@@ -184,43 +188,12 @@ export async function discoverCampaignLeads(
         }));
       }
     }
-  } catch (err) {
-    console.warn("[CampaignEngine] Sourcing machine API fallback:", err);
+  } catch (err: any) {
+    console.error("[CampaignEngine] Sourcing machine API error:", err);
+    throw new Error(`Lead discovery failed: ${err.message}`);
   }
 
-  // Dynamic high-affinity leads as safe fallback
-  return [
-    {
-      id: "lead-alpha",
-      company: `${keyword} Systems`,
-      website: `https://${keyword.toLowerCase().replace(/[^a-z0-9]/g, "")}sys.io`,
-      founder: { name: "Julian Price", email: `julian@${keyword.toLowerCase().replace(/[^a-z0-9]/g, "")}sys.io`, role: "Chief Executive Officer" },
-      founder_thesis: `Autonomous orchestration infrastructure for ${keyword}; expanding market footprint.`,
-      bottleneck: "Customer acquisition velocity & SDR pipeline scaling",
-      source: channel,
-      icp_score: 95,
-    },
-    {
-      id: "lead-beta",
-      company: `Vektor ${industry.split(" ")[0] || "Growth"}`,
-      website: "https://vektorai.tech",
-      founder: { name: "Katarina Dahl", email: "katarina@vektorai.tech", role: "Head of Growth" },
-      founder_thesis: "Active expansion into North American enterprise B2B market.",
-      bottleneck: "Repetitive qualification and outbound follow-up discipline",
-      source: channel,
-      icp_score: 91,
-    },
-    {
-      id: "lead-gamma",
-      company: "Cognitive Relay",
-      website: "https://cognitiverelay.co",
-      founder: { name: "Arthur Chen", email: "arthur@cognitiverelay.co", role: "Managing Director" },
-      founder_thesis: "Seed-stage venture establishing systematic distribution.",
-      bottleneck: "Founder-led sales transition to automated client acquisition",
-      source: channel,
-      icp_score: 89,
-    },
-  ];
+  throw new Error("No leads found for this criteria.");
 }
 
 // ── Quick Live Web Content Extraction via Jina Reader ─────────────────────────
@@ -260,7 +233,11 @@ export async function generateLeadOutreach(lead: DiscoveredLead, hypothesis: str
       },
     });
 
-    if (!error && data) {
+    if (error) {
+      throw new Error(error.message || "Generate outreach edge function failed");
+    }
+
+    if (data) {
       return {
         subject: data.email?.subject || `Question on ${lead.company}'s operations`,
         body: data.email?.body || `Hi ${lead.founder?.name?.split(" ")[0] || "there"},\n\nI came across ${lead.company} while researching high-velocity teams in this sector.\n\n${hypothesis}\n\nAre you currently handling ${lead.bottleneck?.toLowerCase() || "pipeline generation"} in-house, or systematizing this workflow?\n\nBest regards,\nAtlas Partner`,
@@ -268,16 +245,12 @@ export async function generateLeadOutreach(lead: DiscoveredLead, hypothesis: str
         loom_script: data.loom_script,
       };
     }
-  } catch (err) {
-    console.warn("[CampaignEngine] Remote generate-outreach invocation fallback:", err);
+  } catch (err: any) {
+    console.error("[CampaignEngine] Remote generate-outreach invocation error:", err);
+    throw new Error(`Outreach generation failed: ${err.message}`);
   }
 
-  const firstName = lead.founder?.name?.split(" ")[0] || "there";
-  return {
-    subject: `Question regarding ${lead.company}'s growth pipeline`,
-    body: `Hi ${firstName},\n\nI was reviewing ${lead.company}'s recent work and noticed your focus on ${lead.founder_thesis?.slice(0, 80) || "scaling market reach"}.\n\nWhen speaking with founders in ${lead.source || "the industry"}, the primary friction point is usually ${lead.bottleneck?.toLowerCase() || "repetitive manual outreach"}.\n\nAtlas automates top-of-funnel discovery and distribution so technical teams never spend manual hours on lead qualification.\n\nAre you currently exploring automated client acquisition this quarter?\n\nBest regards,\nAtlas Partner`,
-    linkedin_dm: `Hi ${firstName} — love what you're building at ${lead.company}. Quick question: are you handling ${lead.bottleneck?.toLowerCase() || "outreach"} manually or systematizing it? Happy to share our benchmarks.`,
-  };
+  throw new Error("No outreach draft could be generated.");
 }
 
 // ── Dispatch Real Outreach via Resend API ────────────────────────────────────
