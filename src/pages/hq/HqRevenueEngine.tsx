@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
 
 interface Opportunity {
   id: string;
@@ -150,17 +152,25 @@ export default function HqRevenueEngine() {
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-background items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
-          <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Calibrating Engine...</span>
+      <div className="flex h-screen pt-[72px] bg-background items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <motion.div
+            animate={{ scale: [1, 1.05, 1], opacity: [0.3, 1, 0.3] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <AtlasIcon size={32} className="text-foreground" />
+          </motion.div>
+          <div className="flex flex-col items-center gap-1">
+            <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">Revenue Engine</span>
+            <span className="font-mono text-[9px] text-muted-foreground/50 uppercase tracking-widest">Calibrating</span>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-background text-foreground font-sans overflow-hidden">
+    <div className="flex h-screen pt-[72px] bg-background text-foreground font-sans overflow-hidden">
       
       {/* ── Left Sidebar: Pipeline ────────────────────────────────────────── */}
       <div className="w-[340px] border-r border-border/60 bg-muted/20 flex flex-col shrink-0">

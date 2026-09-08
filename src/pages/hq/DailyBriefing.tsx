@@ -37,7 +37,7 @@ const TOP_OPPORTUNITIES = [
 
 export default function DailyBriefing() {
   return (
-    <div className="p-8 bg-background min-h-screen text-foreground relative overflow-y-auto">
+    <div className="pt-[72px] px-8 pb-8 bg-background min-h-screen text-foreground relative overflow-y-auto">
       <div className="w-full max-w-4xl mx-auto space-y-8">
         
         {/* Header section */}
