@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { 
-  Settings, Key, Users, Building2, Save
+  Settings, Key, Users, Building2, Save, Globe, Lock, Mail, AtSign
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +17,19 @@ export default function HqSettings() {
   const [workspaceName, setWorkspaceName] = useState("Multiverse Global");
   const [domain, setDomain] = useState("multiverse.global");
   const [loading, setLoading] = useState(true);
+  // Outreach delivery settings
+  const [resendKey, setResendKey] = useState("");
+  const [senderName, setSenderName] = useState("Atlas");
+  const [senderEmail, setSenderEmail] = useState("");
+  // Proxy settings (BrightData)
+  const [proxyUrl, setProxyUrl] = useState("");
+  const [proxyAuth, setProxyAuth] = useState("");
   
   useEffect(() => {
     async function loadSettings() {
       if (!user) return;
       setLoading(true);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('atlas_user_settings')
         .select('*')
         .eq('user_id', user.id)
@@ -31,6 +38,11 @@ export default function HqSettings() {
       if (data) {
         setOpenAiKey(data.openai_api_key || "");
         setApolloKey(data.apollo_api_key || "");
+        setResendKey(data.resend_api_key || "");
+        setSenderName(data.sender_name || "Atlas");
+        setSenderEmail(data.sender_email || "");
+        setProxyUrl(data.proxy_url || "");
+        setProxyAuth(data.proxy_auth || "");
       }
       setLoading(false);
     }
@@ -39,25 +51,28 @@ export default function HqSettings() {
 
   const handleSave = async (section: string) => {
     if (!user) return;
-    
-    if (section === "OpenAI" || section === "Apollo") {
-      const { error } = await supabase
-        .from('atlas_user_settings')
-        .upsert({ 
-          user_id: user.id, 
-          openai_api_key: openAiKey,
-          apollo_api_key: apolloKey,
-          updated_at: new Date().toISOString()
-        });
-        
-      if (error) {
-        toast.error(`Failed to save ${section} settings: ${error.message}`);
-        return;
-      }
-      toast.success(`${section} settings saved securely to database.`);
-    } else {
-      toast.success(`${section} settings saved.`);
+
+    const base = {
+      user_id: user.id,
+      openai_api_key: openAiKey,
+      apollo_api_key: apolloKey,
+      resend_api_key: resendKey,
+      sender_name: senderName,
+      sender_email: senderEmail,
+      proxy_url: proxyUrl || null,
+      proxy_auth: proxyAuth || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('atlas_user_settings')
+      .upsert(base);
+
+    if (error) {
+      toast.error(`Failed to save ${section} settings: ${error.message}`);
+      return;
     }
+    toast.success(`${section} settings saved.`);
   };
 
   return (
@@ -74,9 +89,10 @@ export default function HqSettings() {
         </div>
 
         <Tabs defaultValue="workspace" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-[400px] mb-8 bg-card border border-border/40 h-10 p-1">
+          <TabsList className="grid w-full grid-cols-4 max-w-[520px] mb-8 bg-card border border-border/40 h-10 p-1">
             <TabsTrigger value="workspace" className="text-xs font-semibold">Workspace</TabsTrigger>
             <TabsTrigger value="api-keys" className="text-xs font-semibold">API Keys</TabsTrigger>
+            <TabsTrigger value="outreach" className="text-xs font-semibold">Outreach</TabsTrigger>
             <TabsTrigger value="team" className="text-xs font-semibold">Team Access</TabsTrigger>
           </TabsList>
 
@@ -145,7 +161,7 @@ export default function HqSettings() {
                       placeholder="sk-api-..."
                       className="font-mono text-xs bg-background border-border/60 h-10"
                     />
-                    <Button variant="outline" onClick={() => handleSave("Apollo")} className="h-10 px-4">Verify</Button>
+                    <Button variant="outline" onClick={() => handleSave("Apollo")} className="h-10 px-4">Save</Button>
                   </div>
                 </div>
 
@@ -162,9 +178,115 @@ export default function HqSettings() {
                       placeholder="sk-proj-..."
                       className="font-mono text-xs bg-background border-border/60 h-10"
                     />
-                    <Button variant="outline" onClick={() => handleSave("OpenAI")} className="h-10 px-4">Verify</Button>
+                    <Button variant="outline" onClick={() => handleSave("OpenAI")} className="h-10 px-4">Save</Button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── Outreach & Proxy Tab ─────────────────────────────────────── */}
+          <TabsContent value="outreach" className="space-y-6">
+            {/* Resend / Sender */}
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-border/40 pb-4">
+                <div className="h-10 w-10 rounded-lg bg-foreground text-background flex items-center justify-center">
+                  <Mail className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold tracking-tight">Outreach Delivery</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Resend API key and sender identity for automated email sends.</p>
+                </div>
+              </div>
+              <div className="space-y-4 max-w-xl">
+                <div className="space-y-2 p-4 border border-border/60 rounded-lg bg-background/50">
+                  <div className="flex justify-between items-end mb-1">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-foreground">Resend API Key</Label>
+                    <span className="text-[9px] uppercase font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">Email Delivery</span>
+                  </div>
+                  <Input
+                    type="password"
+                    value={resendKey}
+                    onChange={(e) => setResendKey(e.target.value)}
+                    placeholder="re_..."
+                    className="font-mono text-xs bg-background border-border/60 h-10"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2 p-4 border border-border/60 rounded-lg bg-background/50">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <AtSign className="w-3 h-3" /> Sender Name
+                    </Label>
+                    <Input
+                      value={senderName}
+                      onChange={(e) => setSenderName(e.target.value)}
+                      placeholder="Atlas"
+                      className="font-mono text-xs bg-background border-border/60 h-10"
+                    />
+                  </div>
+                  <div className="space-y-2 p-4 border border-border/60 rounded-lg bg-background/50">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <Mail className="w-3 h-3" /> Sender Email
+                    </Label>
+                    <Input
+                      type="email"
+                      value={senderEmail}
+                      onChange={(e) => setSenderEmail(e.target.value)}
+                      placeholder="you@yourdomain.com"
+                      className="font-mono text-xs bg-background border-border/60 h-10"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* BrightData Proxy */}
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-border/40 pb-4">
+                <div className="h-10 w-10 rounded-lg bg-foreground text-background flex items-center justify-center">
+                  <Globe className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold tracking-tight">BrightData Proxy</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Route sourcing requests through a residential proxy to bypass rate limits.</p>
+                </div>
+              </div>
+              <div className="space-y-4 max-w-xl">
+                <div className="space-y-2 p-4 border border-border/60 rounded-lg bg-background/50">
+                  <div className="flex justify-between items-end mb-1">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <Globe className="w-3 h-3" /> Proxy Gateway URL
+                    </Label>
+                    <span className="text-[9px] uppercase font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">BrightData</span>
+                  </div>
+                  <Input
+                    value={proxyUrl}
+                    onChange={(e) => setProxyUrl(e.target.value)}
+                    placeholder="http://zproxy.lum-superproxy.io:22225"
+                    className="font-mono text-xs bg-background border-border/60 h-10"
+                  />
+                </div>
+                <div className="space-y-2 p-4 border border-border/60 rounded-lg bg-background/50">
+                  <div className="flex justify-between items-end mb-1">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <Lock className="w-3 h-3" /> Proxy Credentials
+                    </Label>
+                    <span className="text-[9px] uppercase font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">user:password</span>
+                  </div>
+                  <Input
+                    type="password"
+                    value={proxyAuth}
+                    onChange={(e) => setProxyAuth(e.target.value)}
+                    placeholder="brd-customer-xxx-zone-yyy:password"
+                    className="font-mono text-xs bg-background border-border/60 h-10"
+                  />
+                  <p className="text-[10px] text-muted-foreground font-mono mt-1">Format: <span className="text-foreground/70">brd-customer-&#x3C;id&#x3E;-zone-&#x3C;zone&#x3E;:&#x3C;password&#x3E;</span></p>
+                </div>
+              </div>
+              <div className="pt-2">
+                <Button onClick={() => handleSave("Outreach & Proxy")} className="h-9 bg-foreground text-background gap-2 text-xs font-semibold px-6">
+                  <Save className="w-3.5 h-3.5" /> Save Outreach & Proxy Settings
+                </Button>
               </div>
             </div>
           </TabsContent>

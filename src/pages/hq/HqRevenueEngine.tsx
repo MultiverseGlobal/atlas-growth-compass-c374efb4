@@ -1,15 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
-import { 
-  Building2, MessageSquare, Zap, Loader2, Check, Copy, Send,
-  Target, BarChart2, Mail, ExternalLink, ChevronRight, Activity, Globe,
-  Lock, Focus, Plus
+﻿import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  MessageSquare, Zap, Loader2, Copy, Send,
+  Target, ExternalLink, ChevronRight, Globe,
+  Plus, Video, Clock, CheckCircle2, Link2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { Input } from "@/components/ui/input";
+import { motion, AnimatePresence } from "framer-motion";
 import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
 
 interface Opportunity {
@@ -31,29 +31,49 @@ interface Contact {
   email: string | null;
 }
 
+interface OutreachDraft {
+  id: string;
+  opportunity_id: string;
+  draft_subject: string;
+  draft_body: string;
+  status: string;
+  clario_video_url: string | null;
+  clario_requested_at: string | null;
+  to_email: string | null;
+  auto_send_enabled: boolean;
+  created_at: string;
+}
+
 export default function HqRevenueEngine() {
   const { user } = useAuth();
-  
-  // State
+
+  // Core state
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [activeOpportunityId, setActiveOpportunityId] = useState<string | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Generator State
+
+  // Generator state
   const [generating, setGenerating] = useState(false);
   const [generatingStep, setGeneratingStep] = useState(0);
   const [drafts, setDrafts] = useState<{ email: { subject: string; body: string } } | null>(null);
+
+  // Clario queue state
+  const [waitingDrafts, setWaitingDrafts] = useState<OutreachDraft[]>([]);
+  const [clarioUrlInputs, setClarioUrlInputs] = useState<Record<string, string>>({});
+  const [savingClario, setSavingClario] = useState<Record<string, boolean>>({});
+
+  const realtimeRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const generationSteps = [
     "Retrieving context from database...",
     "Analyzing operational bottlenecks...",
     "Applying Atlas framework...",
     "Drafting personalized sequence...",
-    "Finalizing copy..."
+    "Finalizing copy...",
   ];
 
-  // Load Data
+  // ── Load opportunities ────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -63,9 +83,7 @@ export default function HqRevenueEngine() {
         .select("*")
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
-      
       if (error) throw error;
-      
       if (data) {
         setOpportunities(data);
         if (!activeOpportunityId && data.length > 0) {
@@ -81,51 +99,80 @@ export default function HqRevenueEngine() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Load active contact whenever activeOpportunityId changes
+  // ── Load contact for active opportunity ──────────────────────────────────
   useEffect(() => {
     async function loadContact() {
-      if (!activeOpportunityId) {
-        setActiveContact(null);
-        return;
-      }
+      if (!activeOpportunityId) { setActiveContact(null); return; }
       const { data } = await supabase
         .from("atlas_contacts")
         .select("*")
         .eq("opportunity_id", activeOpportunityId)
         .limit(1)
         .single();
-      
       setActiveContact(data || null);
     }
     loadContact();
   }, [activeOpportunityId]);
 
-  const activeOpp = opportunities.find(o => o.id === activeOpportunityId);
+  // ── Load waiting Clario drafts for the active opportunity ─────────────────
+  const loadWaitingDrafts = useCallback(async () => {
+    if (!activeOpportunityId || !user) return;
+    const { data } = await supabase
+      .from("atlas_outreach")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("opportunity_id", activeOpportunityId)
+      .eq("status", "waiting_for_clario")
+      .order("created_at", { ascending: false });
+    setWaitingDrafts(data || []);
+  }, [activeOpportunityId, user]);
 
+  useEffect(() => { loadWaitingDrafts(); }, [loadWaitingDrafts]);
+
+  // ── Realtime subscription: auto-refresh when atlas_outreach is updated ────
+  useEffect(() => {
+    if (!user) return;
+    // Clean up any existing channel
+    if (realtimeRef.current) {
+      supabase.removeChannel(realtimeRef.current);
+    }
+    const channel = supabase
+      .channel("clario-queue-watch")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "atlas_outreach",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => { loadWaitingDrafts(); }
+      )
+      .subscribe();
+    realtimeRef.current = channel;
+    return () => { supabase.removeChannel(channel); };
+  }, [user, loadWaitingDrafts]);
+
+  const activeOpp = opportunities.find((o) => o.id === activeOpportunityId);
+
+  // ── Generate outreach ─────────────────────────────────────────────────────
   const handleGenerate = async () => {
     if (!activeOpp) return;
     setGenerating(true);
     setGeneratingStep(0);
-    
-    // Simulate step progression for UX
     const stepInterval = setInterval(() => {
       setGeneratingStep((prev) => (prev < generationSteps.length - 1 ? prev + 1 : prev));
     }, 1500);
-
     try {
-      const companyName = activeOpp.organization_name;
-
       const { data, error } = await supabase.functions.invoke("generate-outreach", {
         body: {
-          company: companyName,
+          company: activeOpp.organization_name,
           founder_name: activeContact?.full_name || null,
           sender_name: "Atlas",
         },
       });
-
       clearInterval(stepInterval);
       setGeneratingStep(generationSteps.length - 1);
-
       if (error) throw new Error(error.message);
       setDrafts(data);
       toast.success("Draft generated.");
@@ -143,30 +190,100 @@ export default function HqRevenueEngine() {
     toast.success("Copied to clipboard!");
   };
 
-  const handleSaveOutreach = async () => {
+  // ── Request Clario video (replaces "Log as Sent") ─────────────────────────
+  const handleRequestClario = async () => {
     if (!drafts || !activeOpportunityId || !user) return;
     try {
-      await supabase.from("atlas_outreach").insert({
+      // 1. Save the outreach draft with waiting_for_clario status
+      const { data: outreachRow, error: outreachErr } = await supabase
+        .from("atlas_outreach")
+        .insert({
+          user_id: user.id,
+          opportunity_id: activeOpportunityId,
+          contact_id: activeContact?.id || null,
+          channel: "email",
+          draft_subject: drafts.email.subject,
+          draft_body: drafts.email.body,
+          status: "waiting_for_clario",
+          clario_requested_at: new Date().toISOString(),
+          auto_send_enabled: true,
+          to_email: activeContact?.email || null,
+          to_name: activeContact?.full_name || null,
+        })
+        .select()
+        .single();
+
+      if (outreachErr) throw outreachErr;
+
+      // 2. Create a linked clario_job row
+      await supabase.from("clario_jobs").insert({
         user_id: user.id,
-        opportunity_id: activeOpportunityId,
-        contact_id: activeContact?.id || null,
-        channel: "email",
-        draft_subject: drafts.email.subject,
-        draft_body: drafts.email.body,
-        status: "manually_sent",
-        sent_at: new Date().toISOString(),
+        title: `Screen recording for ${activeOpp?.organization_name}`,
+        description: `Outreach draft: "${drafts.email.subject}"`,
+        status: "pending",
+        outreach_id: outreachRow.id,
       });
-      
-      // Also update the opportunity stage
-      await supabase.from("atlas_opportunities")
+
+      // 3. Update opportunity stage
+      await supabase
+        .from("atlas_opportunities")
         .update({ pipeline_stage: "contacted" })
         .eq("id", activeOpportunityId);
-        
-      loadData();
-      toast.success("Outreach logged.");
+
+      toast.success("Clario video requested. Draft is queued.");
       setDrafts(null);
+      loadData();
+      loadWaitingDrafts();
     } catch (e: any) {
-      toast.error("Failed to save.");
+      toast.error(`Failed: ${e.message}`);
+    }
+  };
+
+  // ── Attach Clario URL manually and trigger send ───────────────────────────
+  const handleAttachAndSend = async (draftId: string) => {
+    const url = clarioUrlInputs[draftId]?.trim();
+    if (!url) { toast.error("Paste a Clario URL first."); return; }
+    setSavingClario((prev) => ({ ...prev, [draftId]: true }));
+    try {
+      // Write URL to atlas_outreach → this also lets the queue-worker auto-send
+      await supabase
+        .from("atlas_outreach")
+        .update({ clario_video_url: url })
+        .eq("id", draftId);
+
+      // Enqueue a send_ready_outreach job immediately
+      await supabase.from("atlas_background_jobs").insert({
+        user_id: user!.id,
+        type: "send_ready_outreach",
+        payload: { outreach_id: draftId },
+      });
+
+      toast.success("Clario URL attached. Email queued for delivery.");
+      setClarioUrlInputs((prev) => ({ ...prev, [draftId]: "" }));
+      loadWaitingDrafts();
+    } catch (e: any) {
+      toast.error(`Failed: ${e.message}`);
+    } finally {
+      setSavingClario((prev) => ({ ...prev, [draftId]: false }));
+    }
+  };
+
+  // ── Send now (when Clario URL was auto-pushed) ────────────────────────────
+  const handleSendNow = async (draft: OutreachDraft) => {
+    if (!draft.clario_video_url) return;
+    setSavingClario((prev) => ({ ...prev, [draft.id]: true }));
+    try {
+      await supabase.from("atlas_background_jobs").insert({
+        user_id: user!.id,
+        type: "send_ready_outreach",
+        payload: { outreach_id: draft.id },
+      });
+      toast.success("Email queued for delivery.");
+      loadWaitingDrafts();
+    } catch (e: any) {
+      toast.error(`Failed: ${e.message}`);
+    } finally {
+      setSavingClario((prev) => ({ ...prev, [draft.id]: false }));
     }
   };
 
@@ -191,33 +308,33 @@ export default function HqRevenueEngine() {
 
   return (
     <div className="flex h-screen pt-[72px] bg-background grain text-foreground font-sans overflow-hidden">
-      
-      {/* ── Left Sidebar: Pipeline ────────────────────────────────────────── */}
+
+      {/* ── Left Sidebar: Pipeline ──────────────────────────────────────── */}
       <div className="w-[340px] border-r border-border/60 bg-card/20 backdrop-blur-xl flex flex-col shrink-0">
         <div className="p-5 border-b border-border/60 flex items-center justify-between bg-card/40 backdrop-blur-md">
           <div>
             <h2 className="font-display text-sm tracking-tight font-bold">PIPELINE</h2>
             <p className="text-[11px] font-mono text-muted-foreground mt-0.5">{opportunities.length} active opportunities</p>
           </div>
-          <Button 
-            onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true }))}
-            size="sm" 
+          <Button
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "n", metaKey: true }))}
+            size="sm"
             className="h-8 w-8 p-0 rounded-lg bg-foreground text-background"
           >
             <Plus className="w-4 h-4" />
           </Button>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {opportunities.map(opp => {
+          {opportunities.map((opp) => {
             const isSelected = opp.id === activeOpportunityId;
             return (
               <button
                 key={opp.id}
                 onClick={() => setActiveOpportunityId(opp.id)}
                 className={`w-full text-left p-4 rounded-xl border transition-all ${
-                  isSelected 
-                    ? "bg-card/60 backdrop-blur-xl border-foreground/30 shadow-md" 
+                  isSelected
+                    ? "bg-card/60 backdrop-blur-xl border-foreground/30 shadow-md"
                     : "bg-background/40 backdrop-blur-md border-border/40 hover:border-foreground/20 opacity-80 hover:opacity-100"
                 }`}
               >
@@ -226,8 +343,8 @@ export default function HqRevenueEngine() {
                   <span className="text-[12px] font-mono text-muted-foreground">£{(opp.deal_value_usd || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border ${opp.pipeline_stage === 'contacted' ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/10' : 'border-border/60 text-muted-foreground bg-muted/50'}`}>
-                    {opp.pipeline_stage.replace('_', ' ')}
+                  <span className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border ${opp.pipeline_stage === "contacted" ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10" : "border-border/60 text-muted-foreground bg-muted/50"}`}>
+                    {opp.pipeline_stage.replace("_", " ")}
                   </span>
                   <ChevronRight className={`w-4 h-4 ${isSelected ? "text-foreground" : "text-muted-foreground"}`} />
                 </div>
@@ -237,7 +354,7 @@ export default function HqRevenueEngine() {
         </div>
       </div>
 
-      {/* ── Center: Command Center ────────────────────────────────────────── */}
+      {/* ── Center: Command Center ──────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 bg-transparent relative">
         {activeOpp ? (
           <div className="relative z-10 flex flex-col h-full">
@@ -249,7 +366,9 @@ export default function HqRevenueEngine() {
                     <h1 className="text-3xl font-display font-bold tracking-tight text-foreground">
                       {activeOpp.organization_name}
                     </h1>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-foreground/20 bg-foreground/5 text-foreground">£{(activeOpp.deal_value_usd || 0).toLocaleString()}</span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-foreground/20 bg-foreground/5 text-foreground">
+                      £{(activeOpp.deal_value_usd || 0).toLocaleString()}
+                    </span>
                   </div>
                   {activeOpp.primary_domain && (
                     <a href={`https://${activeOpp.primary_domain}`} target="_blank" rel="noreferrer" className="inline-flex items-center text-[12px] font-mono text-muted-foreground hover:text-foreground transition-colors mt-2">
@@ -267,10 +386,10 @@ export default function HqRevenueEngine() {
 
             <div className="flex-1 overflow-y-auto p-10">
               <div className="max-w-5xl mx-auto w-full space-y-10">
-                
+
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  
-                  {/* Recon Data */}
+
+                  {/* Reconnaissance Panel */}
                   <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-6">
                       <Target className="w-4 h-4 text-foreground" />
@@ -291,8 +410,6 @@ export default function HqRevenueEngine() {
                           </div>
                         </div>
                       </div>
-                      
-                      
                       <div className="mt-4 space-y-2">
                         <span className="block text-[10px] font-mono text-muted-foreground uppercase">Strategic Intelligence</span>
                         <div className="p-4 rounded-xl bg-background border border-border/60 space-y-3">
@@ -303,7 +420,7 @@ export default function HqRevenueEngine() {
                             </div>
                             <div className="p-2.5 rounded-lg bg-card border border-border/60">
                               <span className="text-[9px] text-muted-foreground block uppercase font-semibold">Pipeline Stage</span>
-                              <span className="text-foreground font-medium block mt-0.5 capitalize">{activeOpp.pipeline_stage.replace('_', ' ')}</span>
+                              <span className="text-foreground font-medium block mt-0.5 capitalize">{activeOpp.pipeline_stage.replace("_", " ")}</span>
                             </div>
                           </div>
                         </div>
@@ -317,9 +434,6 @@ export default function HqRevenueEngine() {
                       <div className="flex items-center gap-2">
                         <Zap className="w-4 h-4 text-foreground" />
                         <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-muted-foreground">Outreach Engine</span>
-import { AnimatePresence } from "framer-motion";
-// Need to add this import if not already present, but motion is already imported. I will just replace the rendering.
-
                       </div>
                       {!drafts && (
                         <Button onClick={handleGenerate} disabled={generating} size="sm" className="h-8 text-xs bg-foreground text-background hover:bg-foreground/90 transition-all duration-300 w-[140px]">
@@ -332,7 +446,7 @@ import { AnimatePresence } from "framer-motion";
                     <div className="flex-1 flex flex-col relative min-h-[200px]">
                       <AnimatePresence mode="wait">
                         {generating ? (
-                          <motion.div 
+                          <motion.div
                             key="generating"
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -356,37 +470,37 @@ import { AnimatePresence } from "framer-motion";
                             </div>
                           </motion.div>
                         ) : drafts ? (
-                          <motion.div 
+                          <motion.div
                             key="drafts"
                             initial={{ opacity: 0, scale: 0.98 }}
                             animate={{ opacity: 1, scale: 1 }}
                             className="flex-1 flex flex-col rounded-xl border border-border/60 bg-background p-6 relative overflow-hidden"
                           >
                             <div className="absolute top-0 left-0 w-1 h-full bg-foreground" />
-                            
+
                             <div className="mb-4">
                               <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Subject Line</span>
                               <div className="text-sm font-semibold text-foreground">{drafts.email.subject}</div>
                             </div>
-                            
+
                             <div className="flex-1 flex flex-col min-h-0">
                               <span className="block text-[10px] font-mono text-muted-foreground uppercase mb-1">Message Body</span>
                               <div className="flex-1 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-card p-4 rounded-lg border border-border/60 overflow-y-auto">
                                 {drafts.email.body}
                               </div>
                             </div>
-                            
+
                             <div className="flex items-center justify-end gap-3 pt-5 mt-auto">
                               <Button variant="outline" size="sm" onClick={handleCopy} className="h-8 text-xs">
                                 <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Text
                               </Button>
-                              <Button size="sm" onClick={handleSaveOutreach} className="h-8 text-xs bg-foreground text-background">
-                                <Send className="w-3.5 h-3.5 mr-1.5" /> Log as Sent
+                              <Button size="sm" onClick={handleRequestClario} className="h-8 text-xs bg-foreground text-background">
+                                <Video className="w-3.5 h-3.5 mr-1.5" /> Request Clario Video
                               </Button>
                             </div>
                           </motion.div>
                         ) : (
-                          <motion.div 
+                          <motion.div
                             key="empty"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -400,8 +514,104 @@ import { AnimatePresence } from "framer-motion";
                       </AnimatePresence>
                     </div>
                   </div>
-
                 </div>
+
+                {/* ── Clario Queue ─────────────────────────────────────── */}
+                {waitingDrafts.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-5"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Video className="w-4 h-4 text-foreground" />
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-muted-foreground">Clario Queue</span>
+                      <span className="ml-auto text-[10px] font-mono bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded">
+                        {waitingDrafts.length} awaiting
+                      </span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {waitingDrafts.map((draft) => {
+                        const isReady = !!draft.clario_video_url;
+                        return (
+                          <div
+                            key={draft.id}
+                            className={`rounded-lg border p-4 space-y-3 transition-all ${
+                              isReady
+                                ? "border-emerald-500/30 bg-emerald-500/5"
+                                : "border-border/60 bg-background/60"
+                            }`}
+                          >
+                            {/* Draft header */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold truncate">{draft.draft_subject}</p>
+                                {draft.to_email && (
+                                  <p className="text-[11px] font-mono text-muted-foreground mt-0.5">{draft.to_email}</p>
+                                )}
+                              </div>
+                              {isReady ? (
+                                <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded shrink-0">
+                                  <CheckCircle2 className="w-3 h-3" /> Ready
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-[10px] font-mono text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded shrink-0">
+                                  <Clock className="w-3 h-3" /> Waiting
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Auto-pushed URL display */}
+                            {isReady && (
+                              <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                <Link2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                <a href={draft.clario_video_url!} target="_blank" rel="noreferrer" className="text-[11px] font-mono text-emerald-600 truncate hover:underline">
+                                  {draft.clario_video_url}
+                                </a>
+                              </div>
+                            )}
+
+                            {/* Manual paste input (when no URL yet) */}
+                            {!isReady && (
+                              <div className="flex gap-2">
+                                <Input
+                                  value={clarioUrlInputs[draft.id] || ""}
+                                  onChange={(e) => setClarioUrlInputs((prev) => ({ ...prev, [draft.id]: e.target.value }))}
+                                  placeholder="Paste Clario recording URL..."
+                                  className="h-8 text-xs font-mono bg-background border-border/60 flex-1"
+                                />
+                                <Button
+                                  size="sm"
+                                  disabled={savingClario[draft.id] || !clarioUrlInputs[draft.id]?.trim()}
+                                  onClick={() => handleAttachAndSend(draft.id)}
+                                  className="h-8 text-xs bg-foreground text-background shrink-0"
+                                >
+                                  {savingClario[draft.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 mr-1" />}
+                                  Attach & Send
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Send now (auto-pushed case) */}
+                            {isReady && (
+                              <Button
+                                size="sm"
+                                disabled={savingClario[draft.id]}
+                                onClick={() => handleSendNow(draft)}
+                                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white w-full"
+                              >
+                                {savingClario[draft.id] ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Send className="w-3 h-3 mr-1.5" />}
+                                Send Now
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+
               </div>
             </div>
           </div>

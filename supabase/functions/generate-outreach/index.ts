@@ -196,9 +196,10 @@ Core rules (non-negotiable):
 - The tone is: peer-to-peer, direct, brief, warm
 - Never use: "unlock", "empower", "synergy", "seamless", "leverage", "game-changer"
 - Never pitch a product or price in the first message
-- For email: max 120 words in the body
+- For email: max 130 words in the body (including the Clario video reference line)
 - For LinkedIn DM: max 60 words — casual, conversational
-- For Loom script: write what ${sender_name} will SAY in a 60-second personalised video — punchy, specific, visual
+- The email must end with a line referencing a short screen recording that shows exactly how the prospect's specific problem has already been solved. Leave the placeholder {{CLARIO_VIDEO_URL}} exactly as-is — it will be replaced automatically with the real video URL when the recording is ready.
+- For Loom/Clario script: write what ${sender_name} will SAY in a 90-second personalised screen recording — walk through the specific bottleneck, show the fix, and end with a call to action.
 
 The sender's name is ${sender_name}.`;
 
@@ -212,11 +213,13 @@ Bottleneck area: ${bottleneckArea}
 Hypothesis: ${hypothesis}
 Approach angle: ${approachAngle}
 
+IMPORTANT: At the very end of the email body, after your closing line, add exactly one natural sentence inviting them to watch a personalised screen recording we built for them. Use the literal token {{CLARIO_VIDEO_URL}} as the hyperlink target in markdown format. Example: "I put together a 60-second walkthrough specifically for ${company} — [watch it here]({{CLARIO_VIDEO_URL}})."
+
 Return ONLY this JSON (no markdown, no explanation):
 {
   "email": {
     "subject": "compelling, specific subject line (max 8 words)",
-    "body": "the full email body (plain text, no HTML, max 120 words)"
+    "body": "the full email body (plain text, no HTML, max 130 words, ending with the Clario recording CTA using {{CLARIO_VIDEO_URL}})"
   },
   "linkedin_dm": "the full LinkedIn DM (max 60 words, casual tone)",
   "loom_script": "what ${sender_name} says in the 60-second Loom video (spoken word style, specific to their bottleneck)"
@@ -252,7 +255,12 @@ Return ONLY this JSON (no markdown, no explanation):
       throw new Error("All AI models failed to generate valid outreach copy.");
     }
 
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify({
+      ...result,
+      // Signal to the frontend that this draft is ready to be paired with a Clario video
+      clario_placeholder_present: typeof result?.email?.body === "string" &&
+        result.email.body.includes("{{CLARIO_VIDEO_URL}}"),
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
