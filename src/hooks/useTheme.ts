@@ -48,9 +48,8 @@ export function useTheme() {
 
   const cycleTheme = () => {
     setTheme((prev) => {
-      if (prev === "clean") return "paper";
-      if (prev === "paper") return "dark";
-      return "clean";
+      if (prev === "dark") return "clean";
+      return "dark";
     });
   };
 

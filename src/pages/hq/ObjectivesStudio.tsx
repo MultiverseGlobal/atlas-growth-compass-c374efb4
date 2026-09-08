@@ -90,7 +90,7 @@ export default function ObjectivesStudio() {
   };
 
   return (
-    <div className="pt-[72px] px-8 pb-8 space-y-8 bg-background min-h-screen text-foreground relative overflow-y-auto">
+    <div className="pt-[72px] px-8 pb-8 space-y-8 bg-background grain min-h-screen text-foreground relative overflow-y-auto">
       <div className="w-full max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <div className="border-b border-border/60 pb-5 text-center flex flex-col items-center">
@@ -110,7 +110,7 @@ export default function ObjectivesStudio() {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-border/60 bg-card p-6 shadow-sm space-y-5"
+            className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-5"
           >
             <div className="flex items-center gap-3 pb-3 border-b border-border/30">
               <Sparkles className="h-5 w-5 text-foreground" />
@@ -139,7 +139,7 @@ export default function ObjectivesStudio() {
             transition={{ delay: 0.1 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-6"
           >
-            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm space-y-4">
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-4">
               <div className="flex items-center gap-3 pb-2 border-b border-border/30">
                 <Building2 className="h-4 w-4 text-foreground" />
                 <h3 className="font-semibold text-sm">Firmographics</h3>
@@ -172,7 +172,7 @@ export default function ObjectivesStudio() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm space-y-4">
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-4">
               <div className="flex items-center gap-3 pb-2 border-b border-border/30">
                 <Briefcase className="h-4 w-4 text-foreground" />
                 <h3 className="font-semibold text-sm">Target Personas</h3>
@@ -213,7 +213,7 @@ export default function ObjectivesStudio() {
             transition={{ delay: 0.2 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-6"
           >
-            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm space-y-5">
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-5">
               <h3 className="font-semibold text-sm flex items-center gap-2 pb-2 border-b border-border/30">
                 <Compass className="h-4 w-4 text-foreground" />
                 Execution Parameters
@@ -256,7 +256,7 @@ export default function ObjectivesStudio() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:border-foreground/30 transition-colors">
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:border-foreground/30 transition-colors">
               <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Lock className="h-24 w-24 text-foreground" />
               </div>

@@ -19,7 +19,7 @@ export default function HqSettings() {
   };
 
   return (
-    <div className="pt-[72px] px-8 pb-8 bg-background min-h-screen text-foreground overflow-y-auto">
+    <div className="pt-[72px] px-8 pb-8 bg-background grain min-h-screen text-foreground overflow-y-auto">
       <div className="max-w-3xl mx-auto space-y-8">
         <div className="border-b border-border/60 pb-5">
           <h1 className="text-3xl font-display font-bold tracking-tight flex items-center gap-3">
@@ -39,7 +39,7 @@ export default function HqSettings() {
           </TabsList>
 
           <TabsContent value="workspace" className="space-y-6">
-            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm space-y-6">
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-border/40 pb-4">
                 <div className="h-10 w-10 rounded-lg bg-foreground text-background flex items-center justify-center">
                   <Building2 className="h-5 w-5" />
@@ -78,7 +78,7 @@ export default function HqSettings() {
           </TabsContent>
 
           <TabsContent value="api-keys" className="space-y-6">
-            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm space-y-6">
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-border/40 pb-4">
                 <div className="h-10 w-10 rounded-lg bg-foreground text-background flex items-center justify-center">
                   <Key className="h-5 w-5" />
@@ -128,7 +128,7 @@ export default function HqSettings() {
           </TabsContent>
 
           <TabsContent value="team" className="space-y-6">
-            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+            <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm">
               <div className="flex items-center gap-3 border-b border-border/40 pb-4 mb-6">
                 <div className="h-10 w-10 rounded-lg bg-foreground text-background flex items-center justify-center">
                   <Users className="h-5 w-5" />

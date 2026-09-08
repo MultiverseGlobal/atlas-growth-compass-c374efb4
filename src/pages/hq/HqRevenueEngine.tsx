@@ -170,11 +170,11 @@ export default function HqRevenueEngine() {
   }
 
   return (
-    <div className="flex h-screen pt-[72px] bg-background text-foreground font-sans overflow-hidden">
+    <div className="flex h-screen pt-[72px] bg-background grain text-foreground font-sans overflow-hidden">
       
       {/* ── Left Sidebar: Pipeline ────────────────────────────────────────── */}
-      <div className="w-[340px] border-r border-border/60 bg-muted/20 flex flex-col shrink-0">
-        <div className="p-5 border-b border-border/60 flex items-center justify-between bg-card/50">
+      <div className="w-[340px] border-r border-border/60 bg-card/20 backdrop-blur-xl flex flex-col shrink-0">
+        <div className="p-5 border-b border-border/60 flex items-center justify-between bg-card/40 backdrop-blur-md">
           <div>
             <h2 className="font-display text-sm tracking-tight font-bold">PIPELINE</h2>
             <p className="text-[11px] font-mono text-muted-foreground mt-0.5">{opportunities.length} active opportunities</p>
@@ -197,8 +197,8 @@ export default function HqRevenueEngine() {
                 onClick={() => setActiveOpportunityId(opp.id)}
                 className={`w-full text-left p-4 rounded-xl border transition-all ${
                   isSelected 
-                    ? "bg-card border-foreground/30 shadow-md" 
-                    : "bg-background border-border/40 hover:border-foreground/20 opacity-80 hover:opacity-100"
+                    ? "bg-card/60 backdrop-blur-xl border-foreground/30 shadow-md" 
+                    : "bg-background/40 backdrop-blur-md border-border/40 hover:border-foreground/20 opacity-80 hover:opacity-100"
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -218,11 +218,11 @@ export default function HqRevenueEngine() {
       </div>
 
       {/* ── Center: Command Center ────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 bg-background relative">
+      <div className="flex-1 flex flex-col min-w-0 bg-transparent relative">
         {activeOpp ? (
           <div className="relative z-10 flex flex-col h-full">
             {/* Header */}
-            <div className="px-10 py-8 border-b border-border/60 bg-card/30 backdrop-blur-sm shrink-0">
+            <div className="px-10 py-8 border-b border-border/60 bg-card/40 backdrop-blur-xl shrink-0">
               <div className="max-w-5xl mx-auto w-full flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-3 mb-1">
@@ -251,7 +251,7 @@ export default function HqRevenueEngine() {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   
                   {/* Recon Data */}
-                  <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+                  <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-6">
                       <Target className="w-4 h-4 text-foreground" />
                       <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-muted-foreground">Reconnaissance</span>
@@ -292,7 +292,7 @@ export default function HqRevenueEngine() {
                   </div>
 
                   {/* Outreach Engine */}
-                  <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm flex flex-col">
+                  <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-6 shadow-sm flex flex-col">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-2">
                         <Zap className="w-4 h-4 text-foreground" />

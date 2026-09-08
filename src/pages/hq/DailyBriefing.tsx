@@ -37,7 +37,7 @@ const TOP_OPPORTUNITIES = [
 
 export default function DailyBriefing() {
   return (
-    <div className="pt-[72px] px-8 pb-8 bg-background min-h-screen text-foreground relative overflow-y-auto">
+    <div className="pt-[72px] px-8 pb-8 bg-background grain min-h-screen text-foreground relative overflow-y-auto">
       <div className="w-full max-w-4xl mx-auto space-y-8">
         
         {/* Header section */}
@@ -68,12 +68,12 @@ export default function DailyBriefing() {
             <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-widest block mb-2">Signals Processing</span>
             <span className="text-3xl font-display font-light text-foreground block">24</span>
           </div>
-          <div className="rounded-xl border border-border/60 bg-foreground/5 p-5 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-5 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-foreground" />
             <span className="text-[10px] font-mono uppercase text-foreground tracking-widest font-semibold block mb-2">Action Required</span>
             <span className="text-3xl font-display font-bold text-foreground block">03</span>
           </div>
-          <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+          <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl p-5 shadow-sm">
             <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-widest block mb-2">System Health</span>
             <span className="text-3xl font-display font-light text-foreground block">92.4%</span>
           </div>
@@ -94,10 +94,10 @@ export default function DailyBriefing() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 key={opp.id} 
-                className="group rounded-xl border border-border/60 bg-card hover:border-foreground/30 transition-all p-0 flex flex-col md:flex-row w-full shadow-sm overflow-hidden"
+                className="group rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl hover:bg-card/60 hover:border-foreground/30 transition-all p-0 flex flex-col md:flex-row w-full shadow-sm overflow-hidden"
               >
                 {/* Rank & Score Block */}
-                <div className="flex flex-row md:flex-col items-center justify-between md:justify-center p-4 md:w-28 border-b md:border-b-0 md:border-r border-border/40 bg-muted/20">
+                <div className="flex flex-row md:flex-col items-center justify-between md:justify-center p-4 md:w-28 border-b md:border-b-0 md:border-r border-border/40 bg-foreground/5 backdrop-blur-sm">
                   <span className="text-[10px] font-mono uppercase text-muted-foreground mb-1">Rank 0{idx + 1}</span>
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-display font-bold text-foreground">{opp.score}</span>
