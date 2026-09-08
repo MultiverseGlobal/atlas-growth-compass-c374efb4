@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
   Sun, Moon, Plus, Command,
-  LayoutDashboard, Target, Layers, Settings, Terminal, User
+  Radar, Crosshair, Cpu, SlidersHorizontal, ChevronRight, User
 } from "lucide-react";
 import { AtlasIcon } from "@/components/atlas/EcosystemIcons";
 import {
@@ -17,11 +17,11 @@ import {
 
 // ── Route metadata ────────────────────────────────────────────────────────────
 const ROUTES: Record<string, { label: string; icon: React.ElementType }> = {
-  "/":            { label: "Command",         icon: Terminal },
-  "/briefing":    { label: "Daily Briefing",  icon: LayoutDashboard },
-  "/objectives":  { label: "Define Hunt",     icon: Target },
-  "/hq/engine":   { label: "Revenue Engine",  icon: Layers },
-  "/hq/settings": { label: "Settings",        icon: Settings },
+  "/":            { label: "Command",         icon: ChevronRight },
+  "/briefing":    { label: "Daily Briefing",  icon: Radar },
+  "/objectives":  { label: "Define Hunt",     icon: Crosshair },
+  "/hq/engine":   { label: "Revenue Engine",  icon: Cpu },
+  "/hq/settings": { label: "Settings",        icon: SlidersHorizontal },
 };
 
 interface FloatingNavProps {
@@ -102,7 +102,7 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-5 left-1/2 -translate-x-1/2 z-50"
+        className="fixed top-5 right-5 z-50"
       >
         <div className="flex items-center p-1 rounded-2xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md">
           {Object.entries(ROUTES).map(([path, routeInfo]) => {
