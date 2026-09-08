@@ -39,11 +39,8 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed top-6 left-1/2 -translate-x-1/2 h-[52px] bg-background/60 backdrop-blur-xl border border-border/60 z-50 flex flex-row items-center px-2 rounded-2xl gap-2 shadow-2xl"
+      className="fixed top-6 left-1/2 -translate-x-1/2 h-[52px] bg-card/60 backdrop-blur-xl border border-border/60 z-50 flex flex-row items-center px-2 rounded-2xl gap-2 shadow-2xl"
     >
-      
-      {/* ── Left: Brand & Dropdown ── */}
-      <div className="flex items-center gap-3">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center justify-center w-9 h-9 rounded-xl bg-foreground text-background shadow-md hover:scale-105 transition-transform outline-none ml-1">
@@ -119,11 +116,9 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      </div>
 
       <div className="h-6 w-px bg-border/60 mx-1" />
 
-      {/* ── Center: Navigation ── */}
       <div className="flex flex-row items-center gap-1">
         {Object.entries(ROUTES).map(([path, routeInfo]) => {
           const isActive = location.pathname === path;
@@ -133,38 +128,16 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
               onClick={() => navigate(path)}
               title={routeInfo.label}
               className={`group relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-300 ease-out ${
-                isActive
-                  ? "bg-foreground text-background shadow-md"
+                isActive 
+                  ? "bg-foreground text-background shadow-md" 
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              <routeInfo.icon className={`h-4 w-4 shrink-0 ${isActive ? "" : "opacity-80 group-hover:opacity-100 transition-opacity"}`} />
+              <routeInfo.icon className={`w-4 h-4 ${isActive ? "" : "opacity-80 group-hover:opacity-100 transition-opacity"}`} />
             </button>
           );
         })}
       </div>
-
-      {/* ── Right: User Actions ── */}
-      <div className="h-6 w-px bg-border/60 mx-1" />
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={cycleTheme}
-          className="group relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-300 ease-out text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Toggle theme"
-        >
-          {theme === "dark" ? <Sun className="h-4 w-4 opacity-80 group-hover:opacity-100 transition-opacity" /> : <Moon className="h-4 w-4 opacity-80 group-hover:opacity-100 transition-opacity" />}
-        </button>
-        {user && (
-          <button
-            onClick={() => signOut().then(() => navigate("/auth"))}
-            className="group relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-300 ease-out text-muted-foreground hover:bg-muted hover:text-foreground"
-            title="Sign out"
-          >
-            <User className="h-4 w-4 opacity-80 group-hover:opacity-100 transition-opacity" />
-          </button>
-        )}
-      </div>
-
     </motion.div>
   );
 }
