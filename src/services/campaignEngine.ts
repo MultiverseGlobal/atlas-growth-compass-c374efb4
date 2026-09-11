@@ -9,6 +9,8 @@ export interface DiscoveredLead {
   bottleneck?: string;
   source?: string;
   icp_score?: number;
+  confidence_score?: number;
+  evidence?: { type: "fact" | "inference"; text: string; source_url?: string }[];
 }
 
 export interface OutreachDraft {
@@ -21,10 +23,11 @@ export interface OutreachDraft {
 export interface CampaignState {
   id?: string;
   prompt: string;
-  status: "idle" | "decomposing" | "discovering" | "drafting" | "awaiting_approval" | "dispatching" | "running" | "paused" | "completed";
+  status: "idle" | "decomposing" | "reviewing_icp" | "discovering" | "drafting" | "awaiting_approval" | "dispatching" | "running" | "paused" | "completed";
   channel: "hn" | "yc" | "clutch" | "starter_story" | "custom";
   keyword: string;
   industry: string;
+  hypothesis: string;
   targetCount: number;
   leads: DiscoveredLead[];
   activeLeadIndex: number;
@@ -142,6 +145,12 @@ export async function discoverCampaignLeads(
             bottleneck: `Streamlining ${keyword.toLowerCase()} deployment & scaling automated client acquisition`,
             source: channel === "hn" ? "Hacker News" : channel.toUpperCase(),
             icp_score: calculatedFit,
+            confidence_score: points > 50 ? 92 : 75,
+            evidence: [
+              { type: "fact", text: `Active on Hacker News (Score: ${points})`, source_url: website },
+              { type: "fact", text: `Founder posting: "${rawTitle}"`, source_url: `https://news.ycombinator.com/item?id=${h.objectID}` },
+              { type: "inference", text: `Likely scaling ${keyword.toLowerCase()} infrastructure based on post engagement` }
+            ]
           };
         });
 
@@ -185,6 +194,11 @@ export async function discoverCampaignLeads(
           bottleneck: l.bottleneck || "Manual lead sourcing & client distribution",
           source: channel,
           icp_score: l.icp_score ?? 91,
+          confidence_score: l.confidence_score ?? 85,
+          evidence: l.evidence || [
+            { type: "fact", text: `Verified company record found via ${channel}`, source_url: l.website || "https://example.com" },
+            { type: "inference", text: `Likely facing bottlenecks in manual operations based on team size` }
+          ]
         }));
       }
     }

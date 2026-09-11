@@ -79,6 +79,11 @@ interface Lead {
   score_reachable?: number;
   score_atlas_relevance?: number;
   is_below_threshold?: boolean;
+  evidence_links?: string[];
+  bottleneck_hypothesis?: string | null;
+  inferred_employee_count?: string | null;
+  services_offered?: string[];
+  confidence_score?: number;
 }
 
 interface NotionDatabase {
@@ -159,8 +164,17 @@ export default function Sourcing() {
   const [opportunityStream, setOpportunityStream] = useState<"all" | "direct" | "partner" | "trigger" | "referral">("all");
 
   // Sourcing mode state
-  const [sourcingMode, setSourcingMode] = useState<"agency_500" | "url" | "text" | "hn" | "starter_story" | "yc" | "clutch" | "upwork">("agency_500");
+  const [sourcingMode, setSourcingMode] = useState<"agency_500" | "url" | "text" | "hn" | "starter_story" | "yc" | "clutch" | "upwork" | "structured_hunt">("structured_hunt");
   const [rawTextInput, setRawTextInput] = useState("");
+  
+  // Structured Hunt Brief state
+  const [huntGeographies, setHuntGeographies] = useState("US, UK, Canada");
+  const [huntEmployeeRange, setHuntEmployeeRange] = useState("5-30");
+  const [huntServices, setHuntServices] = useState("Marketing, Web Dev, Design");
+  const [huntBuyerRoles, setHuntBuyerRoles] = useState("Founder, CEO, Managing Director");
+  const [huntBottlenecks, setHuntBottlenecks] = useState("Lead intake to qualification to CRM update");
+  const [huntExclusions, setHuntExclusions] = useState("Nigeria");
+
   const [hnQueryType, setHnQueryType] = useState("Show HN");
   const [hnCustomQuery, setHnCustomQuery] = useState("");
   const [hnTimeRange, setHnTimeRange] = useState("past_week");
@@ -340,6 +354,58 @@ export default function Sourcing() {
     const isHnMode = sourcingMode === "hn";
     const isClutchMode = sourcingMode === "clutch";
     const isUpworkMode = sourcingMode === "upwork";
+    const isStructuredHunt = sourcingMode === "structured_hunt";
+
+    // ── STRUCTURED HUNT MODE ──────────────────────────────────────────
+    if (isStructuredHunt) {
+      setSourcing(true);
+      setSourcingStep(1); // "Searching Web"
+      const stepInterval = setInterval(() => {
+        setSourcingStep(prev => (prev < 3 ? prev + 1 : prev));
+      }, 4000); // Slower progress for realistic expectation
+
+      try {
+        const { data, error: invokeError } = await supabase.functions.invoke("sourcing-machine", {
+          body: {
+            action: "structured-agency-hunt",
+            brief: {
+              geographies: huntGeographies,
+              employee_range: huntEmployeeRange,
+              services: huntServices,
+              buyer_roles: huntBuyerRoles,
+              bottlenecks: huntBottlenecks,
+              exclusions: huntExclusions,
+            }
+          },
+          signal: AbortSignal.timeout(120000)
+        });
+
+        if (invokeError) throw new Error(invokeError.message ?? "Agency hunt failed");
+        if (data?.error) throw new Error(data.error);
+
+        const extracted: Lead[] = data?.leads || [];
+        const rejected: any[] = data?.rejected || [];
+        
+        if (extracted.length === 0 && rejected.length === 0) {
+          throw new Error("No qualified agencies found matching these exact criteria.");
+        }
+
+        clearInterval(stepInterval);
+        setSourcingStep(4);
+
+        setBulkPreviewLeads(extracted);
+        setRejectedLeads(rejected);
+        setBulkSelectedIndices(extracted.map((_, idx) => idx));
+        setShowBulkPreviewModal(true);
+      } catch (err: any) {
+        toast.error("Hunt failed: " + err.message);
+      } finally {
+        clearInterval(stepInterval);
+        setSourcing(false);
+        setSourcingStep(0);
+      }
+      return;
+    }
 
     // ── HACKER NEWS MODE ─────────────────────────────────────────────
     if (isHnMode) {

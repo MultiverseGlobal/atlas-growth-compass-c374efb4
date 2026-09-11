@@ -43,6 +43,7 @@ export function CommandEngine({
 }: CommandEngineProps) {
   const [inputPrompt, setInputPrompt] = useState("");
   const [selectedLeadModal, setSelectedLeadModal] = useState<DiscoveredLead | null>(null);
+  const [tempIcp, setTempIcp] = useState({ industry: "", keyword: "", hypothesis: "", targetCount: 15 });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isRunning = campaignState.status !== "idle" && campaignState.status !== "completed";
@@ -78,19 +79,47 @@ export function CommandEngine({
       });
       const strategy = await decomposeCampaignPrompt(prompt);
 
+      setTempIcp({
+        industry: strategy.industry,
+        keyword: strategy.keyword,
+        hypothesis: strategy.hypothesis,
+        targetCount: strategy.targetCount,
+      });
+
       onStateChange((prev) => ({
         ...prev,
-        status: "discovering",
+        status: "reviewing_icp",
         channel: strategy.channel,
         keyword: strategy.keyword,
         industry: strategy.industry,
+        hypothesis: strategy.hypothesis,
         targetCount: strategy.targetCount,
       }));
+    } catch (err: any) {
+      toast.error(err.message || "Failed to decompose intent.");
+      onStateChange((prev) => ({
+        ...prev,
+        status: "idle",
+        error: err.message,
+      }));
+    }
+  };
 
-      toast(`Scanning ${strategy.channel.toUpperCase()} & databases for ${strategy.keyword}...`, {
+  const handleApproveIcp = async () => {
+    onStateChange((prev) => ({
+      ...prev,
+      status: "discovering",
+      keyword: tempIcp.keyword,
+      industry: tempIcp.industry,
+      hypothesis: tempIcp.hypothesis,
+      targetCount: tempIcp.targetCount,
+    }));
+
+    try {
+      toast(`Scanning ${campaignState.channel?.toUpperCase()} & databases for ${tempIcp.keyword}...`, {
         icon: <Radar className="h-4 w-4 text-sky-500" />,
       });
-      const foundLeads = await discoverCampaignLeads(strategy.channel, strategy.keyword, strategy.industry);
+      const foundLeads = await discoverCampaignLeads(campaignState.channel!, tempIcp.keyword, tempIcp.industry);
 
       if (foundLeads.length === 0) {
         throw new Error("No leads found for this query. Try a broader industry or keyword.");
@@ -106,7 +135,7 @@ export function CommandEngine({
       toast(`Synthesizing tailored outreach for ${foundLeads[0].company}...`, {
         icon: <PenTool className="h-4 w-4 text-amber-500" />,
       });
-      const draft = await generateLeadOutreach(foundLeads[0], strategy.hypothesis);
+      const draft = await generateLeadOutreach(foundLeads[0], tempIcp.hypothesis);
 
       onStateChange((prev) => ({
         ...prev,
@@ -318,12 +347,16 @@ export function CommandEngine({
               stage={
                 campaignState.status === "decomposing"
                   ? "Decomposing Intent..."
+                  : campaignState.status === "reviewing_icp"
+                  ? "Reviewing Structured ICP..."
                   : campaignState.status === "discovering"
                   ? "Scanning Live Sources..."
+                  : campaignState.error
+                  ? "Scan Failed"
                   : `${campaignState.leads.length} Targets Verified`
               }
-              isActive={campaignState.status === "discovering"}
-              isComplete={campaignState.leads.length > 0}
+              isActive={campaignState.status === "discovering" || campaignState.status === "reviewing_icp"}
+              isComplete={campaignState.leads.length > 0 && campaignState.status !== "reviewing_icp"}
             >
               <div className="mt-4 space-y-3">
                 {/* Visual Telemetry Badge */}
@@ -339,9 +372,37 @@ export function CommandEngine({
                   </span>
                 </div>
 
-                {/* Discovered Leads List with Click-to-Inspect */}
-                {campaignState.leads.length > 0 ? (
-                  <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
+                {/* Discovered Leads List or ICP Review */}
+                {campaignState.status === "reviewing_icp" ? (
+                  <div className="space-y-3 max-h-56 overflow-y-auto pr-1 text-left text-xs font-mono text-foreground">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Target Keyword</label>
+                      <input 
+                        className="w-full rounded-md border p-2 bg-background border-border focus:border-foreground transition-colors" 
+                        value={tempIcp.keyword} onChange={e => setTempIcp(prev => ({...prev, keyword: e.target.value}))} 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Hypothesis</label>
+                      <textarea 
+                        className="w-full rounded-md border p-2 bg-background border-border focus:border-foreground transition-colors resize-none" 
+                        rows={2}
+                        value={tempIcp.hypothesis} onChange={e => setTempIcp(prev => ({...prev, hypothesis: e.target.value}))} 
+                      />
+                    </div>
+                    <button 
+                      onClick={handleApproveIcp} 
+                      className="w-full mt-2 bg-foreground text-background font-bold py-2 rounded-md text-xs hover:opacity-90 transition-opacity flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> Approve & Scan
+                    </button>
+                  </div>
+                ) : campaignState.error && campaignState.leads.length === 0 ? (
+                  <div className="text-center py-4 text-xs font-mono text-rose-500 bg-rose-500/10 rounded-xl border border-rose-500/20">
+                    {campaignState.error}
+                  </div>
+                ) : campaignState.leads.length > 0 ? (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {campaignState.leads.slice(0, 4).map((lead, idx) => (
                       <button
                         key={idx}
@@ -349,7 +410,10 @@ export function CommandEngine({
                         className="w-full flex items-center justify-between text-xs rounded-lg border px-2.5 py-1.5 font-mono text-left transition-colors cursor-pointer bg-card border-border hover:bg-muted text-foreground shadow-sm"
                       >
                         <span className="truncate max-w-[150px] font-medium">{lead.company}</span>
-                        <span className="text-[10px] text-foreground font-semibold">{lead.icp_score}% FIT</span>
+                        <span className="text-[10px] text-foreground font-semibold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          {lead.icp_score}% FIT
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -542,6 +606,32 @@ export function CommandEngine({
                   </span>
                   <p className="mt-0.5 leading-relaxed">{selectedLeadModal.bottleneck || selectedLeadModal.founder_thesis}</p>
                 </div>
+
+                {selectedLeadModal.evidence && selectedLeadModal.evidence.length > 0 && (
+                  <div className="pt-2 border-t border-white/10">
+                    <span className={`block uppercase font-mono text-[10px] ${isDark ? "text-white/40" : "text-neutral-400"} mb-2`}>
+                      Verification Evidence
+                    </span>
+                    <div className="space-y-2">
+                      {selectedLeadModal.evidence.map((ev, i) => (
+                        <div key={i} className={`p-2.5 rounded-lg border ${ev.type === "fact" ? (isDark ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200") : (isDark ? "bg-sky-500/10 border-sky-500/20" : "bg-sky-50 border-sky-200")}`}>
+                           <div className="flex items-center gap-2 mb-1.5">
+                             <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${ev.type === "fact" ? (isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700") : (isDark ? "bg-sky-500/20 text-sky-400" : "bg-sky-100 text-sky-700")}`}>
+                               {ev.type}
+                             </span>
+                             {ev.source_url && (
+                               <a href={ev.source_url} target="_blank" rel="noreferrer" className={`text-[10px] hover:underline flex items-center gap-1 truncate max-w-[200px] ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
+                                 <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                                 {ev.source_url.replace(/^https?:\/\//, '')}
+                               </a>
+                             )}
+                           </div>
+                           <p className={`text-[11px] font-sans ${isDark ? "text-white/90" : "text-neutral-800"}`}>{ev.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button
