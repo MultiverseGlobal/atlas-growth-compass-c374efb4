@@ -393,12 +393,31 @@ async function route(
 
   let lastError: Error | null = null;
   for (const item of chain) {
-    try {
-      console.log(`[diagnose-map] Trying LLM provider: ${item.name}...`);
-      return await item.fn();
-    } catch (e) {
-      console.error(`[diagnose-map] Provider ${item.name} failed:`, e.message || e);
-      lastError = e as Error;
+    let attempt = 0;
+    const maxRetries = 3;
+    let success = false;
+    let result: DiagnoseResponse | null = null;
+    
+    while (attempt < maxRetries) {
+      try {
+        console.log(`[diagnose-map] Trying LLM provider: ${item.name} (Attempt ${attempt + 1})...`);
+        result = await item.fn();
+        success = true;
+        break; // break retry loop
+      } catch (e: any) {
+        attempt++;
+        console.warn(`[diagnose-map] Provider ${item.name} attempt ${attempt} failed:`, e.message || e);
+        lastError = e as Error;
+        
+        if (e.message?.includes("AUTH_ERROR") || attempt >= maxRetries) {
+          break; // break retry loop and try next provider
+        }
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
+      }
+    }
+    
+    if (success && result) {
+      return result;
     }
   }
   throw lastError ?? new Error("All LLM providers failed");

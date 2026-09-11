@@ -1,41 +1,55 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Zap, ArrowUpRight, Activity, Clock, Target, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { StaggerGroup } from "@/components/atlas/StaggerGroup";
 import { motion } from "framer-motion";
-
-// Mock data for top 3 opportunities
-const TOP_OPPORTUNITIES = [
-  {
-    id: "opp_1",
-    company: "Acme Corp",
-    role: "VP Engineering",
-    score: 94,
-    intent: "High intent: Actively researching enterprise architecture",
-    time: "2h ago",
-    status: "hot",
-  },
-  {
-    id: "opp_2",
-    company: "Stark Industries",
-    role: "Director of Product",
-    score: 88,
-    intent: "Medium intent: Visited pricing page 3 times today",
-    time: "5h ago",
-    status: "warm",
-  },
-  {
-    id: "opp_3",
-    company: "Wayne Enterprises",
-    role: "CTO",
-    score: 82,
-    intent: "New signal: Competitor contract expiring soon",
-    time: "1d ago",
-    status: "new",
-  }
-];
+import { supabase } from "@/integrations/supabase/client";
 
 export default function DailyBriefing() {
+  const [topOpportunities, setTopOpportunities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOpps = async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return;
+
+      const { data, error } = await supabase
+        .from('atlas_opportunities')
+        .select('*, atlas_contacts(role)')
+        .eq('user_id', userData.user.id)
+        .order('fit_score', { ascending: false })
+        .limit(3);
+
+      if (data) {
+        setTopOpportunities(data.map((d: any) => ({
+          id: d.id,
+          company: d.company_name,
+          role: d.atlas_contacts?.[0]?.role || "Decision Maker",
+          score: d.fit_score,
+          intent: d.pain_signals?.[0] || "High intent detected from recent sourcing",
+          time: new Date(d.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          status: d.fit_score > 85 ? "hot" : "warm",
+        })));
+      }
+      setLoading(false);
+    };
+
+    fetchOpps();
+
+    // Set up realtime subscription
+    const channel = supabase
+      .channel('public:atlas_opportunities')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'atlas_opportunities' }, () => {
+        fetchOpps(); // Refresh on new opportunities
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   return (
     <div className="pt-[72px] px-8 pb-8 bg-background grain min-h-screen text-foreground relative overflow-y-auto">
       <div className="w-full max-w-4xl mx-auto space-y-8">
@@ -89,7 +103,9 @@ export default function DailyBriefing() {
           </div>
 
           <StaggerGroup className="grid grid-cols-1 gap-4">
-            {TOP_OPPORTUNITIES.map((opp, idx) => (
+            {loading ? (
+              <div className="text-center py-8 text-muted-foreground font-mono text-sm">Initializing Intelligence...</div>
+            ) : topOpportunities.map((opp, idx) => (
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}

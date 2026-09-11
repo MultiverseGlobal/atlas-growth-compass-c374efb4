@@ -345,13 +345,70 @@ export async function getOpportunityDossier(opportunityId: string): Promise<{
   outreach: AtlasOutreach | null;
   followups: AtlasFollowup[];
 } | null> {
-  const opportunity = memoryStore.opportunities.get(opportunityId);
-  if (!opportunity) return null;
+  let opportunity: any = memoryStore.opportunities.get(opportunityId);
+  let evidence = memoryStore.evidence.get(opportunityId) || [];
+  let contacts = memoryStore.contacts.get(opportunityId) || [];
+  let outreach = memoryStore.outreach.get(opportunityId) || null;
+  let followups = memoryStore.followups.get(opportunityId) || [];
 
-  const evidence = memoryStore.evidence.get(opportunityId) || [];
-  const contacts = memoryStore.contacts.get(opportunityId) || [];
-  const outreach = memoryStore.outreach.get(opportunityId) || null;
-  const followups = memoryStore.followups.get(opportunityId) || [];
+  try {
+    const { data: dbOpp } = await supabase
+      .from("atlas_opportunities")
+      .select("*")
+      .eq("id", opportunityId)
+      .maybeSingle();
+
+    if (dbOpp) {
+      opportunity = {
+        id: dbOpp.id,
+        run_id: "live",
+        organization_name: dbOpp.company_name,
+        domain: dbOpp.company_url,
+        industry: "Technology", // fallback
+        employee_count_est: 10,
+        fit_score: dbOpp.fit_score,
+        pipeline_stage: "qualified",
+        next_action_due_at: null,
+        created_at: dbOpp.created_at,
+        updated_at: dbOpp.updated_at,
+      } as AtlasOpportunity;
+
+      const painSignals = Array.isArray(dbOpp.pain_signals) ? dbOpp.pain_signals : [];
+      if (painSignals.length > 0) {
+        evidence = painSignals.map((p: any) => ({
+          id: crypto.randomUUID(),
+          opportunity_id: dbOpp.id,
+          signal_type: "pain_signal",
+          raw_snippet: p.content || p.problem || "Pain signal detected",
+          source_url: p.source || dbOpp.company_url,
+          confidence_score: 90,
+          extracted_at: dbOpp.created_at
+        }));
+      }
+
+      // Try fetching contacts if available (optional for now, fallback to empty)
+      const { data: dbContacts } = await supabase
+        .from("atlas_contacts" as any)
+        .select("*")
+        .eq("company_id", dbOpp.id);
+      
+      if (dbContacts && dbContacts.length > 0) {
+        contacts = dbContacts.map((c: any) => ({
+          id: c.id,
+          opportunity_id: dbOpp.id,
+          full_name: c.name || "Founder",
+          role: c.role || "Decision Maker",
+          email: c.email,
+          linkedin_url: c.linkedin_url,
+          created_at: dbOpp.created_at,
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn("Dossier fetch error, falling back to memory:", err);
+  }
+
+  if (!opportunity) return null;
 
   return { opportunity, evidence, contacts, outreach, followups };
 }

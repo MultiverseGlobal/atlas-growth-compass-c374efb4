@@ -1,4 +1,4 @@
-﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -318,32 +318,56 @@ async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: s
 
 // Call Groq API
 async function callGroq(systemPrompt: string, userPrompt: string, apiKey: string, expectArray = false): Promise<any> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    signal: AbortSignal.timeout(50000), // 50 seconds timeout
-    body: JSON.stringify({
-      model: "llama3-70b-8192",
-      temperature: 0.3,
-      max_tokens: 2048,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    if (res.status === 401) {
-      throw new Error("AUTH_ERROR: Groq API key is invalid or expired.");
+  let attempt = 0;
+  const maxRetries = 3;
+  while (attempt < maxRetries) {
+    try {
+      if (attempt === 1 && Deno.env.get("KIMI_API_KEY")) {
+        console.log("[callGroq] Fallback to Kimi AI due to previous failure.");
+        return await callKimi(systemPrompt, userPrompt, Deno.env.get("KIMI_API_KEY")!, expectArray);
+      } else if (attempt === 2 && Deno.env.get("OPENAI_API_KEY")) {
+        console.log("[callGroq] Fallback to OpenAI due to previous failure.");
+        return await callOpenAI(systemPrompt, userPrompt, Deno.env.get("OPENAI_API_KEY")!, expectArray);
+      }
+
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        signal: AbortSignal.timeout(50000), // 50 seconds timeout
+        body: JSON.stringify({
+          model: "llama3-70b-8192",
+          temperature: 0.3,
+          max_tokens: 2048,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        if (res.status === 401) {
+          throw new Error("AUTH_ERROR: Groq API key is invalid or expired.");
+        }
+        if (res.status === 429) {
+          throw new Error(`RATE_LIMIT: ${errorText}`);
+        }
+        throw new Error(`Groq API error: ${res.status} ${errorText}`);
+      }
+      const data = await res.json();
+      return extractJson(data.choices[0].message.content, expectArray);
+    } catch (err: any) {
+      attempt++;
+      if (err.message.includes("AUTH_ERROR") || attempt >= maxRetries) {
+        throw err;
+      }
+      console.warn(`[callGroq] Attempt ${attempt} failed: ${err.message}. Retrying...`);
+      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
     }
-    throw new Error(`Groq API error: ${res.status} ${errorText}`);
   }
-  const data = await res.json();
-  return extractJson(data.choices[0].message.content, expectArray);
 }
 
 // Parse structured markdown notes into Notion block formats
@@ -2989,6 +3013,90 @@ Respond ONLY as a JSON object:
     }
 
     // ─────────────────────────────────────────────
+    // ACTION: generate-proof
+    // ─────────────────────────────────────────────
+    if (body.action === "generate-proof") {
+      const groqApiKey = Deno.env.get("GROQ_API_KEY") || Deno.env.get("KIMI_API_KEY");
+      if (!groqApiKey) throw new Error("API keys not configured for generate-proof");
+      
+      const prompt = `You are a B2B diagnostic expert. A consultant wants to send a "Proof Asset" (like an async teardown video or workflow map) to a prospect to prove competence based on a detected pain signal.
+      
+Company: ${body.company}
+Pain Signal: ${body.painSignal}
+
+Produce a structured JSON response matching this schema:
+{
+  "title": "string (e.g. Operational Bottleneck Teardown · [Company])",
+  "assetType": "video_teardown" | "workflow_map" | "roi_delta",
+  "summary": "string (1 sentence summary)",
+  "currentBottlenecks": ["string", "string", ...],
+  "streamlinedPipeline": ["string", "string", ...],
+  "loomScript": {
+    "hook": "string",
+    "diagnosis": "string",
+    "proofDemo": "string",
+    "callToAction": "string"
+  },
+  "timeToCreateMin": number,
+  "expectedConversionLift": "string (e.g. 3.4x vs generic outbound)"
+}`;
+
+      try {
+        const res = await callGroq(
+          "You are a B2B diagnostic expert. Respond ONLY with valid JSON matching the exact requested schema.", 
+          prompt, 
+          groqApiKey, 
+          false
+        );
+        return new Response(JSON.stringify(res), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (err: any) {
+        throw new Error(`AI error: ${err.message}`);
+      }
+    }
+
+    // ─────────────────────────────────────────────
+    // ACTION: partner-search
+    // ─────────────────────────────────────────────
+    if (body.action === "partner-search") {
+      const groqApiKey = Deno.env.get("GROQ_API_KEY") || Deno.env.get("KIMI_API_KEY");
+      if (!groqApiKey) throw new Error("API keys not configured for partner-search");
+      
+      const prompt = `You are an expert at identifying strategic B2B partnerships. A user is looking for partners based on this query: "${body.query || 'Agency partners'}".
+      
+Identify 3 distinct high-leverage partner profiles that would be highly complementary. Return a JSON array of exactly 3 objects.
+Schema:
+[{
+  "id": "generated_id",
+  "companyName": "string",
+  "founderName": "string",
+  "website": "string (URL format)",
+  "serviceCategory": "string",
+  "targetIcp": "string",
+  "whyComplementary": "string",
+  "referralModel": "string",
+  "stage": "Identified",
+  "recommendedApproach": "string",
+  "proximityScore": number (between 7.0 and 9.9)
+}]`;
+
+      try {
+        const res = await callGroq(
+          "You are a B2B partner search expert. Respond ONLY with a valid JSON array matching the exact requested schema.", 
+          prompt, 
+          groqApiKey, 
+          true
+        );
+        return new Response(JSON.stringify(res), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (err: any) {
+        throw new Error(`AI error: ${err.message}`);
+      }
+    }
+
+    // ─────────────────────────────────────────────
     // ACTION: auto-enrich (Lead Intelligence Engine)
     // ─────────────────────────────────────────────
     if (body.action === "auto-enrich") {
@@ -3010,13 +3118,13 @@ Respond ONLY as a JSON object:
 
       if (lead_id && supabaseAdmin) {
         const { data: dbLead } = await supabaseAdmin
-          .from("kuro_pipeline_view")
-          .select("id, company, website, user_id, notes")
+          .from("atlas_opportunities")
+          .select("id, company_name, company_url, user_id")
           .eq("id", lead_id)
           .single();
         if (dbLead) {
-          company = dbLead.company;
-          website = dbLead.website;
+          company = dbLead.company_name;
+          website = dbLead.company_url;
           userId = dbLead.user_id;
         }
       }
@@ -3106,12 +3214,11 @@ Perform a complete, structured analysis and return JSON with these exact keys:
         researchData.pain_hypotheses = (enriched.pains ?? []).map((p: any) => p.problem);
         researchData.suggested_offer = enriched.offer?.one_liner ?? researchData.suggested_offer;
 
-        // Update Kuro OS pipeline
-        await supabaseAdmin.from("kuro_pipeline_view").update({
-          research_data: researchData,
-          icp_score: enriched.icp_score ?? 7,
-          priority: enriched.priority ?? "medium",
-          stage: "researched",
+        // Update Atlas Opportunities
+        await supabaseAdmin.from("atlas_opportunities").update({
+          fit_score: enriched.icp_score ?? 7,
+          pain_signals: enriched.pains ?? [],
+          buying_signals: enriched.research?.recent_signals ?? [],
         }).eq("id", lead_id);
 
         // Save outreach drafts into atlas_outreach

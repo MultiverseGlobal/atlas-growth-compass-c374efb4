@@ -1,0 +1,4 @@
+ALTER TABLE public.clario_jobs
+  ADD COLUMN IF NOT EXISTS result JSONB,
+  ADD COLUMN IF NOT EXISTS progress_pct INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS status_msg TEXT;

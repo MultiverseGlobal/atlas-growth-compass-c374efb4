@@ -44,35 +44,25 @@ export function ProofEngineModal({
 
   const handleGenerateProof = async () => {
     setLoading(true);
-    // Simulate / AI-generate structured proof asset based on real pain signal
-    setTimeout(() => {
-      const generated: ProofAsset = {
-        title: `Operational Bottleneck Teardown · ${companyName}`,
-        assetType: "video_teardown",
-        summary: `3-minute asynchronous diagnostic video dismantling the manual friction in ${companyName}'s current workflow.`,
-        currentBottlenecks: [
-          "Manual onboarding form data entry into CRM and spreadsheet tracker",
-          "Ad-hoc Slack channel creation and asynchronous permission provisioning",
-          "Duplicate task assignment across PM tools causing team onboarding lag",
-          "Manual kickoff meeting scheduling and reminder pinging"
-        ],
-        streamlinedPipeline: [
-          "Single intake webhook triggers instant client workspace provisioning",
-          "Automated client portal setup with dynamic role-based access",
-          "Real-time sync between CRM, Slack, and project management board in <10 seconds"
-        ],
-        loomScript: {
-          hook: `Hey ${contactName}, noticed ${companyName} is expanding delivery. Ran a quick 3-minute teardown of where 6+ hours slip in client onboarding and project kickoff.`,
-          diagnosis: `Right now, when a new client signs, your team is likely jumping across 4 separate systems (intake form → CRM → Slack setup → project boards). That adds 3–5 days of turnaround lag.`,
-          proofDemo: `Here is the exact automated event-driven architecture that eliminates the manual copy-paste layer without changing the tools your team already uses.`,
-          callToAction: `If you want the full blueprint or want us to build this out in a 3-day sprint, let me know. Happy to send over the complete workflow file.`
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("sourcing-machine", {
+        body: {
+          action: "generate-proof",
+          company: companyName,
+          painSignal: painSignal || "General operational friction",
         },
-        timeToCreateMin: 3,
-        expectedConversionLift: "3.4x vs generic outbound"
-      };
-      setProof(generated);
+      });
+
+      if (error) throw error;
+      if (data) {
+        setProof(data);
+      }
+    } catch (err: any) {
+      toast.error(`Failed to generate proof: ${err.message}`);
+    } finally {
       setLoading(false);
-    }, 650);
+    }
   };
 
   const copyToClipboard = (text: string, sectionId: string) => {

@@ -60,11 +60,11 @@ export default function HqDiscover() {
       let existingNames: string[] = [];
       if (user) {
         const { data: existing } = await supabase
-          .from("kuro_pipeline_view")
-          .select("company")
+          .from("atlas_opportunities")
+          .select("company_name")
           .eq("user_id", user.id);
         if (existing) {
-          existingNames = existing.map((e) => e.company).filter(Boolean);
+          existingNames = existing.map((e) => e.company_name).filter(Boolean);
         }
       }
 
@@ -86,15 +86,15 @@ export default function HqDiscover() {
       // Check existing leads to auto-flag duplicates
       if (user && leads.length > 0) {
         const { data: existing } = await supabase
-          .from("kuro_pipeline_view")
-          .select("company, website")
+          .from("atlas_opportunities")
+          .select("company_name, company_url")
           .eq("user_id", user.id);
 
         if (existing && existing.length > 0) {
           const existingSet = new Set(
             existing.flatMap((e: any) => [
-              (e.company ?? "").toLowerCase().trim(),
-              (e.website ?? "").toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "").trim(),
+              (e.company_name ?? "").toLowerCase().trim(),
+              (e.company_url ?? "").toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "").trim(),
             ]).filter(Boolean)
           );
 
@@ -125,10 +125,10 @@ export default function HqDiscover() {
     try {
       // Check if already exists
       const { data: existing } = await supabase
-        .from("kuro_pipeline_view")
+        .from("atlas_opportunities")
         .select("id")
         .eq("user_id", user.id)
-        .ilike("company", lead.company)
+        .ilike("company_name", lead.company)
         .maybeSingle();
 
       if (existing) {
@@ -137,17 +137,13 @@ export default function HqDiscover() {
         return;
       }
 
-      const { data: inserted, error } = await supabase.from("kuro_pipeline_view").insert({
+      const { data: inserted, error } = await supabase.from("atlas_opportunities").insert({
         user_id: user.id,
-        prospect: lead.company,
-        company: lead.company,
-        website: lead.website || "https://unknown.com",
-        founder_thesis: "Dream 100 ICP #1 Marketing Agency",
-        notes: lead.description || null,
-        source: lead.source || "clutch",
-        stage: "new",
-        icp_score: 5,
-        is_contacted: false,
+        company_name: lead.company,
+        company_url: lead.website || "https://unknown.com",
+        fit_score: 85, // Mocked high score initially
+        pain_signals: [{ source: lead.source, content: lead.description }],
+        buying_signals: []
       }).select("id").single();
 
       if (error) throw error;

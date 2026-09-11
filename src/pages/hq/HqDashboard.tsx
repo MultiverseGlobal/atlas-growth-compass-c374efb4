@@ -129,10 +129,10 @@ export default function HqDashboard() {
         let fuCompanyMap: Record<string, string> = {};
         if (fuCompanyIds.length > 0) {
           const { data: comps } = await supabase
-            .from("kuro_pipeline_view")
-            .select("id, company")
+            .from("atlas_opportunities")
+            .select("id, company_name")
             .in("id", fuCompanyIds);
-          (comps ?? []).forEach((c: any) => { fuCompanyMap[c.id] = c.company; });
+          (comps ?? []).forEach((c: any) => { fuCompanyMap[c.id] = c.company_name; });
         }
         setFollowUps((fuData ?? []).map((f: any) => ({ ...f, company_name: fuCompanyMap[f.company_id] ?? "Unknown" })));
       } catch (e) {

@@ -75,12 +75,30 @@ export function PartnerEngineModal({ isOpen, onClose, onSelectPartner }: Partner
 
   if (!isOpen) return null;
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     setLoading(true);
-    setTimeout(() => {
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("sourcing-machine", {
+        body: {
+          action: "partner-search",
+          query: query
+        },
+      });
+
+      if (error) throw error;
+      
+      if (data && Array.isArray(data) && data.length > 0) {
+        setPartners(data);
+        toast.success(`Discovered ${data.length} high-leverage partners!`);
+      } else {
+        toast.error("No partners found matching your query.");
+      }
+    } catch (err: any) {
+      toast.error(`Failed to find partners: ${err.message}`);
+    } finally {
       setLoading(false);
-      toast.success("Discovered 3 high-leverage agency & consultant partners!");
-    }, 600);
+    }
   };
 
   const filteredPartners = categoryFilter === "all"

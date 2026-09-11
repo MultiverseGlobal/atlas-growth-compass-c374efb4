@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   MessageSquare, Zap, Loader2, Copy, Send,
   Target, ExternalLink, ChevronRight, Globe,
@@ -160,27 +160,100 @@ export default function HqRevenueEngine() {
     if (!activeOpp) return;
     setGenerating(true);
     setGeneratingStep(0);
+    setDrafts(null);
+    
+    // We start the visual steps
     const stepInterval = setInterval(() => {
-      setGeneratingStep((prev) => (prev < generationSteps.length - 1 ? prev + 1 : prev));
-    }, 1500);
+      setGeneratingStep((prev) => (prev < 2 ? prev + 1 : prev));
+    }, 1000);
+
     try {
-      const { data, error } = await supabase.functions.invoke("generate-outreach", {
-        body: {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-outreach`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
           company: activeOpp.organization_name,
           founder_name: activeContact?.full_name || null,
           sender_name: "Atlas",
-        },
+          stream: true
+        })
       });
+
+      if (!res.ok) throw new Error("Failed to generate outreach");
+
       clearInterval(stepInterval);
-      setGeneratingStep(generationSteps.length - 1);
-      if (error) throw new Error(error.message);
-      setDrafts(data);
-      toast.success("Draft generated.");
+      setGeneratingStep(3); // Drafting personalized sequence...
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder("utf-8");
+      
+      let rawJson = "";
+      
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.choices?.[0]?.delta?.content) {
+                rawJson += data.choices[0].delta.content;
+                
+                // Naive partial JSON extraction for UI rendering
+                let partialSubject = "";
+                let partialBody = "";
+                
+                const subjectMatch = rawJson.match(/"subject":\s*"([^"\\]*(?:\\.[^"\\]*)*)/);
+                if (subjectMatch) {
+                    partialSubject = subjectMatch[1].replace(/\\"/g, '"');
+                }
+                
+                const bodyMatch = rawJson.match(/"body":\s*"([^"\\]*(?:\\.[^"\\]*)*)/);
+                if (bodyMatch) {
+                    partialBody = bodyMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                } else if (!subjectMatch) {
+                    // if neither matched, maybe we just show what we have in body
+                    partialBody = rawJson;
+                }
+                
+                setDrafts({ email: { subject: partialSubject || "Synthesizing...", body: partialBody || "..." } });
+              }
+            } catch (e) {
+              // Ignore partial JSON parse errors
+            }
+          }
+        }
+      }
+      
+      setGeneratingStep(4); // Finalizing copy...
+      
+      // Parse the final complete JSON
+      try {
+        const finalData = JSON.parse(rawJson);
+        setDrafts(finalData);
+        toast.success("Draft generated.");
+      } catch (e) {
+        console.warn("Failed to parse complete JSON, using partial extraction", e);
+        // We already have the partial state which is close enough
+        toast.success("Draft generated.");
+      }
+
     } catch (e: any) {
       clearInterval(stepInterval);
       toast.error(`Generation failed: ${e.message}`);
     } finally {
-      setTimeout(() => setGenerating(false), 500);
+      setGenerating(false);
     }
   };
 
@@ -451,7 +524,7 @@ export default function HqRevenueEngine() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="absolute inset-0 flex flex-col items-center justify-center bg-card/60 backdrop-blur-sm rounded-xl border border-border/40"
+                            className={`absolute inset-0 flex flex-col items-center justify-center bg-card/60 backdrop-blur-sm rounded-xl border border-border/40 z-20 ${drafts ? 'bg-card/30 backdrop-blur-[2px]' : ''}`}
                           >
                             <Loader2 className="w-6 h-6 text-foreground animate-spin mb-4" />
                             <div className="h-5 overflow-hidden relative w-full flex justify-center">
@@ -469,7 +542,8 @@ export default function HqRevenueEngine() {
                               </AnimatePresence>
                             </div>
                           </motion.div>
-                        ) : drafts ? (
+                        ) : null}
+                        {drafts && !generating && (
                           <motion.div
                             key="drafts"
                             initial={{ opacity: 0, scale: 0.98 }}
@@ -499,7 +573,8 @@ export default function HqRevenueEngine() {
                               </Button>
                             </div>
                           </motion.div>
-                        ) : (
+                        )}
+                        {!drafts && !generating && (
                           <motion.div
                             key="empty"
                             initial={{ opacity: 0 }}

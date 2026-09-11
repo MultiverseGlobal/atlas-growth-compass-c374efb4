@@ -49,56 +49,84 @@ function extractJson(raw: string): any {
 }
 
 async function callKimi(systemPrompt: string, userPrompt: string, apiKey: string): Promise<any> {
-  const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    signal: AbortSignal.timeout(50000), // 50s timeout
-    body: JSON.stringify({
-      model: "moonshot-v1-8k",
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    if (res.status === 401) throw new Error("AUTH_ERROR: Moonshot (Kimi) API key is invalid/expired.");
-    throw new Error(`Kimi AI error: ${res.status} ${text}`);
+  let attempt = 0;
+  const maxRetries = 3;
+  while (attempt < maxRetries) {
+    try {
+      const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        signal: AbortSignal.timeout(50000), // 50s timeout
+        body: JSON.stringify({
+          model: "moonshot-v1-8k",
+          temperature: 0.3,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        if (res.status === 401) throw new Error("AUTH_ERROR: Moonshot (Kimi) API key is invalid/expired.");
+        if (res.status === 429) throw new Error(`RATE_LIMIT: ${text}`);
+        throw new Error(`Kimi AI error: ${res.status} ${text}`);
+      }
+      const data = await res.json();
+      return extractJson(data.choices[0].message.content);
+    } catch (err: any) {
+      attempt++;
+      console.warn(`[callKimi] Attempt ${attempt} failed: ${err.message}`);
+      if (err.message.includes("AUTH_ERROR") || attempt >= maxRetries) {
+        throw err;
+      }
+      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
+    }
   }
-  const data = await res.json();
-  return extractJson(data.choices[0].message.content);
 }
 
 async function callNvidiaNim(systemPrompt: string, userPrompt: string, apiKey: string): Promise<any> {
-  const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    signal: AbortSignal.timeout(50000), // 50s timeout
-    body: JSON.stringify({
-      model: "meta/llama-3.1-8b-instruct",
-      temperature: 0.3,
-      max_tokens: 2048,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    if (res.status === 401) throw new Error("AUTH_ERROR: NVIDIA NIM API key is invalid/expired.");
-    throw new Error(`NVIDIA NIM error: ${res.status} ${text}`);
+  let attempt = 0;
+  const maxRetries = 3;
+  while (attempt < maxRetries) {
+    try {
+      const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        signal: AbortSignal.timeout(50000), // 50s timeout
+        body: JSON.stringify({
+          model: "meta/llama-3.1-8b-instruct",
+          temperature: 0.3,
+          max_tokens: 2048,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        if (res.status === 401) throw new Error("AUTH_ERROR: NVIDIA NIM API key is invalid/expired.");
+        if (res.status === 429) throw new Error(`RATE_LIMIT: ${text}`);
+        throw new Error(`NVIDIA NIM error: ${res.status} ${text}`);
+      }
+      const data = await res.json();
+      return extractJson(data.choices[0].message.content);
+    } catch (err: any) {
+      attempt++;
+      console.warn(`[callNvidiaNim] Attempt ${attempt} failed: ${err.message}`);
+      if (err.message.includes("AUTH_ERROR") || attempt >= maxRetries) {
+        throw err;
+      }
+      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
+    }
   }
-  const data = await res.json();
-  return extractJson(data.choices[0].message.content);
 }
 
 Deno.serve(async (req: Request) => {

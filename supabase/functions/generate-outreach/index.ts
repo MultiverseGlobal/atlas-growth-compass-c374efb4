@@ -182,9 +182,11 @@ Deno.serve(async (req: Request) => {
     const founderRole    = founder_role || rd.founder?.role || "Founder";
     const teamSize       = team_size    || rd.team_size    || "growing team";
 
-    const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
-    const groqApiKey = Deno.env.get("GROQ_API_KEY");
-    const customApiKey = body.custom_api_key || dbSettings?.openai_api_key;
+    const openRouterApiKey = Deno.env.get("OPENROUTER_API_KEY");
+    
+    if (!openRouterApiKey) {
+      throw new Error("OPENROUTER_API_KEY is not configured.");
+    }
 
     const systemPrompt = `You are an expert B2B sales copywriter for an AI automation agency.
 Your job is to write outreach messages that sound like a curious, intelligent human — NOT a sales robot.
@@ -198,8 +200,8 @@ Core rules (non-negotiable):
 - Never pitch a product or price in the first message
 - For email: max 130 words in the body (including the Clario video reference line)
 - For LinkedIn DM: max 60 words — casual, conversational
-- The email must end with a line referencing a short screen recording that shows exactly how the prospect's specific problem has already been solved. Leave the placeholder {{CLARIO_VIDEO_URL}} exactly as-is — it will be replaced automatically with the real video URL when the recording is ready.
-- For Loom/Clario script: write what ${sender_name} will SAY in a 90-second personalised screen recording — walk through the specific bottleneck, show the fix, and end with a call to action.
+- The email must end with a line referencing a short screen recording that shows exactly how the prospect's specific problem has already been solved. Leave the placeholder {{CLARIO_VIDEO_URL}} exactly as-is.
+- For Loom/Clario script: write what ${sender_name} will SAY in a 90-second personalised screen recording.
 
 The sender's name is ${sender_name}.`;
 
@@ -213,7 +215,7 @@ Bottleneck area: ${bottleneckArea}
 Hypothesis: ${hypothesis}
 Approach angle: ${approachAngle}
 
-IMPORTANT: At the very end of the email body, after your closing line, add exactly one natural sentence inviting them to watch a personalised screen recording we built for them. Use the literal token {{CLARIO_VIDEO_URL}} as the hyperlink target in markdown format. Example: "I put together a 60-second walkthrough specifically for ${company} — [watch it here]({{CLARIO_VIDEO_URL}})."
+IMPORTANT: At the very end of the email body, add exactly one natural sentence inviting them to watch a personalised screen recording we built for them. Use the literal token {{CLARIO_VIDEO_URL}} as the hyperlink target in markdown format.
 
 Return ONLY this JSON (no markdown, no explanation):
 {
@@ -222,33 +224,80 @@ Return ONLY this JSON (no markdown, no explanation):
     "body": "the full email body (plain text, no HTML, max 130 words, ending with the Clario recording CTA using {{CLARIO_VIDEO_URL}})"
   },
   "linkedin_dm": "the full LinkedIn DM (max 60 words, casual tone)",
-  "loom_script": "what ${sender_name} says in the 60-second Loom video (spoken word style, specific to their bottleneck)"
+  "loom_script": "what ${sender_name} says in the 60-second video"
 }`;
 
-    let result: any = null;
+    const isStream = !!body.stream;
 
-    if (customApiKey) {
+    // OpenRouter Call with Fallbacks and Retry Loop
+    let attempt = 0;
+    const maxRetries = 3;
+    let finalRes: Response | null = null;
+    
+    while (attempt < maxRetries) {
       try {
-        result = await callOpenAI(systemPrompt, userPrompt, customApiKey);
-      } catch (e: any) {
-        console.warn("OpenAI failed:", e.message);
+        finalRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${openRouterApiKey}`,
+            "HTTP-Referer": "https://atlas.ai",
+          },
+          signal: AbortSignal.timeout(60000),
+          body: JSON.stringify({
+            model: "anthropic/claude-3.5-sonnet",
+            // OpenRouter fallback routing
+            route: "fallback",
+            models: ["anthropic/claude-3.5-sonnet", "openai/gpt-4o", "google/gemini-1.5-pro"],
+            temperature: 0.4,
+            max_tokens: 2048,
+            stream: isStream,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            // Note: JSON mode might not be strictly adhered to when streaming by all models, 
+            // but it usually works well enough with Claude/GPT-4o.
+            ...(isStream ? {} : { response_format: { type: "json_object" } }),
+          }),
+        });
+        if (!finalRes.ok) {
+          const err = await finalRes.text();
+          if (finalRes.status === 429) {
+            throw new Error(`RATE_LIMIT: ${err}`);
+          }
+          throw new Error(`OpenRouter error: ${finalRes.status} ${err}`);
+        }
+        break; // Success, exit retry loop
+      } catch (err: any) {
+        attempt++;
+        console.warn(`[generate-outreach] Attempt ${attempt} failed: ${err.message}.`);
+        if (attempt >= maxRetries) {
+          throw err;
+        }
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
       }
     }
+    const res = finalRes!;
 
-    if (!result && kimiApiKey) {
-      try {
-        result = await callKimi(systemPrompt, userPrompt, kimiApiKey);
-      } catch (e: any) {
-        console.warn("Kimi failed:", e.message);
-      }
+    if (isStream) {
+      // Forward the SSE stream directly to the client
+      return new Response(res.body, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
+      });
     }
 
-    if (!result && groqApiKey) {
-      try {
-        result = await callGroq(systemPrompt, userPrompt, groqApiKey);
-      } catch (e: any) {
-        console.warn("Groq failed:", e.message);
-      }
+    const data = await res.json();
+    let result = null;
+    try {
+        result = extractJson(data.choices[0].message.content);
+    } catch(e) {
+        result = JSON.parse(data.choices[0].message.content);
     }
 
     if (!result || !result.email) {
