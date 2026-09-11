@@ -554,14 +554,9 @@ export default function Onboarding() {
         
         // If they chose to connect metaphor, pause the flow to let them connect
         if (setup.integrationIntents?.includes('metaphor')) {
-          setTimeout(() => {
-            setShowConnect(true);
-          }, 2800);
+          setShowConnect(true);
         } else {
-          // Brief pause to let the "Building" screen render, then go to the map with tour
-          setTimeout(() => {
-            nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
-          }, 2800);
+          nav(`/app/map/${mapId}?tour=1&focus=1`, { replace: true });
         }
       } else {
         // Fallback: if something went wrong, stop auto-completing and let user complete onboarding manually

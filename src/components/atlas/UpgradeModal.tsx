@@ -19,9 +19,6 @@ export function UpgradeModal({ open, onClose }: UpgradeModalProps) {
     if (!user) return;
     setUpgrading(true);
     try {
-      // Simulate Stripe checkout delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
       const { error } = await supabase
         .from("profiles")
         .update({ plan: "atlas" })

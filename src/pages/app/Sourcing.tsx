@@ -375,7 +375,6 @@ export default function Sourcing() {
 
         clearInterval(stepInterval);
         setSourcingStep(4);
-        await new Promise(r => setTimeout(r, 200));
 
         setBulkPreviewLeads(extracted);
         setRejectedLeads(rejected);
@@ -515,7 +514,6 @@ export default function Sourcing() {
         
         clearInterval(stepInterval);
         setSourcingStep(4);
-        await new Promise(r => setTimeout(r, 200));
 
         setBulkPreviewLeads(responseObj.leads);
         setRejectedLeads(responseObj.rejected || []);
@@ -557,7 +555,6 @@ export default function Sourcing() {
 
         clearInterval(stepInterval);
         setSourcingStep(4);
-        await new Promise(r => setTimeout(r, 200));
 
         setBulkPreviewLeads(extracted);
         setRejectedLeads(rejected);
@@ -608,7 +605,6 @@ export default function Sourcing() {
         
         clearInterval(stepInterval);
         setSourcingStep(4);
-        await new Promise(r => setTimeout(r, 200));
 
         setBulkPreviewLeads(extracted);
         setRejectedLeads(rejected);

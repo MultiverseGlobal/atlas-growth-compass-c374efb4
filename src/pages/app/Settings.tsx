@@ -68,7 +68,6 @@ export default function Settings() {
     if (!user) return;
     setUpgrading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
       const { error } = await supabase
         .from("profiles")
         .update({ plan: "atlas" })
