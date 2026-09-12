@@ -35,14 +35,14 @@ CREATE TRIGGER trg_metaphor_drafts_updated
 
 -- Update pipeline_crm if it's missing any fields needed by HqICP
 -- HqICP expects: source, company, website, industry, location, team_size, icp_score, rating, founder, bottleneck, pitch, status
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS industry TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS location TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS team_size TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS rating TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS bottleneck_area TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS bottleneck_observation TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS bottleneck_hypothesis TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS pitch_linkedin_dm TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS pitch_email_subject TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS pitch_email_body TEXT;
-ALTER TABLE public.pipeline_crm ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending_decision';
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS industry TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS team_size TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS rating TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS bottleneck_area TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS bottleneck_observation TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS bottleneck_hypothesis TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS pitch_linkedin_dm TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS pitch_email_subject TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS pitch_email_body TEXT;
+ALTER TABLE public.kuro_pipeline_view ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending_decision';

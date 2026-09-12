@@ -24,7 +24,7 @@ export default function DailyBriefing() {
       if (data) {
         setTopOpportunities(data.map((d: any) => ({
           id: d.id,
-          company: d.company_name,
+          company: d.organization_name,
           role: d.atlas_contacts?.[0]?.role || "Decision Maker",
           score: d.fit_score,
           intent: d.pain_signals?.[0] || "High intent detected from recent sourcing",

@@ -164,7 +164,7 @@ export default function HqRevenueEngine() {
     
     // We start the visual steps
     const stepInterval = setInterval(() => {
-      setGeneratingStep((prev) => (prev < 2 ? prev + 1 : prev));
+      setGeneratingStep((prev) => (prev < 3 ? prev + 1 : prev));
     }, 1000);
 
     try {
@@ -399,6 +399,21 @@ export default function HqRevenueEngine() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {opportunities.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center h-full text-center p-4">
+              <Target className="w-8 h-8 mb-3 opacity-20" />
+              <span className="text-[13px] font-medium text-foreground mb-1">Pipeline Empty</span>
+              <span className="text-[11px] text-muted-foreground mb-4">You have no active opportunities.</span>
+              <Button 
+                onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "n", metaKey: true }))} 
+                size="sm" 
+                variant="outline" 
+                className="text-xs h-8"
+              >
+                <Plus className="w-3 h-3 mr-1" /> Add Lead
+              </Button>
+            </div>
+          )}
           {opportunities.map((opp) => {
             const isSelected = opp.id === activeOpportunityId;
             return (

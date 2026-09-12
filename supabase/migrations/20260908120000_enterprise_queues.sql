@@ -52,6 +52,11 @@ ALTER TABLE public.atlas_user_settings
 ALTER TABLE public.atlas_outreach
   DROP CONSTRAINT IF EXISTS atlas_outreach_status_check;
 
+-- Ensure existing data complies with the new constraint
+UPDATE public.atlas_outreach
+  SET status = 'draft'
+  WHERE status NOT IN ('draft','approved','waiting_for_clario','manually_sent','auto_sent','replied','declined');
+
 ALTER TABLE public.atlas_outreach
   ADD CONSTRAINT atlas_outreach_status_check
     CHECK (status IN ('draft','approved','waiting_for_clario','manually_sent','auto_sent','replied','declined'));

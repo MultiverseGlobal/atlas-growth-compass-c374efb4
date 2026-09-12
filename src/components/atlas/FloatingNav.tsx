@@ -106,7 +106,7 @@ export function FloatingNav({ onNewLead }: FloatingNavProps) {
       >
         <div className="flex items-center p-1 rounded-2xl bg-card/80 border border-border/50 shadow-sm backdrop-blur-md">
           {Object.entries(ROUTES).map(([path, routeInfo]) => {
-            const isActive = location.pathname === path;
+            const isActive = path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
             return (
               <button
                 key={path}

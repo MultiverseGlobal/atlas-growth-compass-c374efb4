@@ -358,7 +358,7 @@ export async function dispatchOutreach(
   }
 
   return {
-    success: true,
-    message: `Outreach queued and recorded for ${lead.company} (${targetEmail}).`,
+    success: false,
+    message: `Outreach failed for ${lead.company} (${targetEmail}): No dispatch method succeeded.`,
   };
 }

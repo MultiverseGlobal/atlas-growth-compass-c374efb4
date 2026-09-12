@@ -120,8 +120,8 @@ export default function HqShell() {
   const [newLeadOpen, setNewLeadOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user && location.pathname.startsWith("/hq")) navigate("/auth");
-  }, [user, loading, navigate, location.pathname]);
+    if (!loading && !user) navigate("/auth");
+  }, [user, loading, navigate]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -146,7 +146,7 @@ export default function HqShell() {
     );
   }
 
-  if (!loading && !user && location.pathname.startsWith("/hq")) {
+  if (!loading && !user) {
     return <Navigate to="/auth" replace />;
   }
 

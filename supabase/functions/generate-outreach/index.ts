@@ -110,6 +110,36 @@ async function callGroq(systemPrompt: string, userPrompt: string, apiKey: string
   return extractJson(data.choices[0].message.content);
 }
 
+// ── Call Gemini (fallback LLM) ───────────────────────────────────────────────
+async function callGemini(systemPrompt: string, userPrompt: string, apiKey: string): Promise<any> {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(45000),
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
+      contents: [{
+        role: "user",
+        parts: [{ text: userPrompt }]
+      }],
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 2048,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini error: ${res.status} ${err}`);
+  }
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  return extractJson(text);
+}
+
 // ── Build a hard fallback if LLM fails ──────────────────────────────────────
 function buildFallback(company: string, founderName: string, bottleneckArea: string, hypothesis: string) {
   const first = founderName && !founderName.toLowerCase().includes("founder") ? founderName.split(" ")[0] : "there";
@@ -183,9 +213,21 @@ Deno.serve(async (req: Request) => {
     const teamSize       = team_size    || rd.team_size    || "growing team";
 
     const openRouterApiKey = Deno.env.get("OPENROUTER_API_KEY");
+    const groqApiKey = Deno.env.get("GROQ_API_KEY");
+    const kimiApiKey = Deno.env.get("KIMI_API_KEY") || Deno.env.get("MOONSHOT_API_KEY");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
     
-    if (!openRouterApiKey) {
-      throw new Error("OPENROUTER_API_KEY is not configured.");
+    const providers = [
+      { name: "openrouter", key: openRouterApiKey },
+      { name: "groq", key: groqApiKey },
+      { name: "kimi", key: kimiApiKey },
+      { name: "gemini", key: geminiApiKey },
+      { name: "openai", key: openaiApiKey },
+    ].filter(p => !!p.key);
+
+    if (providers.length === 0) {
+      throw new Error("No LLM API keys configured.");
     }
 
     const systemPrompt = `You are an expert B2B sales copywriter for an AI automation agency.
@@ -229,79 +271,100 @@ Return ONLY this JSON (no markdown, no explanation):
 
     const isStream = !!body.stream;
 
-    // OpenRouter Call with Fallbacks and Retry Loop
-    let attempt = 0;
-    const maxRetries = 3;
     let finalRes: Response | null = null;
-    
-    while (attempt < maxRetries) {
+    let result: any = null;
+    let usedProvider = "";
+
+    for (const provider of providers) {
       try {
-        finalRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${openRouterApiKey}`,
-            "HTTP-Referer": "https://atlas.ai",
-          },
-          signal: AbortSignal.timeout(60000),
-          body: JSON.stringify({
-            model: "anthropic/claude-3.5-sonnet",
-            // OpenRouter fallback routing
-            route: "fallback",
-            models: ["anthropic/claude-3.5-sonnet", "openai/gpt-4o", "google/gemini-1.5-pro"],
-            temperature: 0.4,
-            max_tokens: 2048,
-            stream: isStream,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            // Note: JSON mode might not be strictly adhered to when streaming by all models, 
-            // but it usually works well enough with Claude/GPT-4o.
-            ...(isStream ? {} : { response_format: { type: "json_object" } }),
-          }),
-        });
-        if (!finalRes.ok) {
-          const err = await finalRes.text();
-          if (finalRes.status === 429) {
-            throw new Error(`RATE_LIMIT: ${err}`);
+        if (provider.name === "openrouter") {
+          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${provider.key}`,
+              "HTTP-Referer": "https://atlas.ai",
+            },
+            signal: AbortSignal.timeout(60000),
+            body: JSON.stringify({
+              model: "anthropic/claude-3.5-sonnet",
+              route: "fallback",
+              models: ["anthropic/claude-3.5-sonnet", "openai/gpt-4o", "google/gemini-1.5-pro"],
+              temperature: 0.4,
+              max_tokens: 2048,
+              stream: isStream,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
+              ...(isStream ? {} : { response_format: { type: "json_object" } }),
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`OpenRouter error: ${res.status} ${err}`);
           }
-          throw new Error(`OpenRouter error: ${finalRes.status} ${err}`);
+          if (isStream) {
+            finalRes = res;
+          } else {
+            const data = await res.json();
+            try {
+                result = extractJson(data.choices[0].message.content);
+            } catch(e) {
+                result = JSON.parse(data.choices[0].message.content);
+            }
+          }
+          usedProvider = "openrouter";
+          break;
+        } else if (provider.name === "groq") {
+          result = await callGroq(systemPrompt, userPrompt, provider.key!);
+          usedProvider = "groq";
+          break;
+        } else if (provider.name === "kimi") {
+          result = await callKimi(systemPrompt, userPrompt, provider.key!);
+          usedProvider = "kimi";
+          break;
+        } else if (provider.name === "gemini") {
+          result = await callGemini(systemPrompt, userPrompt, provider.key!);
+          usedProvider = "gemini";
+          break;
+        } else if (provider.name === "openai") {
+          result = await callOpenAI(systemPrompt, userPrompt, provider.key!);
+          usedProvider = "openai";
+          break;
         }
-        break; // Success, exit retry loop
       } catch (err: any) {
-        attempt++;
-        console.warn(`[generate-outreach] Attempt ${attempt} failed: ${err.message}.`);
-        if (attempt >= maxRetries) {
-          throw err;
-        }
-        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
+        console.warn(`[generate-outreach] ${provider.name} failed: ${err.message}. Trying next...`);
       }
     }
-    const res = finalRes!;
+
+    if (!finalRes && !result) {
+      throw new Error("All AI models failed to generate valid outreach copy.");
+    }
 
     if (isStream) {
-      // Forward the SSE stream directly to the client
-      return new Response(res.body, {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "Connection": "keep-alive",
-        },
-      });
-    }
-
-    const data = await res.json();
-    let result = null;
-    try {
-        result = extractJson(data.choices[0].message.content);
-    } catch(e) {
-        result = JSON.parse(data.choices[0].message.content);
-    }
-
-    if (!result || !result.email) {
-      throw new Error("All AI models failed to generate valid outreach copy.");
+      if (finalRes && finalRes.headers.get("content-type")?.includes("event-stream")) {
+        return new Response(finalRes.body, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+          },
+        });
+      } else if (result) {
+        // Fallback fake stream for UI that expects SSE
+        const bodyStr = JSON.stringify({ choices: [{ delta: { content: JSON.stringify(result) } }] });
+        const sse = `data: ${bodyStr}\n\ndata: [DONE]\n\n`;
+        return new Response(sse, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+          },
+        });
+      }
     }
 
     return new Response(JSON.stringify({
